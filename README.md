@@ -1,57 +1,26 @@
-# Banjofy Build 001
+# Banjofy
 
-This is the first clean GitHub-ready build of Banjofy.
+## Build 002.1 - Demo Player
 
-## What this build does
+This build is a visible, interactive step beyond Build 001.
 
-Build 001 is deliberately limited. It proves that the project structure, Qt desktop window, chord diagram drawing, and GitHub Windows EXE build all work.
+Added in this build:
 
-Included:
-
-- Native PySide6 / Qt desktop app
-- Dark Banjofy-style interface
-- Search/results placeholder panel
-- Current chord panel with readable banjo diagram
-- Next chord panel with readable banjo diagram
-- Mode selector: Beginner, Intermediate, Professional
-- Capo selector
-- Concert Chords / Banjo Shapes selector
-- 4-bars-across beat grid placeholder
-- GitHub Actions workflow to build a Windows EXE
+- On-screen version now says **Banjofy 0.2.1 - Build 002.1 Demo Player**.
+- Demo song list has Load buttons.
+- Loading a demo song updates BPM, key, duration, Current and Next chord panels.
+- Play/Pause starts and stops a timer.
+- Beat cursor moves through the grid.
+- Current and Next chord panels update as the cursor moves.
+- Back and Forward move one beat at a time.
+- Speed slider affects playback speed.
+- Loop start/end controls work against demo data.
+- Capo and display mode controls visually refresh chord labels/diagrams.
 
 Not included yet:
 
-- YouTube search/download
-- Audio playback
-- Chord detection
-- Beat detection
+- Real YouTube search.
+- Real audio playback.
+- Real chord detection.
 
-Those are later builds once this shell builds correctly.
-
-## Run locally
-
-```bash
-pip install -r requirements.txt
-python src/main.py
-```
-
-## Build locally
-
-```bash
-pip install -r requirements.txt
-pip install pyinstaller
-pyinstaller Banjofy.spec
-```
-
-The EXE will appear in `dist/`.
-
-## Build on GitHub
-
-After uploading these files to GitHub:
-
-1. Open the repository.
-2. Click **Actions**.
-3. Click **Build Windows EXE**.
-4. Click **Run workflow**.
-5. Wait for the build to finish.
-6. Download the artifact named **Banjofy-Windows**.
+Those are planned for later builds.

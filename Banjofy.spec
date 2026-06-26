@@ -1,18 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-from PyInstaller.utils.hooks import collect_submodules
-
-hiddenimports = collect_submodules('PySide6')
-
 block_cipher = None
-
 
 a = Analysis(
     ['src/main.py'],
-    pathex=['src'],
+    pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=hiddenimports,
+    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
