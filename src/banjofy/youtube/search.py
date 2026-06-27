@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+import urllib.request
 
 
 @dataclass(frozen=True)
@@ -11,6 +12,7 @@ class YouTubeResult:
     duration: str
     url: str
     thumbnail: str = ""
+    thumbnail_data: bytes = b""
 
 
 def _format_duration(seconds: Any) -> str:
@@ -27,54 +29,63 @@ def _format_duration(seconds: Any) -> str:
     return f"{mins}:{secs:02d}"
 
 
-def _video_id_from_entry(entry: dict[str, Any], webpage_url: str) -> str:
-    """Return a YouTube video id if yt-dlp gave us one."""
-    raw_id = entry.get("id") or entry.get("url") or ""
-    raw_id = str(raw_id).strip()
+def _video_id_from_url_or_entry(entry: dict[str, Any], webpage_url: str) -> str:
+    # yt-dlp flat search often gives either an id, a bare video id in url,
+    # or a full YouTube URL. This helper keeps thumbnail fallback safe.
+    video_id = str(entry.get("id") or "").strip()
+    if video_id and len(video_id) <= 20:
+        return video_id
 
-    # yt-dlp search results often use the video id directly as either id or url.
-    if raw_id and not raw_id.startswith("http") and len(raw_id) >= 8:
-        return raw_id
-
-    if "watch?v=" in webpage_url:
-        return webpage_url.split("watch?v=", 1)[1].split("&", 1)[0]
-
-    if "youtu.be/" in webpage_url:
-        return webpage_url.split("youtu.be/", 1)[1].split("?", 1)[0]
-
+    raw_url = str(entry.get("url") or webpage_url or "").strip()
+    if "watch?v=" in raw_url:
+        return raw_url.split("watch?v=", 1)[1].split("&", 1)[0]
+    if "youtu.be/" in raw_url:
+        return raw_url.split("youtu.be/", 1)[1].split("?", 1)[0]
+    if raw_url and not raw_url.startswith("http") and len(raw_url) <= 20:
+        return raw_url
     return ""
 
 
-def _thumbnail_from_entry(entry: dict[str, Any], video_id: str) -> str:
-    """Return the best available thumbnail URL without ever raising an error."""
-    direct = entry.get("thumbnail")
-    if isinstance(direct, str) and direct.startswith("http"):
-        return direct
+def _best_thumbnail_url(entry: dict[str, Any], webpage_url: str) -> str:
+    thumb = entry.get("thumbnail") or ""
+    if isinstance(thumb, str) and thumb.startswith("http"):
+        return thumb
 
-    thumbs = entry.get("thumbnails")
+    thumbs = entry.get("thumbnails") or []
     if isinstance(thumbs, list):
-        # Choose the largest thumbnail that has a valid URL.
-        valid_urls: list[str] = []
-        for item in thumbs:
-            if isinstance(item, dict):
-                url = item.get("url")
+        for candidate in reversed(thumbs):
+            if isinstance(candidate, dict):
+                url = candidate.get("url") or ""
                 if isinstance(url, str) and url.startswith("http"):
-                    valid_urls.append(url)
-        if valid_urls:
-            return valid_urls[-1]
+                    return url
 
+    video_id = _video_id_from_url_or_entry(entry, webpage_url)
     if video_id:
-        return f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
-
+        return f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg"
     return ""
+
+
+def _download_thumbnail(url: str) -> bytes:
+    if not url:
+        return b""
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        with urllib.request.urlopen(req, timeout=8) as response:
+            data = response.read(250_000)
+            return data if data else b""
+    except Exception:
+        # Thumbnail failure must never break search results.
+        return b""
 
 
 def search_youtube(query: str, limit: int = 8) -> list[YouTubeResult]:
     """Search YouTube using yt-dlp and return display-ready results.
 
-    This version deliberately keeps the known-good search behaviour and only
-    adds safer thumbnail handling. Any problem is raised as a readable RuntimeError
-    so Banjofy can show it in the results box instead of appearing to do nothing.
+    Build 004.1F rule:
+    Search text must always remain visible even if thumbnails fail.
     """
     query = query.strip()
     if not query:
@@ -82,14 +93,14 @@ def search_youtube(query: str, limit: int = 8) -> list[YouTubeResult]:
 
     try:
         from yt_dlp import YoutubeDL
-    except Exception as exc:  # pragma: no cover
+    except Exception as exc:  # pragma: no cover - depends on installed package
         raise RuntimeError("yt-dlp is not installed in this build") from exc
 
     options: dict[str, Any] = {
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
-        "extract_flat": True,
+        "extract_flat": "in_playlist",
         "socket_timeout": 20,
         "noplaylist": True,
     }
@@ -104,7 +115,7 @@ def search_youtube(query: str, limit: int = 8) -> list[YouTubeResult]:
     results: list[YouTubeResult] = []
 
     for entry in entries:
-        if not isinstance(entry, dict):
+        if not entry:
             continue
 
         title = entry.get("title") or "Untitled result"
@@ -112,21 +123,20 @@ def search_youtube(query: str, limit: int = 8) -> list[YouTubeResult]:
         duration = _format_duration(entry.get("duration"))
 
         webpage_url = entry.get("webpage_url") or entry.get("url") or ""
-        webpage_url = str(webpage_url).strip()
-
-        if webpage_url and not webpage_url.startswith("http"):
+        if webpage_url and not str(webpage_url).startswith("http"):
             webpage_url = f"https://www.youtube.com/watch?v={webpage_url}"
 
-        video_id = _video_id_from_entry(entry, webpage_url)
-        thumbnail = _thumbnail_from_entry(entry, video_id)
+        thumbnail = _best_thumbnail_url(entry, str(webpage_url))
+        thumbnail_data = _download_thumbnail(thumbnail)
 
         results.append(
             YouTubeResult(
                 title=str(title),
                 channel=str(channel),
                 duration=duration,
-                url=webpage_url,
+                url=str(webpage_url),
                 thumbnail=thumbnail,
+                thumbnail_data=thumbnail_data,
             )
         )
 

@@ -4,7 +4,7 @@ import queue
 import threading
 
 from PySide6.QtCore import Qt, QTimer, QSize
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -29,7 +29,7 @@ from banjofy.player.demo_data import DEMO_SONGS, DemoSong
 from banjofy.ui.widgets import BeatCell, ChordPanel
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.4.1C - YouTube Search Thumbnails"
+APP_VERSION = "Banjofy 0.4.1F - Search Text + Safe Thumbnails"
 
 
 class MainWindow(QMainWindow):
@@ -61,7 +61,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 004.1C ready - YouTube search with thumbnails. No audio/download yet.")
+        self.statusBar().showMessage("Build 004.1F ready - search text protected; thumbnails are optional/safe.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -85,13 +85,16 @@ class MainWindow(QMainWindow):
         search_row.addWidget(self.search)
         search_row.addWidget(self.search_button)
         search_layout.addLayout(search_row)
+
         self.result_list = QListWidget()
-        self.result_list.setMaximumHeight(205)
+        self.result_list.setMaximumHeight(210)
+        self.result_list.setIconSize(QSize(96, 54))
         self.result_list.currentRowChanged.connect(self._select_result)
         for song in DEMO_SONGS:
             self.result_list.addItem(QListWidgetItem(f"DEMO · {song.title}\n{song.artist} · {song.duration} · {song.bpm} BPM"))
         search_layout.addWidget(self.result_list)
-        self.search_hint = QLabel("Search uses yt-dlp. Select a YouTube result to attach it to the demo timing grid.")
+
+        self.search_hint = QLabel("Search uses yt-dlp. Thumbnail failures will not hide results.")
         self.search_hint.setObjectName("HintLabel")
         search_layout.addWidget(self.search_hint)
         top.addWidget(search_panel, 2)
@@ -99,11 +102,13 @@ class MainWindow(QMainWindow):
         meta_panel = self._panel()
         meta_layout = QVBoxLayout(meta_panel)
         meta_layout.setContentsMargins(8, 6, 8, 6)
-        self.selected_thumbnail = QLabel("No thumbnail")
-        self.selected_thumbnail.setObjectName("ThumbnailBox")
-        self.selected_thumbnail.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.selected_thumbnail.setFixedSize(140, 78)
-        meta_layout.addWidget(self.selected_thumbnail, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        self.thumbnail_label = QLabel("No image")
+        self.thumbnail_label.setObjectName("ThumbnailBox")
+        self.thumbnail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.thumbnail_label.setFixedSize(160, 90)
+        meta_layout.addWidget(self.thumbnail_label, alignment=Qt.AlignmentFlag.AlignCenter)
+
         self.title_label = QLabel("—")
         self.title_label.setWordWrap(True)
         self.title_label.setStyleSheet("font-size: 15px; font-weight: bold; color: #f3d99a;")
@@ -113,6 +118,7 @@ class MainWindow(QMainWindow):
         meta_layout.addWidget(self.title_label)
         meta_layout.addWidget(self.artist_label)
         meta_layout.addWidget(self.source_label)
+
         self.bpm_label = QLabel("BPM: —")
         self.key_label = QLabel("Key: —")
         self.duration_label = QLabel("Duration: —")
@@ -127,12 +133,14 @@ class MainWindow(QMainWindow):
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet("font-size: 18px; font-weight: bold; color: #f3d99a;")
         centre_layout.addWidget(title)
+
         chord_row = QHBoxLayout()
         self.current_panel = ChordPanel("CURRENT", "—", "#65b95c")
         self.next_panel = ChordPanel("NEXT", "—", "#c99424", "in 1 beat")
         chord_row.addWidget(self.current_panel, 1)
         chord_row.addWidget(self.next_panel, 1)
         centre_layout.addLayout(chord_row)
+
         self.countdown_label = QLabel("")
         self.countdown_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.countdown_label.setObjectName("CountdownLabel")
@@ -251,64 +259,43 @@ class MainWindow(QMainWindow):
             kind, payload = self.search_queue.get_nowait()
         except queue.Empty:
             return
+
         self.search_poll_timer.stop()
         self.search_button.setEnabled(True)
         self.result_list.clear()
+
         if kind == "error":
             self.result_list.addItem(QListWidgetItem(f"YouTube search error\n{payload}"))
             self.statusBar().showMessage(f"YouTube search error: {payload}")
             return
+
         results = payload if isinstance(payload, list) else []
         self.youtube_results = results
         if not results:
             self.result_list.addItem(QListWidgetItem("No YouTube results found\nTry a different search phrase."))
             self.statusBar().showMessage("No YouTube results found")
             return
-        for index, result in enumerate(results):
-            item = QListWidgetItem()
-            item.setSizeHint(QSize(320, 82))
+
+        for result in results:
+            item = QListWidgetItem(f"YOUTUBE · {result.title}\n{result.channel} · {result.duration}")
+            if result.thumbnail_data:
+                pix = QPixmap()
+                if pix.loadFromData(result.thumbnail_data):
+                    item.setIcon(QIcon(pix.scaled(96, 54, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)))
             self.result_list.addItem(item)
-            self.result_list.setItemWidget(item, self._result_card(result, index))
-        self.statusBar().showMessage(f"Found {len(results)} YouTube results with thumbnails. Click one to attach it to the demo grid.")
 
-    def _result_card(self, result: YouTubeResult, index: int) -> QWidget:
-        card = QFrame()
-        card.setObjectName("ResultCard")
-        layout = QHBoxLayout(card)
-        layout.setContentsMargins(6, 4, 6, 4)
-        layout.setSpacing(8)
+        self.statusBar().showMessage(f"Found {len(results)} YouTube results. Click one to attach it to the demo grid.")
 
-        thumb = QLabel()
-        thumb.setObjectName("ThumbnailBox")
-        thumb.setFixedSize(96, 54)
-        thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._set_thumbnail_pixmap(thumb, result.thumbnail_data, 96, 54)
-        layout.addWidget(thumb)
-
-        text_layout = QVBoxLayout()
-        title = QLabel(result.title)
-        title.setWordWrap(True)
-        title.setStyleSheet("font-weight: bold; color: #f4e2bd;")
-        meta = QLabel(f"{result.channel} · {result.duration}")
-        meta.setStyleSheet("color: #bcae91;")
-        use = QLabel("Click to use this song")
-        use.setStyleSheet("color: #f3c15f; font-size: 11px;")
-        text_layout.addWidget(title)
-        text_layout.addWidget(meta)
-        text_layout.addWidget(use)
-        layout.addLayout(text_layout, 1)
-        card.mousePressEvent = lambda event, row=index: self.result_list.setCurrentRow(row)
-        return card
-
-    def _set_thumbnail_pixmap(self, label: QLabel, data: bytes, width: int, height: int) -> None:
-        if data:
+    def _set_thumbnail(self, result: YouTubeResult | None) -> None:
+        if result and result.thumbnail_data:
             pix = QPixmap()
-            if pix.loadFromData(data):
-                label.setPixmap(pix.scaled(width, height, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-                label.setText("")
+            if pix.loadFromData(result.thumbnail_data):
+                scaled = pix.scaled(160, 90, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                self.thumbnail_label.setPixmap(scaled)
+                self.thumbnail_label.setText("")
                 return
-        label.setPixmap(QPixmap())
-        label.setText("No\nimage")
+        self.thumbnail_label.setPixmap(QPixmap())
+        self.thumbnail_label.setText("No image")
 
     def _load_song(self, song: DemoSong) -> None:
         self.song = song
@@ -316,11 +303,10 @@ class MainWindow(QMainWindow):
         self.loop_start = None
         self.loop_end = None
         self.selection_mode = None
+        self._set_thumbnail(None)
         self.title_label.setText(song.title)
         self.artist_label.setText(song.artist)
         self.source_label.setText("Source: Demo")
-        self.selected_thumbnail.setPixmap(QPixmap())
-        self.selected_thumbnail.setText("Demo")
         self.bpm_label.setText(f"BPM: {song.bpm}")
         self.key_label.setText(f"Key: {song.key}")
         self.duration_label.setText(f"Duration: {song.duration}")
@@ -331,18 +317,20 @@ class MainWindow(QMainWindow):
     def _select_result(self, row: int) -> None:
         if row < 0:
             return
+
         if self.youtube_results:
             if row >= len(self.youtube_results):
                 return
             result = self.youtube_results[row]
             self._stop()
+            self._set_thumbnail(result)
             self.title_label.setText(result.title)
             self.artist_label.setText(result.channel)
             self.source_label.setText("Source: YouTube search result")
             self.duration_label.setText(f"Duration: {result.duration}")
-            self._set_thumbnail_pixmap(self.selected_thumbnail, result.thumbnail_data, 140, 78)
             self.statusBar().showMessage("YouTube result selected. Download/audio/analysis comes in later builds.")
             return
+
         if 0 <= row < len(DEMO_SONGS):
             self._stop()
             self._load_song(DEMO_SONGS[row])
@@ -559,24 +547,15 @@ class MainWindow(QMainWindow):
                 border: 1px solid #333333;
                 border-radius: 8px;
             }
-            QFrame#ResultCard {
-                background: #202020;
-                border: 1px solid #383838;
-                border-radius: 6px;
-            }
-            QFrame#ResultCard:hover {
-                background: #292929;
-                border: 1px solid #5b4419;
-            }
-            QLabel#ThumbnailBox {
-                background: #0d0d0d;
-                color: #8a806c;
-                border: 1px solid #444444;
-                border-radius: 4px;
-            }
             QLabel#HintLabel {
                 color: #bcae91;
                 font-size: 12px;
+            }
+            QLabel#ThumbnailBox {
+                background: #101010;
+                color: #8c806d;
+                border: 1px solid #444444;
+                border-radius: 6px;
             }
             QLabel#BarHeader {
                 background: #2a2418;
@@ -601,6 +580,14 @@ class MainWindow(QMainWindow):
                 border: 1px solid #444444;
                 border-radius: 5px;
                 padding: 5px;
+            }
+            QListWidget::item {
+                padding: 6px;
+                min-height: 58px;
+            }
+            QListWidget::item:selected {
+                background: #4b3920;
+                color: #ffffff;
             }
             QPushButton {
                 background: #2f2f2f;
