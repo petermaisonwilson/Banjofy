@@ -12,7 +12,8 @@ class BanjoDiagram(QWidget):
         super().__init__(parent)
         self._shape: ChordShape = get_chord(chord)
         self._compact = compact
-        self.setMinimumSize(92 if compact else 112, 92 if compact else 92)
+        # Slightly taller compact diagrams so finger numbers remain readable in the beat grid.
+        self.setMinimumSize(96 if compact else 112, 104 if compact else 92)
 
     def set_chord(self, chord: str) -> None:
         self._shape = get_chord(chord)
@@ -26,10 +27,10 @@ class BanjoDiagram(QWidget):
         w = self.width()
         h = self.height()
         left = 18 if self._compact else 24
-        top = 10 if self._compact else 18
-        bottom_space = 16 if self._compact else 18
+        top = 12 if self._compact else 18
+        bottom_space = 18 if self._compact else 18
         grid_w = max(50, w - left - 12)
-        grid_h = max(45, h - top - bottom_space)
+        grid_h = max(48, h - top - bottom_space)
         string_count = 5
         fret_count = 4
 
@@ -51,9 +52,9 @@ class BanjoDiagram(QWidget):
         labels = ["g", "D", "G", "B", "D"]
         for i, label in enumerate(labels):
             x = left + i * grid_w / (string_count - 1)
-            painter.drawText(int(x - 4), int(top + grid_h + (10 if self._compact else 16)), label)
+            painter.drawText(int(x - 4), int(top + grid_h + (12 if self._compact else 16)), label)
 
-        dot_size = 14 if self._compact else 22
+        dot_size = 16 if self._compact else 22
         painter.setFont(QFont("Segoe UI", 7 if self._compact else 9, QFont.Weight.Bold))
         for i, fret in enumerate(self._shape.frets):
             x = left + i * grid_w / (string_count - 1)
@@ -68,8 +69,9 @@ class BanjoDiagram(QWidget):
                 painter.setBrush(QBrush(bg_dot))
                 painter.drawEllipse(int(x - dot_size / 2), int(y - dot_size / 2), dot_size, dot_size)
                 finger = self._shape.fingers[i]
-                if finger and not self._compact:
+                if finger:
                     painter.setPen(QPen(dot, 1))
+                    # Finger numbers are now shown on both large and compact grid diagrams.
                     painter.drawText(int(x - 4), int(y + 4), str(finger))
 
 
@@ -108,7 +110,7 @@ class BeatCell(QFrame):
         self.is_active = False
         self.is_loop = False
         self.setObjectName("BeatCell")
-        self.setMinimumHeight(138)
+        self.setMinimumHeight(150)
         self.setMinimumWidth(92)
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(4, 4, 4, 4)
