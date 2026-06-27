@@ -1,28 +1,34 @@
-# Banjofy
+# Banjofy Build 003.1
 
-## Build 002.5 - Loop Buttons and Count-In
+This build restores the working demo-player behaviour from Build 002.6 and adds a responsive layout fix.
 
-This build refines the demo player controls and beat grid.
+## Included
 
-Changes in Build 002.5:
+- Restored loop selection by clicking beat squares.
+- Restored To Start navigation.
+- Restored Back button clamp so it cannot jump from beat 1 to the final beat.
+- Restored count-in before playback.
+- Restored 3-bars-across beat grid.
+- Improved resizing so the grid uses remaining space and avoids horizontal scrolling.
+- Updated visible app name: `Banjofy 0.3.1 - Build 003.1 Restore 002.6 + Layout`.
 
-- On-screen version now says **Banjofy 0.2.5 - Build 002.5 Loop + Count-In**.
-- Loop spin boxes have been replaced by large musician-friendly buttons:
-  - **Set Start**
-  - **Set End**
-  - **Clear Loop**
-- Loop can now be fully turned off with **Clear Loop**.
-- Beat grid keeps the 3-bars-across layout.
-- Added clear **Bar 1 / Bar 2 / Bar 3** style headers above each group of beats.
-- Added a configurable count-in before playback:
-  - 0, 1, 2, 3, 4, or 8 beats
-  - default is 4 beats
-- Pressing Play now counts in before the beat cursor starts, so the player can hit the first beat.
+## Not included yet
 
-Still not included:
+- Real YouTube search.
+- Audio download.
+- Sound playback.
+- Automatic chord analysis.
 
-- Real audio playback.
-- YouTube search/download.
-- Automatic chord detection.
+Those should come next once the restored demo player is confirmed working again.
 
-Those come later, after the demo timing/playback behaviour is solid.
+## GitHub upload
+
+Upload/replace these items in the repository root:
+
+- `src`
+- `README.md`
+- `requirements.txt`
+- `Banjofy.spec`
+- `.gitignore`
+
+The `.github/workflows/windows-build.yml` file is included for completeness, but if your workflow is already working you do not need to change it.

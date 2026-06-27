@@ -8,6 +8,8 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QPushButton,
     QScrollArea,
@@ -19,464 +21,392 @@ from PySide6.QtWidgets import (
 )
 
 from banjofy.banjo.chords import transpose_chord
-from banjofy.player.demo_songs import DEMO_SONGS, DemoSong
-from banjofy.ui.widgets import BanjoDiagram, ChordPanel
+from banjofy.player.demo_data import DEMO_SONGS, DemoSong
+from banjofy.ui.widgets import BeatCell, ChordPanel
 
-BUILD_LABEL = "Banjofy 0.2.5 - Build 002.5 Loop + Count-In"
+APP_VERSION = "Banjofy 0.3.1 - Build 003.1 Restore 002.6 + Layout"
 
 
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle(BUILD_LABEL)
-        self.resize(1320, 820)
-        self.song: DemoSong | None = None
-        self.beat_index = 0
+        self.setWindowTitle(APP_VERSION)
+        self.resize(1360, 840)
+        self.setMinimumSize(980, 650)
+
+        self.song: DemoSong = DEMO_SONGS[0]
+        self.position = 0
         self.is_playing = False
-        self.grid_cells: list[QFrame] = []
-        self.chord_labels: list[QLabel] = []
-        self.grid_diagrams: list[BanjoDiagram] = []
-        self.loop_start_bar: int | None = None
-        self.loop_end_bar: int | None = None
-        self.is_counting_in = False
         self.count_in_remaining = 0
+        self.loop_start: int | None = None
+        self.loop_end: int | None = None
+        self.selection_mode: str | None = None
+        self.cells: list[BeatCell] = []
 
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self._advance_beat)
+        self.timer.timeout.connect(self._tick)
 
         self._apply_style()
         self.setCentralWidget(self._build_ui())
         self.setStatusBar(QStatusBar())
-        self.statusBar().showMessage("Build 002.5 ready - visual loop buttons and count-in")
-        self._load_demo_song(0)
+        self._load_song(self.song)
+        self._update_all()
+        self.statusBar().showMessage("Build 003.1 ready - restored demo player/navigation. Real audio is next.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
         outer = QVBoxLayout(root)
-        outer.setContentsMargins(10, 10, 10, 10)
-        outer.setSpacing(8)
+        outer.setContentsMargins(8, 8, 8, 8)
+        outer.setSpacing(6)
 
         top = QHBoxLayout()
+        top.setSpacing(6)
         outer.addLayout(top, 0)
 
+        # Search / demo song choice panel. YouTube integration will attach here later.
         search_panel = self._panel()
         search_layout = QVBoxLayout(search_panel)
+        search_layout.setContentsMargins(8, 6, 8, 6)
         search_row = QHBoxLayout()
         self.search = QLineEdit()
-        self.search.setPlaceholderText("Build 002.4: demo search only - audio comes later")
-        self.search.textChanged.connect(self._filter_demo_results)
+        self.search.setPlaceholderText("YouTube search comes after layout/player stability - demo songs below for now")
+        search_button = QPushButton("Search")
+        search_button.setEnabled(False)
         search_row.addWidget(self.search)
+        search_row.addWidget(search_button)
         search_layout.addLayout(search_row)
-        search_layout.addWidget(QLabel("Demo songs"))
-        self.results_layout = QVBoxLayout()
-        search_layout.addLayout(self.results_layout)
-        self.result_widgets: list[QWidget] = []
-        self._build_demo_results()
+        self.result_list = QListWidget()
+        self.result_list.setMaximumHeight(150)
+        self.result_list.currentRowChanged.connect(self._select_demo_song)
+        for song in DEMO_SONGS:
+            self.result_list.addItem(QListWidgetItem(f"{song.title}\n{song.artist} · {song.duration} · {song.bpm} BPM"))
+        search_layout.addWidget(self.result_list)
         top.addWidget(search_panel, 2)
 
         meta_panel = self._panel()
         meta_layout = QVBoxLayout(meta_panel)
-        self.bpm_value = self._info_box("BPM", "—")
-        self.key_value = self._info_box("Key", "—")
-        self.time_value = self._info_box("Time Sig", "4/4")
-        self.duration_value = self._info_box("Duration", "—")
-        for item in [self.bpm_value, self.key_value, self.time_value, self.duration_value]:
-            meta_layout.addWidget(item["frame"])
+        meta_layout.setContentsMargins(8, 6, 8, 6)
+        self.title_label = QLabel("—")
+        self.title_label.setStyleSheet("font-size: 15px; font-weight: bold; color: #f3d99a;")
+        self.artist_label = QLabel("—")
+        meta_layout.addWidget(self.title_label)
+        meta_layout.addWidget(self.artist_label)
+        self.bpm_label = QLabel("BPM: —")
+        self.key_label = QLabel("Key: —")
+        self.duration_label = QLabel("Duration: —")
+        for w in [self.bpm_label, self.key_label, self.duration_label]:
+            meta_layout.addWidget(w)
         top.addWidget(meta_panel, 1)
 
         centre = self._panel()
         centre_layout = QVBoxLayout(centre)
-        title = QLabel(BUILD_LABEL)
+        centre_layout.setContentsMargins(8, 6, 8, 6)
+        title = QLabel(APP_VERSION)
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #f3d99a;")
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #f3d99a;")
         centre_layout.addWidget(title)
         chord_row = QHBoxLayout()
-        self.current_panel = ChordPanel("CURRENT", "D", "#65b95c")
-        self.next_panel = ChordPanel("NEXT", "G", "#c99424", "in 1 beat")
+        self.current_panel = ChordPanel("CURRENT", "—", "#65b95c")
+        self.next_panel = ChordPanel("NEXT", "—", "#c99424", "in 1 beat")
         chord_row.addWidget(self.current_panel, 1)
         chord_row.addWidget(self.next_panel, 1)
         centre_layout.addLayout(chord_row)
-        top.addWidget(centre, 5)
+        top.addWidget(centre, 4)
 
         settings = self._panel()
         settings_layout = QVBoxLayout(settings)
+        settings_layout.setContentsMargins(8, 6, 8, 6)
         settings_layout.addWidget(QLabel("Mode"))
         self.mode = QComboBox()
         self.mode.addItems(["Beginner", "Intermediate", "Professional"])
         self.mode.setCurrentText("Intermediate")
-        self.mode.currentTextChanged.connect(self._refresh_grid)
+        self.mode.currentTextChanged.connect(self._mode_changed)
         settings_layout.addWidget(self.mode)
         settings_layout.addWidget(QLabel("Capo"))
         self.capo = QSpinBox()
         self.capo.setRange(0, 12)
-        self.capo.valueChanged.connect(self._refresh_grid)
+        self.capo.valueChanged.connect(self._update_all)
         settings_layout.addWidget(self.capo)
         settings_layout.addWidget(QLabel("Show"))
         self.show_mode = QComboBox()
         self.show_mode.addItems(["Concert Chords", "Banjo Shapes"])
-        self.show_mode.currentTextChanged.connect(self._refresh_grid)
+        self.show_mode.currentTextChanged.connect(self._update_all)
         settings_layout.addWidget(self.show_mode)
+        settings_layout.addWidget(QLabel("Count-in"))
+        self.count_in = QComboBox()
+        self.count_in.addItems(["0", "1", "2", "3", "4", "8"])
+        self.count_in.setCurrentText("4")
+        settings_layout.addWidget(self.count_in)
         settings_layout.addStretch()
         top.addWidget(settings, 1)
 
         controls = self._panel()
         controls_layout = QHBoxLayout(controls)
-        controls_layout.setContentsMargins(12, 8, 12, 8)
-        controls_layout.setSpacing(10)
-
+        controls_layout.setContentsMargins(8, 6, 8, 6)
+        controls_layout.setSpacing(8)
         self.back_btn = QPushButton("⏮ Back")
+        self.back_btn.clicked.connect(self._back)
         self.play_btn = QPushButton("▶ Play")
+        self.play_btn.clicked.connect(self._play_pause)
         self.forward_btn = QPushButton("⏭ Forward")
-        self.back_btn.setMinimumWidth(90)
-        self.play_btn.setMinimumWidth(95)
-        self.forward_btn.setMinimumWidth(105)
-        self.back_btn.clicked.connect(lambda: self._move_beat(-1))
-        self.play_btn.clicked.connect(self._toggle_play)
-        self.forward_btn.clicked.connect(lambda: self._move_beat(1))
-        controls_layout.addWidget(self.back_btn)
-        controls_layout.addWidget(self.play_btn)
-        controls_layout.addWidget(self.forward_btn)
+        self.forward_btn.clicked.connect(self._forward)
+        self.start_btn = QPushButton("⇤ To Start")
+        self.start_btn.clicked.connect(self._to_start)
+        for btn in [self.back_btn, self.play_btn, self.forward_btn, self.start_btn]:
+            controls_layout.addWidget(btn)
 
-        loop_box = QFrame()
-        loop_box.setObjectName("ControlGroup")
+        loop_box = self._panel("LoopBox")
         loop_layout = QHBoxLayout(loop_box)
-        loop_layout.setContentsMargins(10, 4, 10, 4)
-        loop_layout.setSpacing(8)
-        loop_layout.addWidget(QLabel("Loop"))
-        self.loop_start_label = QLabel("Start: —")
-        self.loop_start_label.setMinimumWidth(70)
-        self.loop_end_label = QLabel("End: —")
-        self.loop_end_label.setMinimumWidth(70)
-        self.set_loop_start_btn = QPushButton("Set Start")
-        self.set_loop_end_btn = QPushButton("Set End")
+        loop_layout.setContentsMargins(8, 4, 8, 4)
+        self.loop_status = QLabel("Loop: off")
+        self.select_start_btn = QPushButton("Select Start")
+        self.select_start_btn.clicked.connect(lambda: self._set_selection_mode("start"))
+        self.select_end_btn = QPushButton("Select End")
+        self.select_end_btn.clicked.connect(lambda: self._set_selection_mode("end"))
         self.clear_loop_btn = QPushButton("Clear Loop")
-        self.set_loop_start_btn.setMinimumWidth(100)
-        self.set_loop_end_btn.setMinimumWidth(90)
-        self.clear_loop_btn.setMinimumWidth(100)
-        self.set_loop_start_btn.clicked.connect(self._set_loop_start)
-        self.set_loop_end_btn.clicked.connect(self._set_loop_end)
         self.clear_loop_btn.clicked.connect(self._clear_loop)
-        loop_layout.addWidget(self.loop_start_label)
-        loop_layout.addWidget(self.loop_end_label)
-        loop_layout.addWidget(self.set_loop_start_btn)
-        loop_layout.addWidget(self.set_loop_end_btn)
-        loop_layout.addWidget(self.clear_loop_btn)
-        loop_box.setMinimumWidth(560)
-        controls_layout.addWidget(loop_box, 0)
+        for w in [self.loop_status, self.select_start_btn, self.select_end_btn, self.clear_loop_btn]:
+            loop_layout.addWidget(w)
+        controls_layout.addWidget(loop_box, 2)
 
-        speed_box = QFrame()
-        speed_box.setObjectName("ControlGroup")
-        speed_layout = QHBoxLayout(speed_box)
-        speed_layout.setContentsMargins(10, 4, 10, 4)
-        speed_layout.setSpacing(8)
-        speed_layout.addWidget(QLabel("Speed"))
+        controls_layout.addWidget(QLabel("Speed"))
         self.speed = QSlider(Qt.Orientation.Horizontal)
-        self.speed.setRange(50, 150)
+        self.speed.setRange(50, 125)
         self.speed.setValue(100)
-        self.speed.setMinimumWidth(190)
-        self.speed.valueChanged.connect(self._set_timer_interval)
-        speed_layout.addWidget(self.speed)
+        self.speed.valueChanged.connect(self._speed_changed)
+        self.speed.setMinimumWidth(150)
+        controls_layout.addWidget(self.speed)
         self.speed_label = QLabel("100%")
-        self.speed_label.setMinimumWidth(48)
-        speed_layout.addWidget(self.speed_label)
-        controls_layout.addWidget(speed_box, 1)
-
-        count_box = QFrame()
-        count_box.setObjectName("ControlGroup")
-        count_layout = QHBoxLayout(count_box)
-        count_layout.setContentsMargins(10, 4, 10, 4)
-        count_layout.setSpacing(8)
-        count_layout.addWidget(QLabel("Count-in"))
-        self.count_in = QComboBox()
-        self.count_in.addItems(["0", "1", "2", "3", "4", "8"])
-        self.count_in.setCurrentText("4")
-        self.count_in.setMinimumWidth(70)
-        count_layout.addWidget(self.count_in)
-        self.count_in_display = QLabel("Ready")
-        self.count_in_display.setObjectName("CountInDisplay")
-        self.count_in_display.setMinimumWidth(110)
-        self.count_in_display.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        count_layout.addWidget(self.count_in_display)
-        controls_layout.addWidget(count_box, 0)
-
+        controls_layout.addWidget(self.speed_label)
         controls_layout.addStretch()
         outer.addWidget(controls, 0)
 
         grid_panel = self._panel()
         grid_layout = QVBoxLayout(grid_panel)
-        grid_layout.addWidget(QLabel("Build 002.5 demo beat grid - 3 bars across / 12 beats per row, with bar headers"))
+        grid_layout.setContentsMargins(8, 6, 8, 6)
+        grid_layout.addWidget(QLabel("Beat grid - 3 bars across / 12 beat squares per row. Click a beat when selecting loop start/end."))
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
-        self.grid_widget = QWidget()
-        self.grid_layout = QGridLayout(self.grid_widget)
-        self.grid_layout.setSpacing(2)
-        self.scroll.setWidget(self.grid_widget)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.grid_host = QWidget()
+        self.grid = QGridLayout(self.grid_host)
+        self.grid.setSpacing(4)
+        self.grid.setContentsMargins(2, 2, 2, 2)
+        self.scroll.setWidget(self.grid_host)
         grid_layout.addWidget(self.scroll)
         outer.addWidget(grid_panel, 1)
 
         return root
 
-    def _build_demo_results(self) -> None:
-        for index, song in enumerate(DEMO_SONGS):
-            item = QFrame()
-            item.setObjectName("ResultItemFrame")
-            row = QHBoxLayout(item)
-            label = QLabel(f"<b>{song.title}</b><br><span style='color:#aaa'>{song.artist} • {song.bpm} BPM • Key {song.key}</span>")
-            label.setTextFormat(Qt.TextFormat.RichText)
-            row.addWidget(label, 1)
-            btn = QPushButton("Load")
-            btn.clicked.connect(lambda checked=False, i=index: self._load_demo_song(i))
-            row.addWidget(btn)
-            self.results_layout.addWidget(item)
-            self.result_widgets.append(item)
-
-    def _filter_demo_results(self, text: str) -> None:
-        text = text.lower().strip()
-        for widget, song in zip(self.result_widgets, DEMO_SONGS):
-            haystack = f"{song.title} {song.artist}".lower()
-            widget.setVisible(text in haystack)
-
-    def _load_demo_song(self, index: int) -> None:
-        self.song = DEMO_SONGS[index]
-        self.beat_index = 0
-        self.bpm_value["value"].setText(str(self.song.bpm))
-        self.key_value["value"].setText(self.song.key)
-        self.duration_value["value"].setText(self.song.duration)
-        self._clear_loop()
+    def _load_song(self, song: DemoSong) -> None:
+        self.song = song
+        self.position = 0
+        self.loop_start = None
+        self.loop_end = None
+        self.selection_mode = None
+        self.title_label.setText(song.title)
+        self.artist_label.setText(song.artist)
+        self.bpm_label.setText(f"BPM: {song.bpm}")
+        self.key_label.setText(f"Key: {song.key}")
+        self.duration_label.setText(f"Duration: {song.duration}")
         self._build_grid()
-        self._set_timer_interval()
-        self._update_position()
-        self.statusBar().showMessage(f"Loaded demo song: {self.song.title}")
+        self._update_loop_status()
+        self._update_all()
+
+    def _select_demo_song(self, row: int) -> None:
+        if 0 <= row < len(DEMO_SONGS):
+            self._stop()
+            self._load_song(DEMO_SONGS[row])
+            self.statusBar().showMessage(f"Loaded demo: {DEMO_SONGS[row].title}")
 
     def _build_grid(self) -> None:
-        while self.grid_layout.count():
-            item = self.grid_layout.takeAt(0)
+        while self.grid.count():
+            item = self.grid.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-        self.grid_cells.clear()
-        self.chord_labels.clear()
-        self.grid_diagrams.clear()
-        if not self.song:
-            return
-        for i, chord in enumerate(self.song.chords):
-            cell = QFrame()
-            cell.setObjectName("BeatCell")
-            cell.setMinimumHeight(122)
-            cell.setMinimumWidth(92)
-            box = QVBoxLayout(cell)
-            box.setContentsMargins(5, 4, 5, 4)
-            box.setSpacing(2)
-
-            beat = QLabel(str((i % 4) + 1))
-            beat.setAlignment(Qt.AlignmentFlag.AlignLeft)
-            beat.setStyleSheet("color:#9e927d; font-size:10px;")
-            box.addWidget(beat, 0)
-
-            label = QLabel(self._display_chord(chord) if chord else "")
-            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            label.setStyleSheet("font-size: 18px; font-weight: bold; color: #f4e2bd;")
-            box.addWidget(label, 0)
-
-            diagram = BanjoDiagram(self._diagram_chord(chord) if chord else "G", compact=True)
-            diagram.setVisible(bool(chord))
-            diagram.setMinimumSize(86, 76)
-            diagram.setMaximumHeight(82)
-            box.addWidget(diagram, 1, Qt.AlignmentFlag.AlignCenter)
-
-            group = i // 12
-            col = i % 12
-            if col == 0:
-                for bar_offset in range(3):
-                    bar_number = group * 3 + bar_offset + 1
-                    if (bar_number - 1) * 4 < len(self.song.chords):
-                        header = QLabel(f"Bar {bar_number}")
-                        header.setObjectName("BarHeader")
-                        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                        self.grid_layout.addWidget(header, group * 2, bar_offset * 4, 1, 4)
-            self.grid_layout.addWidget(cell, group * 2 + 1, col)
-            self.grid_cells.append(cell)
-            self.chord_labels.append(label)
-            self.grid_diagrams.append(diagram)
-
-    def _refresh_grid(self) -> None:
-        if not self.song:
-            return
-        for i, chord in enumerate(self.song.chords):
-            if chord:
-                self.chord_labels[i].setText(self._display_chord(chord))
-                self.grid_diagrams[i].set_chord(self._diagram_chord(chord))
-        self._update_position()
+        self.cells = []
+        beats = self.song.beat_chords
+        bars_per_row = 3
+        beats_per_row = bars_per_row * 4
+        for bar_start in range(0, len(beats), beats_per_row):
+            visual_row = (bar_start // beats_per_row) * 2
+            for bar_offset in range(bars_per_row):
+                bar_num = (bar_start // 4) + bar_offset + 1
+                if (bar_num - 1) * 4 >= len(beats):
+                    continue
+                hdr = QLabel(f"Bar {bar_num}")
+                hdr.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                hdr.setObjectName("BarHeader")
+                self.grid.addWidget(hdr, visual_row, bar_offset * 4, 1, 4)
+            for i in range(beats_per_row):
+                idx = bar_start + i
+                if idx >= len(beats):
+                    break
+                chord = self._display_chord(beats[idx]) if beats[idx] else ""
+                cell = BeatCell(idx, str((idx % 4) + 1), chord)
+                cell.clicked.connect(self._cell_clicked)
+                self.cells.append(cell)
+                self.grid.addWidget(cell, visual_row + 1, i)
+        for col in range(beats_per_row):
+            self.grid.setColumnStretch(col, 1)
 
     def _display_chord(self, chord: str) -> str:
         if not chord:
             return ""
-        if self.show_mode.currentText() == "Banjo Shapes":
-            return chord
-        return transpose_chord(chord, self.capo.value())
-
-    def _diagram_chord(self, chord: str) -> str:
-        if not chord:
-            return "G"
-        if self.show_mode.currentText() == "Banjo Shapes":
-            return chord
-        # For now diagrams stay playable simple shapes; naming changes for capo/concert mode.
+        if self.show_mode.currentText() == "Concert Chords":
+            return transpose_chord(chord, self.capo.value())
         return chord
 
-    def _chord_at(self, index: int) -> str:
-        if not self.song:
-            return "G"
-        index = max(0, min(index, len(self.song.chords) - 1))
-        for i in range(index, -1, -1):
-            if self.song.chords[i]:
-                return self.song.chords[i]
+    def _shape_chord(self, chord: str) -> str:
+        # In banjo-shape display, diagrams use the shape. In concert display, for now we keep the same shape
+        # while the name changes, which mirrors capo use. A fuller voicing engine comes later.
+        return chord
+
+    def _current_raw_chord(self) -> str:
+        beats = self.song.beat_chords
+        for i in range(min(self.position, len(beats) - 1), -1, -1):
+            if beats[i]:
+                return beats[i]
         return "G"
 
-    def _next_chord_after(self, index: int) -> str:
-        if not self.song:
-            return "G"
-        current = self._chord_at(index)
-        for i in range(index + 1, len(self.song.chords)):
-            if self.song.chords[i] and self.song.chords[i] != current:
-                return self.song.chords[i]
-        return current
+    def _next_raw_chord(self) -> str:
+        beats = self.song.beat_chords
+        current = self._current_raw_chord()
+        for i in range(self.position + 1, len(beats)):
+            if beats[i] and beats[i] != current:
+                return beats[i]
+        return ""
 
-    def _current_bar(self) -> int:
-        return self.beat_index // 4 + 1
+    def _update_all(self) -> None:
+        current = self._current_raw_chord()
+        nxt = self._next_raw_chord()
+        self.current_panel.set_chord(self._display_chord(current))
+        self.next_panel.set_chord(self._display_chord(nxt) if nxt else "—")
+        for idx, cell in enumerate(self.cells):
+            raw = self.song.beat_chords[idx]
+            cell.set_chord(self._display_chord(raw) if raw else "")
+            cell.set_active(idx == self.position)
+            cell.set_loop(self.loop_start is not None and self.loop_end is not None and self.loop_start <= idx <= self.loop_end)
+        self._scroll_to_position()
 
-    def _set_loop_start(self) -> None:
-        self.loop_start_bar = self._current_bar()
-        if self.loop_end_bar is not None and self.loop_start_bar > self.loop_end_bar:
-            self.loop_start_bar, self.loop_end_bar = self.loop_end_bar, self.loop_start_bar
-        self._update_loop_labels()
-        self.statusBar().showMessage(f"Loop start set to bar {self.loop_start_bar}")
-
-    def _set_loop_end(self) -> None:
-        self.loop_end_bar = self._current_bar()
-        if self.loop_start_bar is not None and self.loop_start_bar > self.loop_end_bar:
-            self.loop_start_bar, self.loop_end_bar = self.loop_end_bar, self.loop_start_bar
-        self._update_loop_labels()
-        self.statusBar().showMessage(f"Loop end set to bar {self.loop_end_bar}")
-
-    def _clear_loop(self) -> None:
-        self.loop_start_bar = None
-        self.loop_end_bar = None
-        if hasattr(self, "loop_start_label"):
-            self._update_loop_labels()
-
-    def _loop_is_active(self) -> bool:
-        return self.loop_start_bar is not None and self.loop_end_bar is not None
-
-    def _update_loop_labels(self) -> None:
-        self.loop_start_label.setText(f"Start: {self.loop_start_bar}" if self.loop_start_bar else "Start: —")
-        self.loop_end_label.setText(f"End: {self.loop_end_bar}" if self.loop_end_bar else "End: —")
-        active = self._loop_is_active()
-        self.clear_loop_btn.setEnabled(active)
-
-    def _toggle_play(self) -> None:
-        if self.is_playing or self.is_counting_in:
-            self.is_playing = False
-            self.is_counting_in = False
-            self.timer.stop()
-            self.play_btn.setText("▶ Play")
-            self.count_in_display.setText("Ready")
-            self.statusBar().showMessage("Paused")
+    def _scroll_to_position(self) -> None:
+        if not self.cells or self.position >= len(self.cells):
             return
+        cell = self.cells[self.position]
+        self.scroll.ensureWidgetVisible(cell, 20, 20)
 
-        beats = int(self.count_in.currentText())
-        if beats > 0:
-            self.is_counting_in = True
-            self.count_in_remaining = beats
-            self.play_btn.setText("⏸ Cancel")
-            self.count_in_display.setText(str(self.count_in_remaining))
-            self.timer.start()
-            self.statusBar().showMessage(f"Count-in: {self.count_in_remaining}")
+    def _play_pause(self) -> None:
+        if self.is_playing:
+            self._stop()
             return
-
-        self._start_playback_after_count_in()
-
-    def _start_playback_after_count_in(self) -> None:
-        self.is_counting_in = False
+        if self.loop_start is not None and self.loop_end is not None:
+            self.position = self.loop_start
+        self.count_in_remaining = int(self.count_in.currentText())
         self.is_playing = True
         self.play_btn.setText("⏸ Pause")
-        self.count_in_display.setText("Play")
-        self.timer.start()
-        self.statusBar().showMessage("Playing demo grid")
-
-    def _set_timer_interval(self) -> None:
-        if not self.song:
-            return
-        self.speed_label.setText(f"{self.speed.value()}%")
-        beat_ms = int(60000 / self.song.bpm)
-        adjusted = int(beat_ms * 100 / self.speed.value())
-        self.timer.setInterval(max(80, adjusted))
-
-    def _advance_beat(self) -> None:
-        if self.is_counting_in:
-            self.count_in_remaining -= 1
-            if self.count_in_remaining > 0:
-                self.count_in_display.setText(str(self.count_in_remaining))
-                self.statusBar().showMessage(f"Count-in: {self.count_in_remaining}")
-                return
-            self._start_playback_after_count_in()
-            return
-        self._move_beat(1)
-
-    def _move_beat(self, amount: int) -> None:
-        if not self.song:
-            return
-        self.beat_index += amount
-        if self._loop_is_active():
-            start_bar, end_bar = sorted((self.loop_start_bar, self.loop_end_bar))  # type: ignore[arg-type]
-            loop_start_index = max(0, (start_bar - 1) * 4)
-            loop_end_index = min(len(self.song.chords) - 1, end_bar * 4 - 1)
-            if self.beat_index > loop_end_index:
-                self.beat_index = loop_start_index
-            if self.beat_index < loop_start_index:
-                self.beat_index = loop_end_index
+        if self.count_in_remaining:
+            self.statusBar().showMessage(f"Count-in: {self.count_in_remaining}")
         else:
-            if self.beat_index >= len(self.song.chords):
-                self.beat_index = 0
-            if self.beat_index < 0:
-                self.beat_index = len(self.song.chords) - 1
-        self._update_position()
+            self.statusBar().showMessage("Playing demo timing grid - no audio yet")
+        self._update_all()
+        self.timer.start(self._interval_ms())
 
-    def _update_position(self) -> None:
-        if not self.song or not self.grid_cells:
+    def _stop(self) -> None:
+        self.is_playing = False
+        self.timer.stop()
+        self.play_btn.setText("▶ Play")
+        self.statusBar().showMessage("Paused")
+
+    def _tick(self) -> None:
+        if self.count_in_remaining > 0:
+            self.statusBar().showMessage(f"Count-in: {self.count_in_remaining}")
+            self.count_in_remaining -= 1
             return
-        for cell in self.grid_cells:
-            cell.setProperty("active", False)
-            cell.style().unpolish(cell)
-            cell.style().polish(cell)
-        current_cell = self.grid_cells[self.beat_index]
-        current_cell.setProperty("active", True)
-        current_cell.style().unpolish(current_cell)
-        current_cell.style().polish(current_cell)
-        current = self._chord_at(self.beat_index)
-        nxt = self._next_chord_after(self.beat_index)
-        self.current_panel.set_chord(self._display_chord(current))
-        self.current_panel.diagram.set_chord(self._diagram_chord(current))
-        self.next_panel.set_chord(self._display_chord(nxt))
-        self.next_panel.diagram.set_chord(self._diagram_chord(nxt))
-        row = self.beat_index // 12
-        self.scroll.ensureWidgetVisible(current_cell, 40, 40)
-        loop_text = " • Loop ON" if self._loop_is_active() else ""
-        self.statusBar().showMessage(f"Beat {self.beat_index + 1} • Row {row + 1} • Current {self._display_chord(current)} • Next {self._display_chord(nxt)}{loop_text}")
+        if self.count_in_remaining == 0:
+            self.count_in_remaining = -1
+            self.statusBar().showMessage("Playing demo timing grid - no audio yet")
+        self._advance_one()
 
-    def _panel(self) -> QFrame:
+    def _advance_one(self) -> None:
+        end = len(self.song.beat_chords) - 1
+        if self.loop_start is not None and self.loop_end is not None:
+            if self.position >= self.loop_end:
+                self.position = self.loop_start
+            else:
+                self.position += 1
+        else:
+            if self.position >= end:
+                self._stop()
+                return
+            self.position += 1
+        self._update_all()
+
+    def _back(self) -> None:
+        if self.position > 0:
+            self.position -= 1
+            self._update_all()
+
+    def _forward(self) -> None:
+        if self.position < len(self.song.beat_chords) - 1:
+            self.position += 1
+            self._update_all()
+
+    def _to_start(self) -> None:
+        self.position = self.loop_start if self.loop_start is not None else 0
+        self._update_all()
+
+    def _speed_changed(self, value: int) -> None:
+        self.speed_label.setText(f"{value}%")
+        if self.timer.isActive():
+            self.timer.start(self._interval_ms())
+
+    def _interval_ms(self) -> int:
+        speed_factor = self.speed.value() / 100
+        return max(120, int((60000 / self.song.bpm) / speed_factor))
+
+    def _set_selection_mode(self, mode: str) -> None:
+        self.selection_mode = mode
+        self.statusBar().showMessage(f"Click a beat square to set loop {mode}")
+
+    def _cell_clicked(self, index: int) -> None:
+        if self.selection_mode == "start":
+            self.loop_start = index
+            if self.loop_end is not None and self.loop_end < self.loop_start:
+                self.loop_end = None
+            self.selection_mode = None
+        elif self.selection_mode == "end":
+            if self.loop_start is None:
+                self.loop_start = index
+            else:
+                self.loop_end = max(index, self.loop_start)
+            self.selection_mode = None
+        else:
+            self.position = index
+        self._update_loop_status()
+        self._update_all()
+
+    def _clear_loop(self) -> None:
+        self.loop_start = None
+        self.loop_end = None
+        self.selection_mode = None
+        self._update_loop_status()
+        self._update_all()
+
+    def _update_loop_status(self) -> None:
+        if self.loop_start is None or self.loop_end is None:
+            self.loop_status.setText("Loop: off")
+        else:
+            self.loop_status.setText(f"Loop: bar {self.loop_start // 4 + 1} to {self.loop_end // 4 + 1}")
+
+    def _mode_changed(self) -> None:
+        # Placeholder for future chord simplification. Visible message confirms the control is wired.
+        self.statusBar().showMessage(f"Mode set to {self.mode.currentText()} - simplification engine comes later")
+        self._update_all()
+
+    def _panel(self, name: str = "Panel") -> QFrame:
         frame = QFrame()
-        frame.setObjectName("Panel")
+        frame.setObjectName(name)
         return frame
-
-    def _info_box(self, label: str, value: str) -> dict[str, object]:
-        frame = QFrame()
-        frame.setObjectName("InfoBox")
-        layout = QHBoxLayout(frame)
-        layout.addWidget(QLabel(label))
-        val = QLabel(value)
-        val.setAlignment(Qt.AlignmentFlag.AlignRight)
-        val.setStyleSheet("font-weight: bold;")
-        layout.addWidget(val)
-        return {"frame": frame, "value": val}
 
     def _apply_style(self) -> None:
         self.setStyleSheet(
@@ -485,62 +415,37 @@ class MainWindow(QMainWindow):
                 background: #111111;
                 color: #f3e6cc;
                 font-family: Segoe UI, Arial, sans-serif;
-                font-size: 14px;
+                font-size: 13px;
             }
-            QFrame#Panel {
+            QFrame#Panel, QFrame#LoopBox {
                 background: #1a1a1a;
                 border: 1px solid #333333;
                 border-radius: 8px;
             }
-            QFrame#InfoBox, QFrame#ResultItemFrame, QFrame#ControlGroup {
-                background: #202020;
-                border: 1px solid #333333;
-                border-radius: 6px;
-            }
-            QLabel#CountInDisplay {
-                background: #111111;
-                color: #f3c25b;
-                border: 1px solid #574018;
-                border-radius: 6px;
-                padding: 7px;
-                font-size: 18px;
-                font-weight: bold;
-            }
             QLabel#BarHeader {
-                background: #171717;
-                color: #cdbb99;
-                border: 1px solid #333333;
+                background: #2a2418;
+                color: #f3d99a;
+                border: 1px solid #4b3920;
                 border-radius: 4px;
-                padding: 4px;
+                padding: 3px;
                 font-weight: bold;
             }
-            QLineEdit, QComboBox, QSpinBox {
+            QLineEdit, QComboBox, QSpinBox, QListWidget {
                 background: #252525;
                 color: #f3e6cc;
                 border: 1px solid #444444;
                 border-radius: 5px;
-                padding: 6px;
-                min-height: 24px;
+                padding: 5px;
             }
             QPushButton {
                 background: #2f2f2f;
                 color: #f3e6cc;
                 border: 1px solid #444444;
                 border-radius: 6px;
-                padding: 8px 14px;
+                padding: 8px 12px;
+                min-width: 82px;
             }
-            QPushButton:hover {
-                background: #3b3b3b;
-            }
-            QFrame#BeatCell {
-                background: #1d1d1d;
-                border: 1px solid #3a3a3a;
-                border-radius: 4px;
-            }
-            QFrame#BeatCell[active="true"] {
-                background: #5a3d12;
-                border: 2px solid #f3c25b;
-                border-radius: 4px;
-            }
+            QPushButton:hover { background: #3b3b3b; }
+            QScrollArea { border: none; }
             """
         )
