@@ -8,10 +8,14 @@ from banjofy.banjo.chords import ChordShape, get_chord
 
 
 class BanjoDiagram(QWidget):
-    def __init__(self, chord: str = "G", parent: QWidget | None = None) -> None:
+    def __init__(self, chord: str = "G", parent: QWidget | None = None, compact: bool = False) -> None:
         super().__init__(parent)
         self._shape: ChordShape = get_chord(chord)
-        self.setMinimumSize(130, 105)
+        self.compact = compact
+        if compact:
+            self.setMinimumSize(88, 78)
+        else:
+            self.setMinimumSize(130, 105)
 
     def set_chord(self, chord: str) -> None:
         self._shape = get_chord(chord)
@@ -24,10 +28,11 @@ class BanjoDiagram(QWidget):
 
         w = self.width()
         h = self.height()
-        left = 24
-        top = 22
-        grid_w = max(70, w - 48)
-        grid_h = max(55, h - 45)
+        left = 14 if self.compact else 24
+        top = 12 if self.compact else 22
+        bottom_gap = 10 if self.compact else 32
+        grid_w = max(58, w - (left * 2))
+        grid_h = max(48, h - top - bottom_gap)
         string_count = 5
         fret_count = 4
 
@@ -36,12 +41,13 @@ class BanjoDiagram(QWidget):
         dot = QColor("#f4e7c8")
         bg_dot = QColor("#111111")
 
-        painter.setPen(QPen(muted, 1))
-        painter.setFont(QFont("Segoe UI", 8))
-        labels = ["g", "D", "G", "B", "D"]
-        for i, label in enumerate(labels):
-            x = left + i * grid_w / (string_count - 1)
-            painter.drawText(int(x - 5), int(top + grid_h + 18), label)
+        if not self.compact:
+            painter.setPen(QPen(muted, 1))
+            painter.setFont(QFont("Segoe UI", 8))
+            labels = ["g", "D", "G", "B", "D"]
+            for i, label in enumerate(labels):
+                x = left + i * grid_w / (string_count - 1)
+                painter.drawText(int(x - 5), int(top + grid_h + 18), label)
 
         painter.setPen(QPen(ink, 2))
         for i in range(string_count):
@@ -52,7 +58,7 @@ class BanjoDiagram(QWidget):
             y = top + f * grid_h / fret_count
             painter.drawLine(left, int(y), int(left + grid_w), int(y))
 
-        painter.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
+        painter.setFont(QFont("Segoe UI", 7 if self.compact else 8, QFont.Weight.Bold))
         for i, fret in enumerate(self._shape.frets):
             x = left + i * grid_w / (string_count - 1)
             if fret == 0:
@@ -64,11 +70,12 @@ class BanjoDiagram(QWidget):
                 y = top + (display_fret - 0.5) * grid_h / fret_count
                 painter.setPen(QPen(dot, 1))
                 painter.setBrush(QBrush(bg_dot))
-                painter.drawEllipse(int(x - 11), int(y - 11), 22, 22)
+                r = 10 if self.compact else 11
+                painter.drawEllipse(int(x - r), int(y - r), r * 2, r * 2)
                 finger = self._shape.fingers[i]
                 if finger:
                     painter.setPen(QPen(dot, 1))
-                    painter.drawText(int(x - 4), int(y + 4), str(finger))
+                    painter.drawText(int(x - 3), int(y + 4), str(finger))
 
 
 class ChordPanel(QFrame):

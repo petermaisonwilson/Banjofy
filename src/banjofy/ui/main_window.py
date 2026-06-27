@@ -22,7 +22,7 @@ from banjofy.banjo.chords import transpose_chord
 from banjofy.player.demo_songs import DEMO_SONGS, DemoSong
 from banjofy.ui.widgets import BanjoDiagram, ChordPanel
 
-BUILD_LABEL = "Banjofy 0.2.1 - Build 002.1 Demo Player"
+BUILD_LABEL = "Banjofy 0.2.2 - Build 002.2 Grid Diagram Alignment"
 
 
 class MainWindow(QMainWindow):
@@ -43,7 +43,7 @@ class MainWindow(QMainWindow):
         self._apply_style()
         self.setCentralWidget(self._build_ui())
         self.setStatusBar(QStatusBar())
-        self.statusBar().showMessage("Build 002.1 ready - demo player loaded")
+        self.statusBar().showMessage("Build 002.2 ready - grid diagrams aligned")
         self._load_demo_song(0)
 
     def _build_ui(self) -> QWidget:
@@ -59,7 +59,7 @@ class MainWindow(QMainWindow):
         search_layout = QVBoxLayout(search_panel)
         search_row = QHBoxLayout()
         self.search = QLineEdit()
-        self.search.setPlaceholderText("Build 002.1: demo search only - YouTube comes later")
+        self.search.setPlaceholderText("Build 002.2: demo search only - YouTube comes later")
         self.search.textChanged.connect(self._filter_demo_results)
         search_row.addWidget(self.search)
         search_layout.addLayout(search_row)
@@ -151,7 +151,7 @@ class MainWindow(QMainWindow):
 
         grid_panel = self._panel()
         grid_layout = QVBoxLayout(grid_panel)
-        grid_layout.addWidget(QLabel("Build 002.1 demo beat grid - 4 bars across / 16 beat squares per row"))
+        grid_layout.addWidget(QLabel("Build 002.2 demo beat grid - aligned chord diagrams / 4 bars across"))
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.grid_widget = QWidget()
@@ -210,21 +210,28 @@ class MainWindow(QMainWindow):
         for i, chord in enumerate(self.song.chords):
             cell = QFrame()
             cell.setObjectName("BeatCell")
-            cell.setMinimumHeight(112)
+            cell.setMinimumHeight(122)
+            cell.setMinimumWidth(92)
             box = QVBoxLayout(cell)
-            box.setContentsMargins(4, 3, 4, 3)
+            box.setContentsMargins(5, 4, 5, 4)
+            box.setSpacing(2)
+
             beat = QLabel(str((i % 4) + 1))
+            beat.setAlignment(Qt.AlignmentFlag.AlignLeft)
             beat.setStyleSheet("color:#9e927d; font-size:10px;")
-            box.addWidget(beat)
+            box.addWidget(beat, 0)
+
             label = QLabel(self._display_chord(chord) if chord else "")
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            label.setStyleSheet("font-size: 20px; font-weight: bold; color: #f4e2bd;")
-            box.addWidget(label)
-            diagram = BanjoDiagram(self._diagram_chord(chord) if chord else "G")
+            label.setStyleSheet("font-size: 18px; font-weight: bold; color: #f4e2bd;")
+            box.addWidget(label, 0)
+
+            diagram = BanjoDiagram(self._diagram_chord(chord) if chord else "G", compact=True)
             diagram.setVisible(bool(chord))
-            diagram.setMinimumSize(80, 62)
-            box.addWidget(diagram)
-            box.addStretch()
+            diagram.setMinimumSize(86, 76)
+            diagram.setMaximumHeight(82)
+            box.addWidget(diagram, 1, Qt.AlignmentFlag.AlignCenter)
+
             self.grid_layout.addWidget(cell, i // 16, i % 16)
             self.grid_cells.append(cell)
             self.chord_labels.append(label)
@@ -382,10 +389,12 @@ class MainWindow(QMainWindow):
             QFrame#BeatCell {
                 background: #1d1d1d;
                 border: 1px solid #3a3a3a;
+                border-radius: 4px;
             }
             QFrame#BeatCell[active="true"] {
-                background: #4c3510;
+                background: #5a3d12;
                 border: 2px solid #f3c25b;
+                border-radius: 4px;
             }
             """
         )
