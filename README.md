@@ -6,7 +6,7 @@ This build is a visible, interactive step beyond Build 001.
 
 Added in this build:
 
-- On-screen version now says **Banjofy 0.2.3 - Build 002.3 Grid Diagram Alignment**.
+- On-screen version now says **Banjofy 0.2.3 - Build 002.4 Grid Diagram Alignment**.
 - Demo song list has Load buttons.
 - Loading a demo song updates BPM, key, duration, Current and Next chord panels.
 - Play/Pause starts and stops a timer.
@@ -26,15 +26,23 @@ Not included yet:
 Those are planned for later builds.
 
 
-## Build 002.3 changes
+## Build 002.4 changes
 
 - Re-aligned the chord diagrams inside the beat grid cells.
 - Added compact diagram mode for grid cells so diagrams remain visible as the beat cursor moves.
-- Updated on-screen version label to Build 002.3.
+- Updated on-screen version label to Build 002.4.
 
 
-## Build 002.3 changes
+## Build 002.4 changes
 
 - Widened loop start/end controls so they are usable.
 - Grouped Loop and Speed controls into clearer control boxes.
-- Updated on-screen version label to Build 002.3.
+- Updated on-screen version label to Build 002.4.
+
+
+## Build 002.4 changes
+
+- Loop bar controls widened again for easier clicking.
+- Beat grid changed from 4 bars across to 3 bars across.
+- Diagram size and cell layout kept the same.
+- No audio playback yet: this build remains a demo timing/player grid. Audio comes in a later build.

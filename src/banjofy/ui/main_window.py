@@ -22,7 +22,7 @@ from banjofy.banjo.chords import transpose_chord
 from banjofy.player.demo_songs import DEMO_SONGS, DemoSong
 from banjofy.ui.widgets import BanjoDiagram, ChordPanel
 
-BUILD_LABEL = "Banjofy 0.2.3 - Build 002.3 Loop Control Fix"
+BUILD_LABEL = "Banjofy 0.2.4 - Build 002.4 Three-Bar Grid"
 
 
 class MainWindow(QMainWindow):
@@ -43,7 +43,7 @@ class MainWindow(QMainWindow):
         self._apply_style()
         self.setCentralWidget(self._build_ui())
         self.setStatusBar(QStatusBar())
-        self.statusBar().showMessage("Build 002.3 ready - loop controls widened")
+        self.statusBar().showMessage("Build 002.4 ready - 3 bars across / larger loop controls")
         self._load_demo_song(0)
 
     def _build_ui(self) -> QWidget:
@@ -59,7 +59,7 @@ class MainWindow(QMainWindow):
         search_layout = QVBoxLayout(search_panel)
         search_row = QHBoxLayout()
         self.search = QLineEdit()
-        self.search.setPlaceholderText("Build 002.3: demo search only - YouTube comes later")
+        self.search.setPlaceholderText("Build 002.4: demo search only - audio comes later")
         self.search.textChanged.connect(self._filter_demo_results)
         search_row.addWidget(self.search)
         search_layout.addLayout(search_row)
@@ -139,24 +139,25 @@ class MainWindow(QMainWindow):
         loop_layout.setContentsMargins(10, 4, 10, 4)
         loop_layout.setSpacing(8)
         loop_label = QLabel("Loop bars")
-        loop_label.setMinimumWidth(70)
+        loop_label.setMinimumWidth(95)
         loop_layout.addWidget(loop_label)
         self.loop_start = QSpinBox()
         self.loop_start.setRange(1, 99)
         self.loop_start.setValue(1)
-        self.loop_start.setMinimumWidth(64)
+        self.loop_start.setMinimumWidth(90)
         self.loop_start.setButtonSymbols(QSpinBox.ButtonSymbols.UpDownArrows)
         self.loop_end = QSpinBox()
         self.loop_end.setRange(1, 99)
         self.loop_end.setValue(4)
-        self.loop_end.setMinimumWidth(64)
+        self.loop_end.setMinimumWidth(90)
         self.loop_end.setButtonSymbols(QSpinBox.ButtonSymbols.UpDownArrows)
         loop_layout.addWidget(self.loop_start)
         to_label = QLabel("to")
         to_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        to_label.setMinimumWidth(20)
+        to_label.setMinimumWidth(32)
         loop_layout.addWidget(to_label)
         loop_layout.addWidget(self.loop_end)
+        loop_box.setMinimumWidth(350)
         controls_layout.addWidget(loop_box, 0)
 
         speed_box = QFrame()
@@ -181,7 +182,7 @@ class MainWindow(QMainWindow):
 
         grid_panel = self._panel()
         grid_layout = QVBoxLayout(grid_panel)
-        grid_layout.addWidget(QLabel("Build 002.3 demo beat grid - loop controls widened / 4 bars across"))
+        grid_layout.addWidget(QLabel("Build 002.4 demo beat grid - 3 bars across / 12 beat squares per row"))
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.grid_widget = QWidget()
@@ -262,7 +263,7 @@ class MainWindow(QMainWindow):
             diagram.setMaximumHeight(82)
             box.addWidget(diagram, 1, Qt.AlignmentFlag.AlignCenter)
 
-            self.grid_layout.addWidget(cell, i // 16, i % 16)
+            self.grid_layout.addWidget(cell, i // 12, i % 12)
             self.grid_cells.append(cell)
             self.chord_labels.append(label)
             self.grid_diagrams.append(diagram)
@@ -360,7 +361,7 @@ class MainWindow(QMainWindow):
         self.current_panel.diagram.set_chord(self._diagram_chord(current))
         self.next_panel.set_chord(self._display_chord(nxt))
         self.next_panel.diagram.set_chord(self._diagram_chord(nxt))
-        row = self.beat_index // 16
+        row = self.beat_index // 12
         self.scroll.ensureWidgetVisible(current_cell, 40, 40)
         self.statusBar().showMessage(f"Beat {self.beat_index + 1} • Row {row + 1} • Current {self._display_chord(current)} • Next {self._display_chord(nxt)}")
 
