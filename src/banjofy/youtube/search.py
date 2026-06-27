@@ -30,8 +30,6 @@ def _format_duration(seconds: Any) -> str:
 
 
 def _video_id_from_url_or_entry(entry: dict[str, Any], webpage_url: str) -> str:
-    # yt-dlp flat search often gives either an id, a bare video id in url,
-    # or a full YouTube URL. This helper keeps thumbnail fallback safe.
     video_id = str(entry.get("id") or "").strip()
     if video_id and len(video_id) <= 20:
         return video_id
@@ -69,31 +67,23 @@ def _download_thumbnail(url: str) -> bytes:
     if not url:
         return b""
     try:
-        req = urllib.request.Request(
-            url,
-            headers={"User-Agent": "Mozilla/5.0"},
-        )
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=8) as response:
             data = response.read(250_000)
             return data if data else b""
     except Exception:
-        # Thumbnail failure must never break search results.
         return b""
 
 
 def search_youtube(query: str, limit: int = 8) -> list[YouTubeResult]:
-    """Search YouTube using yt-dlp and return display-ready results.
-
-    Build 004.1F rule:
-    Search text must always remain visible even if thumbnails fail.
-    """
+    """Search YouTube using yt-dlp and return display-ready results."""
     query = query.strip()
     if not query:
         return []
 
     try:
         from yt_dlp import YoutubeDL
-    except Exception as exc:  # pragma: no cover - depends on installed package
+    except Exception as exc:  # pragma: no cover
         raise RuntimeError("yt-dlp is not installed in this build") from exc
 
     options: dict[str, Any] = {
@@ -117,7 +107,6 @@ def search_youtube(query: str, limit: int = 8) -> list[YouTubeResult]:
     for entry in entries:
         if not entry:
             continue
-
         title = entry.get("title") or "Untitled result"
         channel = entry.get("uploader") or entry.get("channel") or entry.get("creator") or "Unknown channel"
         duration = _format_duration(entry.get("duration"))

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import queue
 import threading
+from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, QSize
 from PySide6.QtGui import QIcon, QPixmap
@@ -16,6 +17,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QPushButton,
+    QProgressBar,
     QScrollArea,
     QSlider,
     QSpinBox,
@@ -27,9 +29,10 @@ from PySide6.QtWidgets import (
 from banjofy.banjo.chords import transpose_chord
 from banjofy.player.demo_data import DEMO_SONGS, DemoSong
 from banjofy.ui.widgets import BeatCell, ChordPanel
+from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.4.1F - Search Text + Safe Thumbnails"
+APP_VERSION = "Banjofy 0.4.2 - YouTube Audio Download"
 
 
 class MainWindow(QMainWindow):
@@ -47,8 +50,13 @@ class MainWindow(QMainWindow):
         self.loop_end: int | None = None
         self.selection_mode: str | None = None
         self.cells: list[BeatCell] = []
+
         self.youtube_results: list[YouTubeResult] = []
+        self.selected_youtube_result: YouTubeResult | None = None
+        self.downloaded_audio_path: Path | None = None
+
         self.search_queue: queue.Queue[tuple[str, object]] = queue.Queue()
+        self.download_queue: queue.Queue[tuple[str, object]] = queue.Queue()
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._tick)
@@ -56,12 +64,15 @@ class MainWindow(QMainWindow):
         self.search_poll_timer = QTimer(self)
         self.search_poll_timer.timeout.connect(self._poll_search_results)
 
+        self.download_poll_timer = QTimer(self)
+        self.download_poll_timer.timeout.connect(self._poll_download_results)
+
         self._apply_style()
         self.setCentralWidget(self._build_ui())
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 004.1F ready - search text protected; thumbnails are optional/safe.")
+        self.statusBar().showMessage("Build 004.2 ready - selected YouTube audio can be downloaded and cached. Playback comes next.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -94,7 +105,7 @@ class MainWindow(QMainWindow):
             self.result_list.addItem(QListWidgetItem(f"DEMO · {song.title}\n{song.artist} · {song.duration} · {song.bpm} BPM"))
         search_layout.addWidget(self.result_list)
 
-        self.search_hint = QLabel("Search uses yt-dlp. Thumbnail failures will not hide results.")
+        self.search_hint = QLabel("Search uses yt-dlp. Select a YouTube result, then click Download Audio.")
         self.search_hint.setObjectName("HintLabel")
         search_layout.addWidget(self.search_hint)
         top.addWidget(search_panel, 2)
@@ -124,6 +135,23 @@ class MainWindow(QMainWindow):
         self.duration_label = QLabel("Duration: —")
         for w in [self.bpm_label, self.key_label, self.duration_label]:
             meta_layout.addWidget(w)
+
+        self.download_btn = QPushButton("Download Audio")
+        self.download_btn.clicked.connect(self._start_audio_download)
+        self.download_btn.setEnabled(False)
+        meta_layout.addWidget(self.download_btn)
+
+        self.download_progress = QProgressBar()
+        self.download_progress.setRange(0, 100)
+        self.download_progress.setValue(0)
+        self.download_progress.setTextVisible(True)
+        meta_layout.addWidget(self.download_progress)
+
+        self.download_status = QLabel("Audio: not downloaded")
+        self.download_status.setWordWrap(True)
+        self.download_status.setObjectName("HintLabel")
+        meta_layout.addWidget(self.download_status)
+
         top.addWidget(meta_panel, 1)
 
         centre = self._panel()
@@ -241,6 +269,11 @@ class MainWindow(QMainWindow):
         self.search_button.setEnabled(False)
         self.result_list.clear()
         self.youtube_results = []
+        self.selected_youtube_result = None
+        self.downloaded_audio_path = None
+        self.download_btn.setEnabled(False)
+        self.download_progress.setValue(0)
+        self.download_status.setText("Audio: not downloaded")
         self.result_list.addItem(QListWidgetItem(f"Searching YouTube for: {query}\nPlease wait..."))
         self.statusBar().showMessage(f"Searching YouTube for: {query}")
 
@@ -284,7 +317,7 @@ class MainWindow(QMainWindow):
                     item.setIcon(QIcon(pix.scaled(96, 54, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)))
             self.result_list.addItem(item)
 
-        self.statusBar().showMessage(f"Found {len(results)} YouTube results. Click one to attach it to the demo grid.")
+        self.statusBar().showMessage(f"Found {len(results)} YouTube results. Click one, then Download Audio.")
 
     def _set_thumbnail(self, result: YouTubeResult | None) -> None:
         if result and result.thumbnail_data:
@@ -297,12 +330,77 @@ class MainWindow(QMainWindow):
         self.thumbnail_label.setPixmap(QPixmap())
         self.thumbnail_label.setText("No image")
 
+    def _start_audio_download(self) -> None:
+        result = self.selected_youtube_result
+        if not result:
+            self.statusBar().showMessage("Select a YouTube result before downloading audio")
+            return
+        self.download_btn.setEnabled(False)
+        self.search_button.setEnabled(False)
+        self.download_progress.setValue(0)
+        self.download_status.setText("Audio: preparing download...")
+        self.statusBar().showMessage("Preparing YouTube audio download...")
+
+        def progress(message: str, percent: float, detail: str) -> None:
+            self.download_queue.put(("progress", (message, percent, detail)))
+
+        def worker() -> None:
+            try:
+                downloaded = download_audio(result.url, result.title, progress=progress)
+                self.download_queue.put(("done", downloaded))
+            except Exception as exc:
+                self.download_queue.put(("error", str(exc)))
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.download_poll_timer.start(100)
+
+    def _poll_download_results(self) -> None:
+        handled = False
+        while True:
+            try:
+                kind, payload = self.download_queue.get_nowait()
+            except queue.Empty:
+                break
+            handled = True
+            if kind == "progress":
+                message, percent, detail = payload  # type: ignore[misc]
+                self.download_progress.setValue(int(percent))
+                detail_text = f" ({detail})" if detail else ""
+                self.download_status.setText(f"Audio: {message}{detail_text}")
+                self.statusBar().showMessage(f"{message}{detail_text}")
+            elif kind == "done":
+                self.download_poll_timer.stop()
+                self.search_button.setEnabled(True)
+                self.download_btn.setEnabled(True)
+                result = payload
+                if isinstance(result, DownloadResult):
+                    self.downloaded_audio_path = result.file_path
+                    self.download_progress.setValue(100)
+                    cached = "cached" if result.was_cached else "downloaded"
+                    self.download_status.setText(f"Audio: {cached} - {result.file_path.name}")
+                    self.statusBar().showMessage(f"Audio {cached}. Playback comes in Build 004.3.")
+                return
+            elif kind == "error":
+                self.download_poll_timer.stop()
+                self.search_button.setEnabled(True)
+                self.download_btn.setEnabled(True)
+                self.download_status.setText(f"Audio error: {payload}")
+                self.statusBar().showMessage(f"Audio download error: {payload}")
+                return
+        if not handled:
+            return
+
     def _load_song(self, song: DemoSong) -> None:
         self.song = song
         self.position = 0
         self.loop_start = None
         self.loop_end = None
         self.selection_mode = None
+        self.selected_youtube_result = None
+        self.downloaded_audio_path = None
+        self.download_btn.setEnabled(False)
+        self.download_progress.setValue(0)
+        self.download_status.setText("Audio: not downloaded")
         self._set_thumbnail(None)
         self.title_label.setText(song.title)
         self.artist_label.setText(song.artist)
@@ -323,12 +421,17 @@ class MainWindow(QMainWindow):
                 return
             result = self.youtube_results[row]
             self._stop()
+            self.selected_youtube_result = result
+            self.downloaded_audio_path = None
+            self.download_btn.setEnabled(True)
+            self.download_progress.setValue(0)
+            self.download_status.setText("Audio: ready to download")
             self._set_thumbnail(result)
             self.title_label.setText(result.title)
             self.artist_label.setText(result.channel)
             self.source_label.setText("Source: YouTube search result")
             self.duration_label.setText(f"Duration: {result.duration}")
-            self.statusBar().showMessage("YouTube result selected. Download/audio/analysis comes in later builds.")
+            self.statusBar().showMessage("YouTube result selected. Click Download Audio.")
             return
 
         if 0 <= row < len(DEMO_SONGS):
@@ -421,7 +524,7 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Count-in: {self.count_in_remaining}")
         else:
             self._hide_countdown()
-            self.statusBar().showMessage("Playing demo timing grid - no audio yet")
+            self.statusBar().showMessage("Playing demo timing grid - real audio playback comes in Build 004.3")
         self._update_all()
         self.timer.start(self._interval_ms())
 
@@ -441,7 +544,7 @@ class MainWindow(QMainWindow):
         if self.count_in_remaining == 0:
             self.count_in_remaining = -1
             self._hide_countdown()
-            self.statusBar().showMessage("Playing demo timing grid - no audio yet")
+            self.statusBar().showMessage("Playing demo timing grid - real audio playback comes in Build 004.3")
             return
         self._advance_one()
 
@@ -574,12 +677,16 @@ class MainWindow(QMainWindow):
                 font-size: 34px;
                 font-weight: bold;
             }
-            QLineEdit, QComboBox, QSpinBox, QListWidget {
+            QLineEdit, QComboBox, QSpinBox, QListWidget, QProgressBar {
                 background: #252525;
                 color: #f3e6cc;
                 border: 1px solid #444444;
                 border-radius: 5px;
                 padding: 5px;
+            }
+            QProgressBar::chunk {
+                background: #6abf69;
+                border-radius: 4px;
             }
             QListWidget::item {
                 padding: 6px;
