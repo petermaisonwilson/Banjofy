@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer
+from urllib.request import urlopen
+
+from PySide6.QtCore import Qt, QTimer, QThread, Signal
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -21,8 +24,24 @@ from PySide6.QtWidgets import (
 from banjofy.banjo.chords import transpose_chord
 from banjofy.player.demo_songs import DEMO_SONGS, DemoSong
 from banjofy.ui.widgets import BanjoDiagram, ChordPanel
+from banjofy.youtube.search import YouTubeResult, search_youtube
 
-BUILD_LABEL = "Banjofy 0.2.5 - Build 002.5 Loop + Count-In"
+BUILD_LABEL = "Banjofy 0.3.0 - Build 003 YouTube Search"
+
+
+class YouTubeSearchThread(QThread):
+    finished_ok = Signal(list)
+    failed = Signal(str)
+
+    def __init__(self, query: str, parent=None) -> None:
+        super().__init__(parent)
+        self.query = query
+
+    def run(self) -> None:
+        try:
+            self.finished_ok.emit(search_youtube(self.query, limit=8))
+        except Exception as exc:  # pragma: no cover - shown to user in status bar
+            self.failed.emit(str(exc))
 
 
 class MainWindow(QMainWindow):
@@ -38,8 +57,11 @@ class MainWindow(QMainWindow):
         self.grid_diagrams: list[BanjoDiagram] = []
         self.loop_start_bar: int | None = None
         self.loop_end_bar: int | None = None
+        self.loop_select_mode: str | None = None
         self.is_counting_in = False
         self.count_in_remaining = 0
+        self.youtube_results: list[YouTubeResult] = []
+        self.search_thread: YouTubeSearchThread | None = None
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._advance_beat)
@@ -47,7 +69,7 @@ class MainWindow(QMainWindow):
         self._apply_style()
         self.setCentralWidget(self._build_ui())
         self.setStatusBar(QStatusBar())
-        self.statusBar().showMessage("Build 002.5 ready - visual loop buttons and count-in")
+        self.statusBar().showMessage("Build 003 ready - YouTube search is live; audio download comes next")
         self._load_demo_song(0)
 
     def _build_ui(self) -> QWidget:
@@ -63,11 +85,18 @@ class MainWindow(QMainWindow):
         search_layout = QVBoxLayout(search_panel)
         search_row = QHBoxLayout()
         self.search = QLineEdit()
-        self.search.setPlaceholderText("Build 002.4: demo search only - audio comes later")
-        self.search.textChanged.connect(self._filter_demo_results)
+        self.search.setPlaceholderText("Search YouTube, e.g. Country Roads banjo")
+        self.search.returnPressed.connect(self._start_youtube_search)
+        search_button = QPushButton("Search YouTube")
+        search_button.clicked.connect(self._start_youtube_search)
+        self.demo_button = QPushButton("Show Demos")
+        self.demo_button.clicked.connect(self._show_demo_results)
         search_row.addWidget(self.search)
+        search_row.addWidget(search_button)
+        search_row.addWidget(self.demo_button)
         search_layout.addLayout(search_row)
-        search_layout.addWidget(QLabel("Demo songs"))
+        self.results_title = QLabel("Demo songs")
+        search_layout.addWidget(self.results_title)
         self.results_layout = QVBoxLayout()
         search_layout.addLayout(self.results_layout)
         self.result_widgets: list[QWidget] = []
@@ -124,15 +153,19 @@ class MainWindow(QMainWindow):
         controls_layout.setContentsMargins(12, 8, 12, 8)
         controls_layout.setSpacing(10)
 
-        self.back_btn = QPushButton("⏮ Back")
+        self.to_start_btn = QPushButton("⏮ To Start")
+        self.back_btn = QPushButton("◀ Back")
         self.play_btn = QPushButton("▶ Play")
-        self.forward_btn = QPushButton("⏭ Forward")
+        self.forward_btn = QPushButton("Forward ▶")
+        self.to_start_btn.setMinimumWidth(110)
         self.back_btn.setMinimumWidth(90)
         self.play_btn.setMinimumWidth(95)
         self.forward_btn.setMinimumWidth(105)
+        self.to_start_btn.clicked.connect(self._jump_to_start)
         self.back_btn.clicked.connect(lambda: self._move_beat(-1))
         self.play_btn.clicked.connect(self._toggle_play)
         self.forward_btn.clicked.connect(lambda: self._move_beat(1))
+        controls_layout.addWidget(self.to_start_btn)
         controls_layout.addWidget(self.back_btn)
         controls_layout.addWidget(self.play_btn)
         controls_layout.addWidget(self.forward_btn)
@@ -147,12 +180,12 @@ class MainWindow(QMainWindow):
         self.loop_start_label.setMinimumWidth(70)
         self.loop_end_label = QLabel("End: —")
         self.loop_end_label.setMinimumWidth(70)
-        self.set_loop_start_btn = QPushButton("Set Start")
-        self.set_loop_end_btn = QPushButton("Set End")
+        self.set_loop_start_btn = QPushButton("Select Start")
+        self.set_loop_end_btn = QPushButton("Select End")
         self.clear_loop_btn = QPushButton("Clear Loop")
-        self.set_loop_start_btn.setMinimumWidth(100)
-        self.set_loop_end_btn.setMinimumWidth(90)
-        self.clear_loop_btn.setMinimumWidth(100)
+        self.set_loop_start_btn.setMinimumWidth(130)
+        self.set_loop_end_btn.setMinimumWidth(120)
+        self.clear_loop_btn.setMinimumWidth(120)
         self.set_loop_start_btn.clicked.connect(self._set_loop_start)
         self.set_loop_end_btn.clicked.connect(self._set_loop_end)
         self.clear_loop_btn.clicked.connect(self._clear_loop)
@@ -161,7 +194,7 @@ class MainWindow(QMainWindow):
         loop_layout.addWidget(self.set_loop_start_btn)
         loop_layout.addWidget(self.set_loop_end_btn)
         loop_layout.addWidget(self.clear_loop_btn)
-        loop_box.setMinimumWidth(560)
+        loop_box.setMinimumWidth(680)
         controls_layout.addWidget(loop_box, 0)
 
         speed_box = QFrame()
@@ -204,7 +237,7 @@ class MainWindow(QMainWindow):
 
         grid_panel = self._panel()
         grid_layout = QVBoxLayout(grid_panel)
-        grid_layout.addWidget(QLabel("Build 002.5 demo beat grid - 3 bars across / 12 beats per row, with bar headers"))
+        grid_layout.addWidget(QLabel("Build 003 beat grid - YouTube search is live; audio download/playback comes next"))
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.grid_widget = QWidget()
@@ -216,7 +249,21 @@ class MainWindow(QMainWindow):
 
         return root
 
+    def _clear_results(self) -> None:
+        while self.results_layout.count():
+            item = self.results_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self.result_widgets.clear()
+
+    def _show_demo_results(self) -> None:
+        self._clear_results()
+        self.results_title.setText("Demo songs")
+        self._build_demo_results()
+        self.statusBar().showMessage("Showing built-in demo songs")
+
     def _build_demo_results(self) -> None:
+        self._clear_results()
         for index, song in enumerate(DEMO_SONGS):
             item = QFrame()
             item.setObjectName("ResultItemFrame")
@@ -229,6 +276,81 @@ class MainWindow(QMainWindow):
             row.addWidget(btn)
             self.results_layout.addWidget(item)
             self.result_widgets.append(item)
+
+    def _start_youtube_search(self) -> None:
+        query = self.search.text().strip()
+        if not query:
+            self.statusBar().showMessage("Type a song or artist to search YouTube")
+            return
+        self._clear_results()
+        self.results_title.setText("Searching YouTube…")
+        waiting = QLabel("Searching YouTube. Please wait…")
+        waiting.setObjectName("ResultItem")
+        self.results_layout.addWidget(waiting)
+        self.search_thread = YouTubeSearchThread(query, self)
+        self.search_thread.finished_ok.connect(self._show_youtube_results)
+        self.search_thread.failed.connect(self._show_youtube_error)
+        self.search_thread.start()
+        self.statusBar().showMessage(f"Searching YouTube for: {query}")
+
+    def _show_youtube_error(self, message: str) -> None:
+        self._clear_results()
+        self.results_title.setText("YouTube search failed")
+        label = QLabel(f"Could not search YouTube.<br><span style='color:#aaa'>{message}</span>")
+        label.setTextFormat(Qt.TextFormat.RichText)
+        label.setObjectName("ResultItem")
+        self.results_layout.addWidget(label)
+        self.statusBar().showMessage("YouTube search failed - check internet connection or try another search")
+
+    def _show_youtube_results(self, results: list[YouTubeResult]) -> None:
+        self.youtube_results = results
+        self._clear_results()
+        self.results_title.setText("YouTube results")
+        if not results:
+            self.results_layout.addWidget(QLabel("No YouTube results found."))
+            self.statusBar().showMessage("No YouTube results found")
+            return
+        for index, result in enumerate(results):
+            item = QFrame()
+            item.setObjectName("ResultItemFrame")
+            row = QHBoxLayout(item)
+            thumb = QLabel("♪")
+            thumb.setObjectName("ThumbBox")
+            thumb.setFixedSize(86, 50)
+            thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._set_thumbnail(thumb, result.thumbnail)
+            row.addWidget(thumb)
+            label = QLabel(f"<b>{result.title}</b><br><span style='color:#aaa'>{result.uploader} • {result.duration}</span>")
+            label.setTextFormat(Qt.TextFormat.RichText)
+            label.setWordWrap(True)
+            row.addWidget(label, 1)
+            btn = QPushButton("Use for Demo")
+            btn.clicked.connect(lambda checked=False, i=index: self._select_youtube_result(i))
+            row.addWidget(btn)
+            self.results_layout.addWidget(item)
+            self.result_widgets.append(item)
+        self.statusBar().showMessage(f"Found {len(results)} YouTube results. Select one to attach it to the demo grid.")
+
+
+    def _set_thumbnail(self, label: QLabel, url: str) -> None:
+        if not url:
+            return
+        try:
+            data = urlopen(url, timeout=4).read()
+            pixmap = QPixmap()
+            if pixmap.loadFromData(data):
+                label.setPixmap(pixmap.scaled(label.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        except Exception:
+            # Thumbnail failure should never block the app; keep the music-note placeholder.
+            return
+
+    def _select_youtube_result(self, index: int) -> None:
+        if index < 0 or index >= len(self.youtube_results):
+            return
+        result = self.youtube_results[index]
+        self._load_demo_song(0)
+        self.statusBar().showMessage(f"Selected YouTube result: {result.title} - audio download comes in the next build")
+        self.results_title.setText("Selected YouTube result")
 
     def _filter_demo_results(self, text: str) -> None:
         text = text.lower().strip()
@@ -246,7 +368,7 @@ class MainWindow(QMainWindow):
         self._build_grid()
         self._set_timer_interval()
         self._update_position()
-        self.statusBar().showMessage(f"Loaded demo song: {self.song.title}")
+        self.statusBar().showMessage(f"Loaded demo timing grid: {self.song.title}")
 
     def _build_grid(self) -> None:
         while self.grid_layout.count():
@@ -261,6 +383,8 @@ class MainWindow(QMainWindow):
         for i, chord in enumerate(self.song.chords):
             cell = QFrame()
             cell.setObjectName("BeatCell")
+            cell.setCursor(Qt.CursorShape.PointingHandCursor)
+            cell.mousePressEvent = lambda event, idx=i: self._grid_cell_clicked(idx)  # type: ignore[method-assign]
             cell.setMinimumHeight(122)
             cell.setMinimumWidth(92)
             box = QVBoxLayout(cell)
@@ -344,22 +468,44 @@ class MainWindow(QMainWindow):
         return self.beat_index // 4 + 1
 
     def _set_loop_start(self) -> None:
-        self.loop_start_bar = self._current_bar()
-        if self.loop_end_bar is not None and self.loop_start_bar > self.loop_end_bar:
-            self.loop_start_bar, self.loop_end_bar = self.loop_end_bar, self.loop_start_bar
-        self._update_loop_labels()
-        self.statusBar().showMessage(f"Loop start set to bar {self.loop_start_bar}")
+        self.loop_select_mode = "start"
+        self.statusBar().showMessage("Click any beat in the grid to set the loop START bar")
+        self.set_loop_start_btn.setText("Click beat…")
+        self.set_loop_end_btn.setText("Select End")
 
     def _set_loop_end(self) -> None:
-        self.loop_end_bar = self._current_bar()
-        if self.loop_start_bar is not None and self.loop_start_bar > self.loop_end_bar:
+        self.loop_select_mode = "end"
+        self.statusBar().showMessage("Click any beat in the grid to set the loop END bar")
+        self.set_loop_end_btn.setText("Click beat…")
+        self.set_loop_start_btn.setText("Select Start")
+
+    def _grid_cell_clicked(self, beat_index: int) -> None:
+        bar = beat_index // 4 + 1
+        if self.loop_select_mode == "start":
+            self.loop_start_bar = bar
+            self.loop_select_mode = None
+            self.statusBar().showMessage(f"Loop start set to bar {bar}")
+        elif self.loop_select_mode == "end":
+            self.loop_end_bar = bar
+            self.loop_select_mode = None
+            self.statusBar().showMessage(f"Loop end set to bar {bar}")
+        else:
+            self.beat_index = beat_index
+            self.statusBar().showMessage(f"Moved cursor to bar {bar}, beat {(beat_index % 4) + 1}")
+        if self.loop_start_bar is not None and self.loop_end_bar is not None and self.loop_start_bar > self.loop_end_bar:
             self.loop_start_bar, self.loop_end_bar = self.loop_end_bar, self.loop_start_bar
+        self.set_loop_start_btn.setText("Select Start")
+        self.set_loop_end_btn.setText("Select End")
         self._update_loop_labels()
-        self.statusBar().showMessage(f"Loop end set to bar {self.loop_end_bar}")
+        self._update_position()
 
     def _clear_loop(self) -> None:
         self.loop_start_bar = None
         self.loop_end_bar = None
+        self.loop_select_mode = None
+        if hasattr(self, "set_loop_start_btn"):
+            self.set_loop_start_btn.setText("Select Start")
+            self.set_loop_end_btn.setText("Select End")
         if hasattr(self, "loop_start_label"):
             self._update_loop_labels()
 
@@ -372,6 +518,19 @@ class MainWindow(QMainWindow):
         active = self._loop_is_active()
         self.clear_loop_btn.setEnabled(active)
 
+
+    def _jump_to_start(self) -> None:
+        if not self.song:
+            return
+        if self._loop_is_active():
+            start_bar = min(self.loop_start_bar, self.loop_end_bar)  # type: ignore[arg-type]
+            self.beat_index = max(0, (start_bar - 1) * 4)
+            self.statusBar().showMessage(f"Jumped to loop start: bar {start_bar}")
+        else:
+            self.beat_index = 0
+            self.statusBar().showMessage("Jumped to song start")
+        self._update_position()
+
     def _toggle_play(self) -> None:
         if self.is_playing or self.is_counting_in:
             self.is_playing = False
@@ -381,6 +540,11 @@ class MainWindow(QMainWindow):
             self.count_in_display.setText("Ready")
             self.statusBar().showMessage("Paused")
             return
+
+        if self._loop_is_active():
+            start_bar = min(self.loop_start_bar, self.loop_end_bar)  # type: ignore[arg-type]
+            self.beat_index = max(0, (start_bar - 1) * 4)
+            self._update_position()
 
         beats = int(self.count_in.currentText())
         if beats > 0:
@@ -435,9 +599,9 @@ class MainWindow(QMainWindow):
                 self.beat_index = loop_end_index
         else:
             if self.beat_index >= len(self.song.chords):
-                self.beat_index = 0
-            if self.beat_index < 0:
                 self.beat_index = len(self.song.chords) - 1
+            if self.beat_index < 0:
+                self.beat_index = 0
         self._update_position()
 
     def _update_position(self) -> None:
@@ -496,6 +660,20 @@ class MainWindow(QMainWindow):
                 background: #202020;
                 border: 1px solid #333333;
                 border-radius: 6px;
+            }
+            QLabel#ResultItem {
+                background: #202020;
+                border: 1px solid #333333;
+                border-radius: 6px;
+                padding: 8px;
+            }
+            QLabel#ThumbBox {
+                background: #111111;
+                color: #f3c25b;
+                border: 1px solid #333333;
+                border-radius: 4px;
+                font-size: 20px;
+                font-weight: bold;
             }
             QLabel#CountInDisplay {
                 background: #111111;
