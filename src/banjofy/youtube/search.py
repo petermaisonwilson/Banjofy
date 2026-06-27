@@ -1,98 +1,76 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-
-from PySide6.QtCore import QObject, Signal
+from typing import Any
 
 
 @dataclass(frozen=True)
-class YouTubeSearchResult:
-    """Small, UI-friendly representation of a YouTube search result."""
-
+class YouTubeResult:
     title: str
     channel: str
-    duration_text: str
-    webpage_url: str
-    thumbnail_url: str = ""
+    duration: str
+    url: str
+    thumbnail: str = ""
 
 
-def _format_duration(seconds: int | None) -> str:
-    if not seconds:
-        return ""
-    seconds = int(seconds)
-    minutes, secs = divmod(seconds, 60)
-    hours, minutes = divmod(minutes, 60)
-    if hours:
-        return f"{hours}:{minutes:02d}:{secs:02d}"
-    return f"{minutes}:{secs:02d}"
-
-
-def search_youtube(query: str, limit: int = 8) -> list[YouTubeSearchResult]:
-    """Search YouTube using yt-dlp.
-
-    This is Build 004.1A: search only. It deliberately does not download audio yet.
-    """
-
+def _format_duration(seconds: Any) -> str:
+    if seconds is None:
+        return "—"
     try:
-        import yt_dlp
-    except ImportError as exc:
-        raise RuntimeError("yt-dlp is not installed. Check requirements.txt and rebuild the EXE.") from exc
+        total = int(seconds)
+    except (TypeError, ValueError):
+        return "—"
+    mins, secs = divmod(total, 60)
+    hours, mins = divmod(mins, 60)
+    if hours:
+        return f"{hours}:{mins:02d}:{secs:02d}"
+    return f"{mins}:{secs:02d}"
 
-    clean_query = query.strip()
-    if not clean_query:
+
+def search_youtube(query: str, limit: int = 8) -> list[YouTubeResult]:
+    """Search YouTube using yt-dlp and return simple display-ready results.
+
+    This function is deliberately small and defensive. It raises a readable
+    RuntimeError if yt-dlp cannot search, so the UI can show a proper message
+    instead of appearing to do nothing.
+    """
+    query = query.strip()
+    if not query:
         return []
 
-    options = {
+    try:
+        from yt_dlp import YoutubeDL
+    except Exception as exc:  # pragma: no cover - depends on installed package
+        raise RuntimeError("yt-dlp is not installed in this build") from exc
+
+    options: dict[str, Any] = {
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
-        "extract_flat": True,
+        "extract_flat": "in_playlist",
+        "socket_timeout": 20,
         "noplaylist": True,
     }
 
-    search_term = f"ytsearch{limit}:{clean_query}"
-    with yt_dlp.YoutubeDL(options) as ydl:
-        info = ydl.extract_info(search_term, download=False)
+    try:
+        with YoutubeDL(options) as ydl:
+            info = ydl.extract_info(f"ytsearch{limit}:{query}", download=False)
+    except Exception as exc:
+        raise RuntimeError(f"YouTube search failed: {exc}") from exc
 
-    entries = info.get("entries", []) if isinstance(info, dict) else []
-    results: list[YouTubeSearchResult] = []
+    entries = (info or {}).get("entries") or []
+    results: list[YouTubeResult] = []
 
     for entry in entries:
         if not entry:
             continue
-
-        title = entry.get("title") or "Untitled YouTube result"
-        channel = entry.get("uploader") or entry.get("channel") or entry.get("creator") or "YouTube"
-        duration_text = _format_duration(entry.get("duration"))
+        title = entry.get("title") or "Untitled result"
+        channel = entry.get("uploader") or entry.get("channel") or "Unknown channel"
+        duration = _format_duration(entry.get("duration"))
         webpage_url = entry.get("webpage_url") or entry.get("url") or ""
-        thumbnail_url = entry.get("thumbnail") or ""
-
-        results.append(
-            YouTubeSearchResult(
-                title=title,
-                channel=channel,
-                duration_text=duration_text,
-                webpage_url=webpage_url,
-                thumbnail_url=thumbnail_url,
-            )
-        )
+        if webpage_url and not webpage_url.startswith("http"):
+            webpage_url = f"https://www.youtube.com/watch?v={webpage_url}"
+        thumb = entry.get("thumbnail") or ""
+        results.append(YouTubeResult(title=title, channel=channel, duration=duration, url=webpage_url, thumbnail=thumb))
 
     return results
-
-
-class YouTubeSearchWorker(QObject):
-    """Runs a YouTube search off the UI thread so the app does not freeze."""
-
-    completed = Signal(list)
-    failed = Signal(str)
-
-    def __init__(self, query: str, limit: int = 8) -> None:
-        super().__init__()
-        self.query = query
-        self.limit = limit
-
-    def run(self) -> None:
-        try:
-            self.completed.emit(search_youtube(self.query, self.limit))
-        except Exception as exc:
-            self.failed.emit(str(exc))
