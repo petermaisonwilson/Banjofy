@@ -4,8 +4,9 @@ import queue
 import threading
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, QSize
+from PySide6.QtCore import Qt, QTimer, QSize, QUrl
 from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -32,7 +33,7 @@ from banjofy.ui.widgets import BeatCell, ChordPanel
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.4.2 - YouTube Audio Download"
+APP_VERSION = "Banjofy 0.4.3 - Audio Playback Stage 1"
 
 
 class MainWindow(QMainWindow):
@@ -54,6 +55,7 @@ class MainWindow(QMainWindow):
         self.youtube_results: list[YouTubeResult] = []
         self.selected_youtube_result: YouTubeResult | None = None
         self.downloaded_audio_path: Path | None = None
+        self.audio_ready = False
 
         self.search_queue: queue.Queue[tuple[str, object]] = queue.Queue()
         self.download_queue: queue.Queue[tuple[str, object]] = queue.Queue()
@@ -67,12 +69,19 @@ class MainWindow(QMainWindow):
         self.download_poll_timer = QTimer(self)
         self.download_poll_timer.timeout.connect(self._poll_download_results)
 
+        self.audio_output = QAudioOutput(self)
+        self.audio_output.setVolume(0.8)
+        self.media_player = QMediaPlayer(self)
+        self.media_player.setAudioOutput(self.audio_output)
+        self.media_player.errorOccurred.connect(self._media_error)
+        self.media_player.mediaStatusChanged.connect(self._media_status_changed)
+
         self._apply_style()
         self.setCentralWidget(self._build_ui())
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 004.2 ready - selected YouTube audio can be downloaded and cached. Playback comes next.")
+        self.statusBar().showMessage("Build 004.3 ready - downloaded YouTube audio can now play.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -105,7 +114,7 @@ class MainWindow(QMainWindow):
             self.result_list.addItem(QListWidgetItem(f"DEMO · {song.title}\n{song.artist} · {song.duration} · {song.bpm} BPM"))
         search_layout.addWidget(self.result_list)
 
-        self.search_hint = QLabel("Search uses yt-dlp. Select a YouTube result, then click Download Audio.")
+        self.search_hint = QLabel("Search uses yt-dlp. Select a YouTube result, download audio, then press Play.")
         self.search_hint.setObjectName("HintLabel")
         search_layout.addWidget(self.search_hint)
         top.addWidget(search_panel, 2)
@@ -151,7 +160,6 @@ class MainWindow(QMainWindow):
         self.download_status.setWordWrap(True)
         self.download_status.setObjectName("HintLabel")
         meta_layout.addWidget(self.download_status)
-
         top.addWidget(meta_panel, 1)
 
         centre = self._panel()
@@ -258,7 +266,6 @@ class MainWindow(QMainWindow):
         self.scroll.setWidget(self.grid_host)
         grid_layout.addWidget(self.scroll)
         outer.addWidget(grid_panel, 1)
-
         return root
 
     def _start_youtube_search(self) -> None:
@@ -266,11 +273,12 @@ class MainWindow(QMainWindow):
         if not query:
             self.statusBar().showMessage("Enter a song or artist to search YouTube")
             return
+        self._stop()
+        self._clear_audio_file()
         self.search_button.setEnabled(False)
         self.result_list.clear()
         self.youtube_results = []
         self.selected_youtube_result = None
-        self.downloaded_audio_path = None
         self.download_btn.setEnabled(False)
         self.download_progress.setValue(0)
         self.download_status.setText("Audio: not downloaded")
@@ -316,7 +324,6 @@ class MainWindow(QMainWindow):
                 if pix.loadFromData(result.thumbnail_data):
                     item.setIcon(QIcon(pix.scaled(96, 54, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)))
             self.result_list.addItem(item)
-
         self.statusBar().showMessage(f"Found {len(results)} YouTube results. Click one, then Download Audio.")
 
     def _set_thumbnail(self, result: YouTubeResult | None) -> None:
@@ -335,6 +342,8 @@ class MainWindow(QMainWindow):
         if not result:
             self.statusBar().showMessage("Select a YouTube result before downloading audio")
             return
+        self._stop()
+        self._clear_audio_file()
         self.download_btn.setEnabled(False)
         self.search_button.setEnabled(False)
         self.download_progress.setValue(0)
@@ -377,8 +386,9 @@ class MainWindow(QMainWindow):
                     self.downloaded_audio_path = result.file_path
                     self.download_progress.setValue(100)
                     cached = "cached" if result.was_cached else "downloaded"
-                    self.download_status.setText(f"Audio: {cached} - {result.file_path.name}")
-                    self.statusBar().showMessage(f"Audio {cached}. Playback comes in Build 004.3.")
+                    self.download_status.setText(f"Audio: {cached} - press Play")
+                    self.statusBar().showMessage(f"Audio {cached}. Press Play to hear it.")
+                    self._load_audio_file(result.file_path)
                 return
             elif kind == "error":
                 self.download_poll_timer.stop()
@@ -390,14 +400,30 @@ class MainWindow(QMainWindow):
         if not handled:
             return
 
+    def _load_audio_file(self, path: Path) -> None:
+        self.audio_ready = False
+        if not path or not path.exists():
+            self.download_status.setText("Audio error: downloaded file not found")
+            return
+        self.media_player.setSource(QUrl.fromLocalFile(str(path)))
+        self.media_player.setPlaybackRate(self.speed.value() / 100)
+        self.audio_ready = True
+
+    def _clear_audio_file(self) -> None:
+        self.audio_ready = False
+        self.downloaded_audio_path = None
+        self.media_player.stop()
+        self.media_player.setSource(QUrl())
+
     def _load_song(self, song: DemoSong) -> None:
+        self._stop()
         self.song = song
         self.position = 0
         self.loop_start = None
         self.loop_end = None
         self.selection_mode = None
         self.selected_youtube_result = None
-        self.downloaded_audio_path = None
+        self._clear_audio_file()
         self.download_btn.setEnabled(False)
         self.download_progress.setValue(0)
         self.download_status.setText("Audio: not downloaded")
@@ -415,14 +441,13 @@ class MainWindow(QMainWindow):
     def _select_result(self, row: int) -> None:
         if row < 0:
             return
-
         if self.youtube_results:
             if row >= len(self.youtube_results):
                 return
             result = self.youtube_results[row]
             self._stop()
             self.selected_youtube_result = result
-            self.downloaded_audio_path = None
+            self._clear_audio_file()
             self.download_btn.setEnabled(True)
             self.download_progress.setValue(0)
             self.download_status.setText("Audio: ready to download")
@@ -433,9 +458,7 @@ class MainWindow(QMainWindow):
             self.duration_label.setText(f"Duration: {result.duration}")
             self.statusBar().showMessage("YouTube result selected. Click Download Audio.")
             return
-
         if 0 <= row < len(DEMO_SONGS):
-            self._stop()
             self._load_song(DEMO_SONGS[row])
             self.statusBar().showMessage(f"Loaded demo: {DEMO_SONGS[row].title}")
 
@@ -507,8 +530,7 @@ class MainWindow(QMainWindow):
     def _scroll_to_position(self) -> None:
         if not self.cells or self.position >= len(self.cells):
             return
-        cell = self.cells[self.position]
-        self.scroll.ensureWidgetVisible(cell, 20, 20)
+        self.scroll.ensureWidgetVisible(self.cells[self.position], 20, 20)
 
     def _play_pause(self) -> None:
         if self.is_playing:
@@ -524,13 +546,28 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Count-in: {self.count_in_remaining}")
         else:
             self._hide_countdown()
-            self.statusBar().showMessage("Playing demo timing grid - real audio playback comes in Build 004.3")
+            self._begin_playback_after_count_in()
         self._update_all()
         self.timer.start(self._interval_ms())
+
+    def _begin_playback_after_count_in(self) -> None:
+        if self.audio_ready and self.downloaded_audio_path:
+            self.media_player.setPlaybackRate(self.speed.value() / 100)
+            self.media_player.setPosition(self._audio_position_for_current_beat())
+            self.media_player.play()
+            self.statusBar().showMessage("Playing downloaded audio with demo beat grid")
+        else:
+            self.statusBar().showMessage("Playing demo timing grid - no downloaded audio selected")
+
+    def _audio_position_for_current_beat(self) -> int:
+        # Stage 004.3 has no audio analysis yet, so this estimates the time from the demo BPM.
+        ms_per_beat = int(60000 / self.song.bpm)
+        return max(0, self.position * ms_per_beat)
 
     def _stop(self) -> None:
         self.is_playing = False
         self.timer.stop()
+        self.media_player.pause()
         self.play_btn.setText("▶ Play")
         self._hide_countdown()
         self.statusBar().showMessage("Paused")
@@ -544,7 +581,7 @@ class MainWindow(QMainWindow):
         if self.count_in_remaining == 0:
             self.count_in_remaining = -1
             self._hide_countdown()
-            self.statusBar().showMessage("Playing demo timing grid - real audio playback comes in Build 004.3")
+            self._begin_playback_after_count_in()
             return
         self._advance_one()
 
@@ -561,6 +598,8 @@ class MainWindow(QMainWindow):
         if self.loop_start is not None and self.loop_end is not None:
             if self.position >= self.loop_end:
                 self.position = self.loop_start
+                if self.audio_ready:
+                    self.media_player.setPosition(self._audio_position_for_current_beat())
             else:
                 self.position += 1
         else:
@@ -573,19 +612,26 @@ class MainWindow(QMainWindow):
     def _back(self) -> None:
         if self.position > 0:
             self.position -= 1
+            if self.audio_ready:
+                self.media_player.setPosition(self._audio_position_for_current_beat())
             self._update_all()
 
     def _forward(self) -> None:
         if self.position < len(self.song.beat_chords) - 1:
             self.position += 1
+            if self.audio_ready:
+                self.media_player.setPosition(self._audio_position_for_current_beat())
             self._update_all()
 
     def _to_start(self) -> None:
         self.position = self.loop_start if self.loop_start is not None else 0
+        if self.audio_ready:
+            self.media_player.setPosition(self._audio_position_for_current_beat())
         self._update_all()
 
     def _speed_changed(self, value: int) -> None:
         self.speed_label.setText(f"{value}%")
+        self.media_player.setPlaybackRate(value / 100)
         if self.timer.isActive():
             self.timer.start(self._interval_ms())
 
@@ -611,6 +657,8 @@ class MainWindow(QMainWindow):
             self.selection_mode = None
         else:
             self.position = index
+            if self.audio_ready:
+                self.media_player.setPosition(self._audio_position_for_current_beat())
         self._update_loop_status()
         self._update_all()
 
@@ -630,6 +678,15 @@ class MainWindow(QMainWindow):
     def _mode_changed(self) -> None:
         self.statusBar().showMessage(f"Mode set to {self.mode.currentText()} - simplification engine comes later")
         self._update_all()
+
+    def _media_error(self, error, error_string: str = "") -> None:
+        if error_string:
+            self.download_status.setText(f"Audio playback error: {error_string}")
+            self.statusBar().showMessage(f"Audio playback error: {error_string}")
+
+    def _media_status_changed(self, status) -> None:
+        if status == QMediaPlayer.MediaStatus.EndOfMedia and self.is_playing:
+            self._stop()
 
     def _panel(self, name: str = "Panel") -> QFrame:
         frame = QFrame()

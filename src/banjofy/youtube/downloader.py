@@ -36,16 +36,18 @@ def default_cache_dir() -> Path:
 
 
 def _existing_download(cache_dir: Path, video_id: str) -> Path | None:
-    for candidate in cache_dir.glob(f"{video_id}_*"):
-        if candidate.is_file() and candidate.suffix.lower() in {".m4a", ".webm", ".mp3", ".opus"}:
-            return candidate
+    # Prefer formats Windows/Qt are most likely to play.
+    for ext in (".m4a", ".mp3", ".webm", ".opus"):
+        for candidate in cache_dir.glob(f"{video_id}_*{ext}"):
+            if candidate.is_file():
+                return candidate
     return None
 
 
 def download_audio(url: str, title: str = "YouTube audio", progress: ProgressCallback | None = None) -> DownloadResult:
     """Download best available audio using yt-dlp into a local cache.
 
-    Stage 004.2 only downloads and caches audio. It does not play it yet.
+    Build 004.3 prefers m4a so Qt/Windows has the best chance of playing it.
     """
     if not url:
         raise RuntimeError("No YouTube URL was supplied")
@@ -60,7 +62,6 @@ def download_audio(url: str, title: str = "YouTube audio", progress: ProgressCal
     if progress:
         progress("Preparing download...", 0, "")
 
-    # First lightly inspect so we can create a stable cache name.
     try:
         with YoutubeDL({"quiet": True, "no_warnings": True, "skip_download": True, "noplaylist": True}) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -97,13 +98,12 @@ def download_audio(url: str, title: str = "YouTube audio", progress: ProgressCal
             progress("Finalising audio file...", 99, "")
 
     options: dict[str, Any] = {
-        "format": "bestaudio/best",
+        "format": "bestaudio[ext=m4a]/bestaudio/best",
         "outtmpl": outtmpl,
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
         "progress_hooks": [hook],
-        # No postprocessor yet. This avoids requiring FFmpeg for Stage 004.2.
     }
 
     try:
@@ -114,7 +114,6 @@ def download_audio(url: str, title: str = "YouTube audio", progress: ProgressCal
 
     downloaded = _existing_download(cache_dir, video_id)
     if not downloaded:
-        # fallback: anything matching the start of the template
         matches = list(cache_dir.glob(f"{video_id}_*"))
         downloaded = matches[0] if matches else None
     if not downloaded:
