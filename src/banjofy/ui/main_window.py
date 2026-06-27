@@ -22,7 +22,7 @@ from banjofy.banjo.chords import transpose_chord
 from banjofy.player.demo_songs import DEMO_SONGS, DemoSong
 from banjofy.ui.widgets import BanjoDiagram, ChordPanel
 
-BUILD_LABEL = "Banjofy 0.2.2 - Build 002.2 Grid Diagram Alignment"
+BUILD_LABEL = "Banjofy 0.2.3 - Build 002.3 Loop Control Fix"
 
 
 class MainWindow(QMainWindow):
@@ -43,7 +43,7 @@ class MainWindow(QMainWindow):
         self._apply_style()
         self.setCentralWidget(self._build_ui())
         self.setStatusBar(QStatusBar())
-        self.statusBar().showMessage("Build 002.2 ready - grid diagrams aligned")
+        self.statusBar().showMessage("Build 002.3 ready - loop controls widened")
         self._load_demo_song(0)
 
     def _build_ui(self) -> QWidget:
@@ -59,7 +59,7 @@ class MainWindow(QMainWindow):
         search_layout = QVBoxLayout(search_panel)
         search_row = QHBoxLayout()
         self.search = QLineEdit()
-        self.search.setPlaceholderText("Build 002.2: demo search only - YouTube comes later")
+        self.search.setPlaceholderText("Build 002.3: demo search only - YouTube comes later")
         self.search.textChanged.connect(self._filter_demo_results)
         search_row.addWidget(self.search)
         search_layout.addLayout(search_row)
@@ -117,41 +117,71 @@ class MainWindow(QMainWindow):
 
         controls = self._panel()
         controls_layout = QHBoxLayout(controls)
+        controls_layout.setContentsMargins(12, 8, 12, 8)
+        controls_layout.setSpacing(10)
+
         self.back_btn = QPushButton("⏮ Back")
         self.play_btn = QPushButton("▶ Play")
         self.forward_btn = QPushButton("⏭ Forward")
+        self.back_btn.setMinimumWidth(90)
+        self.play_btn.setMinimumWidth(95)
+        self.forward_btn.setMinimumWidth(105)
         self.back_btn.clicked.connect(lambda: self._move_beat(-1))
         self.play_btn.clicked.connect(self._toggle_play)
         self.forward_btn.clicked.connect(lambda: self._move_beat(1))
         controls_layout.addWidget(self.back_btn)
         controls_layout.addWidget(self.play_btn)
         controls_layout.addWidget(self.forward_btn)
-        controls_layout.addSpacing(30)
-        controls_layout.addWidget(QLabel("Loop bars"))
+
+        loop_box = QFrame()
+        loop_box.setObjectName("ControlGroup")
+        loop_layout = QHBoxLayout(loop_box)
+        loop_layout.setContentsMargins(10, 4, 10, 4)
+        loop_layout.setSpacing(8)
+        loop_label = QLabel("Loop bars")
+        loop_label.setMinimumWidth(70)
+        loop_layout.addWidget(loop_label)
         self.loop_start = QSpinBox()
         self.loop_start.setRange(1, 99)
         self.loop_start.setValue(1)
+        self.loop_start.setMinimumWidth(64)
+        self.loop_start.setButtonSymbols(QSpinBox.ButtonSymbols.UpDownArrows)
         self.loop_end = QSpinBox()
         self.loop_end.setRange(1, 99)
         self.loop_end.setValue(4)
-        controls_layout.addWidget(self.loop_start)
-        controls_layout.addWidget(QLabel("to"))
-        controls_layout.addWidget(self.loop_end)
-        controls_layout.addSpacing(30)
-        controls_layout.addWidget(QLabel("Speed"))
+        self.loop_end.setMinimumWidth(64)
+        self.loop_end.setButtonSymbols(QSpinBox.ButtonSymbols.UpDownArrows)
+        loop_layout.addWidget(self.loop_start)
+        to_label = QLabel("to")
+        to_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        to_label.setMinimumWidth(20)
+        loop_layout.addWidget(to_label)
+        loop_layout.addWidget(self.loop_end)
+        controls_layout.addWidget(loop_box, 0)
+
+        speed_box = QFrame()
+        speed_box.setObjectName("ControlGroup")
+        speed_layout = QHBoxLayout(speed_box)
+        speed_layout.setContentsMargins(10, 4, 10, 4)
+        speed_layout.setSpacing(8)
+        speed_layout.addWidget(QLabel("Speed"))
         self.speed = QSlider(Qt.Orientation.Horizontal)
         self.speed.setRange(50, 150)
         self.speed.setValue(100)
+        self.speed.setMinimumWidth(190)
         self.speed.valueChanged.connect(self._set_timer_interval)
-        controls_layout.addWidget(self.speed)
+        speed_layout.addWidget(self.speed)
         self.speed_label = QLabel("100%")
-        controls_layout.addWidget(self.speed_label)
+        self.speed_label.setMinimumWidth(48)
+        speed_layout.addWidget(self.speed_label)
+        controls_layout.addWidget(speed_box, 1)
+
         controls_layout.addStretch()
         outer.addWidget(controls, 0)
 
         grid_panel = self._panel()
         grid_layout = QVBoxLayout(grid_panel)
-        grid_layout.addWidget(QLabel("Build 002.2 demo beat grid - aligned chord diagrams / 4 bars across"))
+        grid_layout.addWidget(QLabel("Build 002.3 demo beat grid - loop controls widened / 4 bars across"))
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.grid_widget = QWidget()
@@ -364,7 +394,7 @@ class MainWindow(QMainWindow):
                 border: 1px solid #333333;
                 border-radius: 8px;
             }
-            QFrame#InfoBox, QFrame#ResultItemFrame {
+            QFrame#InfoBox, QFrame#ResultItemFrame, QFrame#ControlGroup {
                 background: #202020;
                 border: 1px solid #333333;
                 border-radius: 6px;
@@ -375,6 +405,7 @@ class MainWindow(QMainWindow):
                 border: 1px solid #444444;
                 border-radius: 5px;
                 padding: 6px;
+                min-height: 24px;
             }
             QPushButton {
                 background: #2f2f2f;
