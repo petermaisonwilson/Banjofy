@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QThread, QTimer
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -23,8 +23,9 @@ from PySide6.QtWidgets import (
 from banjofy.banjo.chords import transpose_chord
 from banjofy.player.demo_data import DEMO_SONGS, DemoSong
 from banjofy.ui.widgets import BeatCell, ChordPanel
+from banjofy.youtube.search import YouTubeSearchResult, YouTubeSearchWorker
 
-APP_VERSION = "Banjofy 0.3.3 - Build 003.3 Countdown Timing Fix"
+APP_VERSION = "Banjofy 0.4.1A - YouTube Search Stage 1"
 
 
 class MainWindow(QMainWindow):
@@ -42,6 +43,8 @@ class MainWindow(QMainWindow):
         self.loop_end: int | None = None
         self.selection_mode: str | None = None
         self.cells: list[BeatCell] = []
+        self.youtube_results: list[YouTubeSearchResult] = []
+        self.youtube_thread: QThread | None = None
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._tick)
@@ -51,7 +54,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 003.3 ready - count-in timing fixed. Real audio/YouTube analysis comes next.")
+        self.statusBar().showMessage("Build 004.1A ready - real YouTube search stage 1. Audio download/playback comes next.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -63,29 +66,37 @@ class MainWindow(QMainWindow):
         top.setSpacing(6)
         outer.addLayout(top, 0)
 
-        # Search / demo song choice panel. YouTube integration will attach here later.
         search_panel = self._panel()
         search_layout = QVBoxLayout(search_panel)
         search_layout.setContentsMargins(8, 6, 8, 6)
+        search_title = QLabel("YouTube Search")
+        search_title.setObjectName("PanelTitle")
+        search_layout.addWidget(search_title)
+
         search_row = QHBoxLayout()
         self.search = QLineEdit()
-        self.search.setPlaceholderText("YouTube search comes after layout/player stability - demo songs below for now")
-        search_button = QPushButton("Search")
-        search_button.setEnabled(False)
+        self.search.setPlaceholderText("Type a song title, artist, or YouTube search phrase")
+        self.search.returnPressed.connect(self._run_youtube_search)
+        self.search_button = QPushButton("Search")
+        self.search_button.clicked.connect(self._run_youtube_search)
         search_row.addWidget(self.search)
-        search_row.addWidget(search_button)
+        search_row.addWidget(self.search_button)
         search_layout.addLayout(search_row)
+
         self.result_list = QListWidget()
-        self.result_list.setMaximumHeight(150)
-        self.result_list.currentRowChanged.connect(self._select_demo_song)
-        for song in DEMO_SONGS:
-            self.result_list.addItem(QListWidgetItem(f"{song.title}\n{song.artist} · {song.duration} · {song.bpm} BPM"))
+        self.result_list.setMaximumHeight(210)
+        self.result_list.currentRowChanged.connect(self._select_result)
         search_layout.addWidget(self.result_list)
+
+        self._populate_demo_results()
         top.addWidget(search_panel, 2)
 
         meta_panel = self._panel()
         meta_layout = QVBoxLayout(meta_panel)
         meta_layout.setContentsMargins(8, 6, 8, 6)
+        meta_title = QLabel("Loaded Song")
+        meta_title.setObjectName("PanelTitle")
+        meta_layout.addWidget(meta_title)
         self.title_label = QLabel("—")
         self.title_label.setStyleSheet("font-size: 15px; font-weight: bold; color: #f3d99a;")
         self.artist_label = QLabel("—")
@@ -94,7 +105,8 @@ class MainWindow(QMainWindow):
         self.bpm_label = QLabel("BPM: —")
         self.key_label = QLabel("Key: —")
         self.duration_label = QLabel("Duration: —")
-        for w in [self.bpm_label, self.key_label, self.duration_label]:
+        self.source_label = QLabel("Source: Demo")
+        for w in [self.bpm_label, self.key_label, self.duration_label, self.source_label]:
             meta_layout.addWidget(w)
         top.addWidget(meta_panel, 1)
 
@@ -203,6 +215,104 @@ class MainWindow(QMainWindow):
 
         return root
 
+    def _populate_demo_results(self) -> None:
+        self.result_list.clear()
+        for i, song in enumerate(DEMO_SONGS):
+            item = QListWidgetItem(f"DEMO · {song.title}\n{song.artist} · {song.duration} · {song.bpm} BPM")
+            item.setData(Qt.ItemDataRole.UserRole, ("demo", i))
+            self.result_list.addItem(item)
+
+    def _run_youtube_search(self) -> None:
+        query = self.search.text().strip()
+        if not query:
+            self.statusBar().showMessage("Type something to search YouTube.")
+            return
+
+        self._stop()
+        self.youtube_results = []
+        self.result_list.clear()
+        searching = QListWidgetItem(f"Searching YouTube for:\n{query}")
+        searching.setData(Qt.ItemDataRole.UserRole, None)
+        self.result_list.addItem(searching)
+        self.search_button.setEnabled(False)
+        self.search_button.setText("Searching...")
+        self.statusBar().showMessage("Searching YouTube with yt-dlp...")
+
+        worker = YouTubeSearchWorker(query=query, limit=8)
+        thread = QThread(self)
+        worker.moveToThread(thread)
+
+        thread.started.connect(worker.run)
+        worker.completed.connect(self._youtube_search_completed)
+        worker.failed.connect(self._youtube_search_failed)
+        worker.completed.connect(thread.quit)
+        worker.failed.connect(thread.quit)
+        worker.completed.connect(worker.deleteLater)
+        worker.failed.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(self._youtube_search_finished)
+
+        self.youtube_thread = thread
+        thread.start()
+
+    def _youtube_search_completed(self, results: list[YouTubeSearchResult]) -> None:
+        self.youtube_results = results
+        self.result_list.clear()
+        if not results:
+            item = QListWidgetItem("No YouTube results found.\nTry a different search phrase.")
+            item.setData(Qt.ItemDataRole.UserRole, None)
+            self.result_list.addItem(item)
+            self.statusBar().showMessage("No YouTube results found.")
+            return
+
+        for i, result in enumerate(results, start=1):
+            text = (
+                f"YOUTUBE {i} · {result.title}\n"
+                f"{result.channel or 'Unknown channel'} · {result.duration_text or 'duration unknown'}"
+            )
+            item = QListWidgetItem(text)
+            item.setData(Qt.ItemDataRole.UserRole, ("youtube", result))
+            self.result_list.addItem(item)
+        self.statusBar().showMessage(f"Found {len(results)} YouTube results. Click one to use it.")
+
+    def _youtube_search_failed(self, message: str) -> None:
+        self.result_list.clear()
+        item = QListWidgetItem(f"YouTube search failed.\n{message}")
+        item.setData(Qt.ItemDataRole.UserRole, None)
+        self.result_list.addItem(item)
+        self.statusBar().showMessage(f"YouTube search failed: {message}")
+
+    def _youtube_search_finished(self) -> None:
+        self.search_button.setEnabled(True)
+        self.search_button.setText("Search")
+        self.youtube_thread = None
+
+    def _select_result(self, row: int) -> None:
+        if row < 0:
+            return
+        item = self.result_list.item(row)
+        if item is None:
+            return
+        data = item.data(Qt.ItemDataRole.UserRole)
+        if not data:
+            return
+
+        kind, payload = data
+        if kind == "demo":
+            self._select_demo_song(int(payload))
+        elif kind == "youtube":
+            self._select_youtube_result(payload)
+
+    def _select_youtube_result(self, result: YouTubeSearchResult) -> None:
+        self._stop()
+        self.title_label.setText(result.title)
+        self.artist_label.setText(result.channel or "YouTube")
+        self.bpm_label.setText("BPM: pending analysis")
+        self.key_label.setText("Key: pending analysis")
+        self.duration_label.setText(f"Duration: {result.duration_text or '—'}")
+        self.source_label.setText("Source: YouTube search result")
+        self.statusBar().showMessage("YouTube result selected. Download/audio playback comes in the next build.")
+
     def _load_song(self, song: DemoSong) -> None:
         self.song = song
         self.position = 0
@@ -214,6 +324,7 @@ class MainWindow(QMainWindow):
         self.bpm_label.setText(f"BPM: {song.bpm}")
         self.key_label.setText(f"Key: {song.key}")
         self.duration_label.setText(f"Duration: {song.duration}")
+        self.source_label.setText("Source: Demo timing grid")
         self._build_grid()
         self._update_loop_status()
         self._update_all()
@@ -445,6 +556,11 @@ class MainWindow(QMainWindow):
                 border: 1px solid #333333;
                 border-radius: 8px;
             }
+            QLabel#PanelTitle {
+                color: #f3d99a;
+                font-weight: bold;
+                padding-bottom: 2px;
+            }
             QLabel#BarHeader {
                 background: #2a2418;
                 color: #f3d99a;
@@ -469,6 +585,14 @@ class MainWindow(QMainWindow):
                 border-radius: 5px;
                 padding: 5px;
             }
+            QListWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #333333;
+            }
+            QListWidget::item:selected {
+                background: #433216;
+                color: #fff0c9;
+            }
             QPushButton {
                 background: #2f2f2f;
                 color: #f3e6cc;
@@ -478,6 +602,7 @@ class MainWindow(QMainWindow):
                 min-width: 82px;
             }
             QPushButton:hover { background: #3b3b3b; }
+            QPushButton:disabled { color: #777777; }
             QScrollArea { border: none; }
             """
         )
