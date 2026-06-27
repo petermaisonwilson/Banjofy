@@ -1,13 +1,23 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from PyInstaller.utils.hooks import collect_data_files
+
 block_cipher = None
+
+imageio_ffmpeg_datas = collect_data_files('imageio_ffmpeg')
 
 a = Analysis(
     ['src/main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
-    hiddenimports=['PySide6.QtMultimedia', 'librosa', 'soundfile', 'audioread'],
+    datas=imageio_ffmpeg_datas,
+    hiddenimports=[
+        'PySide6.QtMultimedia',
+        'imageio_ffmpeg',
+        'librosa',
+        'numpy',
+        'scipy',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
