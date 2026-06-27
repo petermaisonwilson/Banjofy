@@ -1,19 +1,18 @@
-# Banjofy Build 003.2 - Countdown + Diagram Visibility
+# Banjofy Build 003.3 - Countdown Timing Fix
 
-This build restores the 002.6 navigation/playback behaviour and improves the screen for real use.
+This build keeps the visible layout from Build 003.2 and fixes the count-in behaviour.
 
-## Changes in 003.2
+## Changes
 
-- Count-in is now large and shown in the main chord area.
-- Beat numbers have been removed from the beat cells.
-- Grid chord diagrams now have more vertical room and should be fully visible.
-- Current/Next panels are slightly smaller to give the grid more space.
-- Screen title now clearly says Build 003.2.
+- Count-in now shows a clear final **PLAY** state.
+- The cursor stays on the selected starting beat during the final count/start beat.
+- The first automatic cursor move happens one beat later, so the player does not miss the first chord.
+- On-screen title now says **Build 003.3**.
 
 ## Still not included
 
 - Real audio playback.
 - YouTube download.
-- Automatic chord analysis.
+- Automatic analysis.
 
-Those come after the demo player/timing screen is stable.
+Those are intentionally held for the next major build after this timing fix is confirmed.

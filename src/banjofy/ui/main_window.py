@@ -24,7 +24,7 @@ from banjofy.banjo.chords import transpose_chord
 from banjofy.player.demo_data import DEMO_SONGS, DemoSong
 from banjofy.ui.widgets import BeatCell, ChordPanel
 
-APP_VERSION = "Banjofy 0.3.2 - Build 003.2 Countdown + Diagram Visibility"
+APP_VERSION = "Banjofy 0.3.3 - Build 003.3 Countdown Timing Fix"
 
 
 class MainWindow(QMainWindow):
@@ -51,7 +51,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 003.2 ready - count-in is now large and grid diagrams are fully visible. Real audio is next.")
+        self.statusBar().showMessage("Build 003.3 ready - count-in timing fixed. Real audio/YouTube analysis comes next.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -326,19 +326,24 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Paused")
 
     def _tick(self) -> None:
+        # Count-in must not steal the first beat.
+        # Sequence for a 4-beat count-in is: 4, 3, 2, 1, 0, then playback advances
+        # on the following timer tick. During the 0 count the cursor remains on the
+        # selected start beat, so the player can strike the first chord cleanly.
         if self.count_in_remaining > 0:
+            self.count_in_remaining -= 1
             self._show_countdown(self.count_in_remaining)
             self.statusBar().showMessage(f"Count-in: {self.count_in_remaining}")
-            self.count_in_remaining -= 1
             return
         if self.count_in_remaining == 0:
             self.count_in_remaining = -1
             self._hide_countdown()
             self.statusBar().showMessage("Playing demo timing grid - no audio yet")
+            return
         self._advance_one()
 
     def _show_countdown(self, value: int) -> None:
-        self.countdown_label.setText(f"COUNT-IN  {value}")
+        self.countdown_label.setText("PLAY" if value == 0 else f"COUNT-IN  {value}")
         self.countdown_label.setVisible(True)
 
     def _hide_countdown(self) -> None:
