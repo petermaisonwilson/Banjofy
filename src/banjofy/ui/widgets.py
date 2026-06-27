@@ -12,7 +12,7 @@ class BanjoDiagram(QWidget):
         super().__init__(parent)
         self._shape: ChordShape = get_chord(chord)
         self._compact = compact
-        self.setMinimumSize(86 if compact else 130, 74 if compact else 106)
+        self.setMinimumSize(92 if compact else 112, 92 if compact else 92)
 
     def set_chord(self, chord: str) -> None:
         self._shape = get_chord(chord)
@@ -26,8 +26,8 @@ class BanjoDiagram(QWidget):
         w = self.width()
         h = self.height()
         left = 18 if self._compact else 24
-        top = 14 if self._compact else 24
-        bottom_space = 13 if self._compact else 20
+        top = 10 if self._compact else 18
+        bottom_space = 16 if self._compact else 18
         grid_w = max(50, w - left - 12)
         grid_h = max(45, h - top - bottom_space)
         string_count = 5
@@ -87,7 +87,7 @@ class ChordPanel(QFrame):
         row = QHBoxLayout()
         self.letter = QLabel(chord)
         self.letter.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.letter.setStyleSheet("font-size: 42px; font-weight: bold; color: #f4e2bd;")
+        self.letter.setStyleSheet("font-size: 34px; font-weight: bold; color: #f4e2bd;")
         row.addWidget(self.letter, 1)
         self.diagram = BanjoDiagram(chord)
         row.addWidget(self.diagram, 2)
@@ -101,29 +101,25 @@ class ChordPanel(QFrame):
 class BeatCell(QFrame):
     clicked = Signal(int)
 
-    def __init__(self, index: int, beat_label: str, chord: str = "", parent=None) -> None:
+    def __init__(self, index: int, chord: str = "", parent=None) -> None:
         super().__init__(parent)
         self.index = index
         self.chord = chord
         self.is_active = False
         self.is_loop = False
         self.setObjectName("BeatCell")
-        self.setMinimumHeight(112)
+        self.setMinimumHeight(138)
         self.setMinimumWidth(92)
         self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(4, 3, 4, 3)
-        self.beat = QLabel(beat_label)
-        self.beat.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.beat.setStyleSheet("font-size: 11px; color: #bcae91;")
-        self.layout.addWidget(self.beat)
+        self.layout.setContentsMargins(4, 4, 4, 4)
         self.chord_label = QLabel(chord)
         self.chord_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.chord_label.setStyleSheet("font-size: 17px; font-weight: bold; color: #f4e2bd;")
+        self.chord_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #f4e2bd;")
         self.layout.addWidget(self.chord_label)
         self.diagram = BanjoDiagram(chord or "G", compact=True)
         self.diagram.setVisible(bool(chord))
         self.layout.addWidget(self.diagram, alignment=Qt.AlignmentFlag.AlignCenter)
-        self.layout.addStretch()
+        self.layout.addStretch(1)
         self.refresh_style()
 
     def mousePressEvent(self, event) -> None:  # noqa: N802

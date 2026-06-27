@@ -24,7 +24,7 @@ from banjofy.banjo.chords import transpose_chord
 from banjofy.player.demo_data import DEMO_SONGS, DemoSong
 from banjofy.ui.widgets import BeatCell, ChordPanel
 
-APP_VERSION = "Banjofy 0.3.1 - Build 003.1 Restore 002.6 + Layout"
+APP_VERSION = "Banjofy 0.3.2 - Build 003.2 Countdown + Diagram Visibility"
 
 
 class MainWindow(QMainWindow):
@@ -32,7 +32,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(APP_VERSION)
         self.resize(1360, 840)
-        self.setMinimumSize(980, 650)
+        self.setMinimumSize(1050, 700)
 
         self.song: DemoSong = DEMO_SONGS[0]
         self.position = 0
@@ -51,7 +51,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 003.1 ready - restored demo player/navigation. Real audio is next.")
+        self.statusBar().showMessage("Build 003.2 ready - count-in is now large and grid diagrams are fully visible. Real audio is next.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -111,6 +111,11 @@ class MainWindow(QMainWindow):
         chord_row.addWidget(self.current_panel, 1)
         chord_row.addWidget(self.next_panel, 1)
         centre_layout.addLayout(chord_row)
+        self.countdown_label = QLabel("")
+        self.countdown_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.countdown_label.setObjectName("CountdownLabel")
+        self.countdown_label.setVisible(False)
+        centre_layout.addWidget(self.countdown_label)
         top.addWidget(centre, 4)
 
         settings = self._panel()
@@ -184,7 +189,7 @@ class MainWindow(QMainWindow):
         grid_panel = self._panel()
         grid_layout = QVBoxLayout(grid_panel)
         grid_layout.setContentsMargins(8, 6, 8, 6)
-        grid_layout.addWidget(QLabel("Beat grid - 3 bars across / 12 beat squares per row. Click a beat when selecting loop start/end."))
+        grid_layout.addWidget(QLabel("Beat grid - 3 bars across / 12 beat squares per row. Click a beat to set loop start/end or move position."))
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -243,7 +248,7 @@ class MainWindow(QMainWindow):
                 if idx >= len(beats):
                     break
                 chord = self._display_chord(beats[idx]) if beats[idx] else ""
-                cell = BeatCell(idx, str((idx % 4) + 1), chord)
+                cell = BeatCell(idx, chord)
                 cell.clicked.connect(self._cell_clicked)
                 self.cells.append(cell)
                 self.grid.addWidget(cell, visual_row + 1, i)
@@ -305,8 +310,10 @@ class MainWindow(QMainWindow):
         self.is_playing = True
         self.play_btn.setText("⏸ Pause")
         if self.count_in_remaining:
+            self._show_countdown(self.count_in_remaining)
             self.statusBar().showMessage(f"Count-in: {self.count_in_remaining}")
         else:
+            self._hide_countdown()
             self.statusBar().showMessage("Playing demo timing grid - no audio yet")
         self._update_all()
         self.timer.start(self._interval_ms())
@@ -315,17 +322,28 @@ class MainWindow(QMainWindow):
         self.is_playing = False
         self.timer.stop()
         self.play_btn.setText("▶ Play")
+        self._hide_countdown()
         self.statusBar().showMessage("Paused")
 
     def _tick(self) -> None:
         if self.count_in_remaining > 0:
+            self._show_countdown(self.count_in_remaining)
             self.statusBar().showMessage(f"Count-in: {self.count_in_remaining}")
             self.count_in_remaining -= 1
             return
         if self.count_in_remaining == 0:
             self.count_in_remaining = -1
+            self._hide_countdown()
             self.statusBar().showMessage("Playing demo timing grid - no audio yet")
         self._advance_one()
+
+    def _show_countdown(self, value: int) -> None:
+        self.countdown_label.setText(f"COUNT-IN  {value}")
+        self.countdown_label.setVisible(True)
+
+    def _hide_countdown(self) -> None:
+        self.countdown_label.setVisible(False)
+        self.countdown_label.setText("")
 
     def _advance_one(self) -> None:
         end = len(self.song.beat_chords) - 1
@@ -428,6 +446,15 @@ class MainWindow(QMainWindow):
                 border: 1px solid #4b3920;
                 border-radius: 4px;
                 padding: 3px;
+                font-weight: bold;
+            }
+            QLabel#CountdownLabel {
+                background: #352915;
+                color: #ffd06a;
+                border: 2px solid #f3c15f;
+                border-radius: 8px;
+                padding: 8px;
+                font-size: 34px;
                 font-weight: bold;
             }
             QLineEdit, QComboBox, QSpinBox, QListWidget {
