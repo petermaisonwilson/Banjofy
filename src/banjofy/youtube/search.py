@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+from urllib.request import Request, urlopen
 
 
 @dataclass(frozen=True)
@@ -11,6 +12,7 @@ class YouTubeResult:
     duration: str
     url: str
     thumbnail: str = ""
+    thumbnail_data: bytes = b""
 
 
 def _format_duration(seconds: Any) -> str:
@@ -27,12 +29,24 @@ def _format_duration(seconds: Any) -> str:
     return f"{mins}:{secs:02d}"
 
 
-def search_youtube(query: str, limit: int = 8) -> list[YouTubeResult]:
-    """Search YouTube using yt-dlp and return simple display-ready results.
+def _download_thumbnail(url: str) -> bytes:
+    if not url:
+        return b""
+    try:
+        request = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urlopen(request, timeout=8) as response:
+            return response.read(1_000_000)
+    except Exception:
+        # Thumbnail failure should never stop the actual search result appearing.
+        return b""
 
-    This function is deliberately small and defensive. It raises a readable
-    RuntimeError if yt-dlp cannot search, so the UI can show a proper message
-    instead of appearing to do nothing.
+
+def search_youtube(query: str, limit: int = 8) -> list[YouTubeResult]:
+    """Search YouTube using yt-dlp and return display-ready results.
+
+    Build 004.1C also fetches small thumbnail images. Thumbnail download is
+    deliberately best-effort: if YouTube blocks or delays an image, the result
+    still appears with a placeholder instead of failing the whole search.
     """
     query = query.strip()
     if not query:
@@ -71,6 +85,15 @@ def search_youtube(query: str, limit: int = 8) -> list[YouTubeResult]:
         if webpage_url and not webpage_url.startswith("http"):
             webpage_url = f"https://www.youtube.com/watch?v={webpage_url}"
         thumb = entry.get("thumbnail") or ""
-        results.append(YouTubeResult(title=title, channel=channel, duration=duration, url=webpage_url, thumbnail=thumb))
+        results.append(
+            YouTubeResult(
+                title=title,
+                channel=channel,
+                duration=duration,
+                url=webpage_url,
+                thumbnail=thumb,
+                thumbnail_data=_download_thumbnail(thumb),
+            )
+        )
 
     return results
