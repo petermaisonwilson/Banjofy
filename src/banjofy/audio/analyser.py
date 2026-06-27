@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Callable
 import math
 import subprocess
+import tempfile
 
 
 ProgressCallback = Callable[[str, float], None]
@@ -17,100 +18,116 @@ class AnalysisResult:
     confidence: float = 0.0
 
 
-def _load_with_ffmpeg(path: Path, progress: ProgressCallback | None = None):
-    """Decode almost any YouTube audio file to mono float samples using bundled ffmpeg.
+def _convert_to_wav_with_bundled_ffmpeg(source: Path, progress: ProgressCallback | None = None) -> Path:
+    """Convert whatever yt-dlp downloaded into a temporary WAV file.
 
-    This avoids the Build 004.4A failure where librosa could not directly decode
-    webm/opus/m4a files inside the Windows EXE.
+    This avoids relying on Windows/Librosa being able to decode .webm/.opus/.m4a
+    directly. imageio-ffmpeg supplies a private ffmpeg executable that should be
+    bundled into the GitHub-built EXE by Banjofy.spec.
     """
     try:
         import imageio_ffmpeg
-        import numpy as np
     except Exception as exc:
-        raise RuntimeError("Audio decoder package imageio-ffmpeg is not installed in this build") from exc
+        raise RuntimeError("Bundled ffmpeg package imageio-ffmpeg is not available") from exc
 
     ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
-    sample_rate = 22050
+    if not ffmpeg:
+        raise RuntimeError("Bundled ffmpeg executable could not be located")
 
     if progress:
-        progress("decoding audio with ffmpeg...", 20)
+        progress("converting audio for analysis...", 25)
 
-    command = [
-        ffmpeg,
+    temp_dir = Path(tempfile.gettempdir()) / "Banjofy" / "analysis"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    wav_path = temp_dir / f"{source.stem}_analysis.wav"
+
+    cmd = [
+        str(ffmpeg),
+        "-y",
         "-hide_banner",
         "-loglevel",
         "error",
         "-i",
-        str(path),
+        str(source),
         "-t",
         "180",
-        "-vn",
         "-ac",
         "1",
         "-ar",
-        str(sample_rate),
+        "22050",
+        "-vn",
         "-f",
-        "f32le",
-        "pipe:1",
+        "wav",
+        str(wav_path),
     ]
 
     try:
-        proc = subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=False,
+        completed = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
             timeout=90,
+            check=False,
         )
     except Exception as exc:
-        raise RuntimeError(f"Could not run ffmpeg audio decoder: {exc}") from exc
+        raise RuntimeError(f"ffmpeg conversion could not run: {exc}") from exc
 
-    if proc.returncode != 0 or not proc.stdout:
-        detail = proc.stderr.decode("utf-8", errors="ignore").strip()
-        if not detail:
-            detail = "ffmpeg produced no audio data"
-        raise RuntimeError(f"Could not decode audio for BPM analysis: {detail}")
+    if completed.returncode != 0 or not wav_path.exists() or wav_path.stat().st_size < 1000:
+        details = (completed.stderr or completed.stdout or "unknown ffmpeg error").strip()
+        raise RuntimeError(f"ffmpeg could not convert audio for analysis: {details[:400]}")
 
-    audio = np.frombuffer(proc.stdout, dtype=np.float32)
-    if audio.size < sample_rate:
-        raise RuntimeError("Decoded audio was too short for tempo detection")
-
-    return audio, sample_rate
+    return wav_path
 
 
 def analyse_tempo(path: Path, progress: ProgressCallback | None = None) -> AnalysisResult:
     """Estimate tempo from a downloaded YouTube audio file.
 
-    Build 004.4B decode fix:
-    - uses bundled ffmpeg via imageio-ffmpeg for webm/opus/m4a files
-    - then uses librosa only for the tempo/beat calculation
+    Build 004.4C converts the audio to WAV first using bundled ffmpeg, then asks
+    librosa to detect tempo. This is more reliable than asking librosa to decode
+    YouTube's original webm/opus/m4a formats directly.
     """
-    path = Path(path)
-    if not path or not path.exists():
+    source = Path(path)
+    if not source.exists():
         raise RuntimeError("Audio file not found for analysis")
+
+    if progress:
+        progress("preparing audio...", 10)
+
+    wav_path = _convert_to_wav_with_bundled_ffmpeg(source, progress=progress)
 
     try:
         import librosa
     except Exception as exc:
         raise RuntimeError("Audio analysis package librosa is not installed in this build") from exc
 
-    y, sr = _load_with_ffmpeg(path, progress)
+    if progress:
+        progress("loading converted audio...", 45)
+
+    try:
+        y, sr = librosa.load(str(wav_path), sr=22050, mono=True, duration=180)
+    except Exception as exc:
+        raise RuntimeError(f"Could not load converted WAV for BPM analysis: {exc}") from exc
+
+    if y is None or len(y) < sr:
+        raise RuntimeError("Audio was too short for tempo detection")
 
     if progress:
-        progress("measuring beats...", 60)
+        progress("measuring beats...", 70)
 
     try:
         tempo, beats = librosa.beat.beat_track(y=y, sr=sr, units="time")
     except Exception as exc:
         raise RuntimeError(f"Tempo analysis failed: {exc}") from exc
 
+    # librosa versions may return a float, numpy scalar, or short array.
     try:
-        # Newer librosa/numpy can return scalar arrays.
-        bpm = float(tempo[0]) if hasattr(tempo, "__len__") else float(tempo)
+        if hasattr(tempo, "__len__") and not isinstance(tempo, (str, bytes)):
+            tempo = tempo[0] if len(tempo) else 0
+        bpm = float(tempo)
     except Exception:
         bpm = 0.0
 
-    # Bring common half/double tempo errors into a usable practice range.
+    # Pull common half/double estimates into a useful practice range.
     while bpm and bpm < 55:
         bpm *= 2
     while bpm and bpm > 180:
@@ -119,9 +136,13 @@ def analyse_tempo(path: Path, progress: ProgressCallback | None = None) -> Analy
     if not bpm or math.isnan(bpm):
         raise RuntimeError("No reliable tempo detected")
 
-    confidence = min(1.0, max(0.15, len(beats) / 80)) if beats is not None else 0.2
+    confidence = min(1.0, max(0.1, len(beats) / 80)) if beats is not None else 0.2
 
     if progress:
         progress("tempo found", 100)
 
-    return AnalysisResult(bpm=bpm, method="ffmpeg decode + librosa beat tracker", confidence=confidence)
+    return AnalysisResult(
+        bpm=bpm,
+        method="ffmpeg WAV conversion + librosa beat tracker",
+        confidence=confidence,
+    )

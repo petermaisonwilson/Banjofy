@@ -3,4 +3,5 @@ yt-dlp>=2025.6.9
 librosa>=0.10.2
 numpy>=1.26
 scipy>=1.11
+soundfile>=0.12.1
 imageio-ffmpeg>=0.5.1

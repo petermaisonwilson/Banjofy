@@ -1,23 +1,25 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-from PyInstaller.utils.hooks import collect_data_files
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 block_cipher = None
 
-imageio_ffmpeg_datas = collect_data_files('imageio_ffmpeg')
+# imageio_ffmpeg stores the ffmpeg executable as package data. Without collecting
+# that data, BPM analysis may work in Python but fail inside the Windows EXE.
+datas = []
+datas += collect_data_files('imageio_ffmpeg')
+datas += collect_data_files('librosa')
+
+hiddenimports = ['PySide6.QtMultimedia']
+hiddenimports += collect_submodules('imageio_ffmpeg')
+hiddenimports += collect_submodules('librosa')
 
 a = Analysis(
     ['src/main.py'],
     pathex=[],
     binaries=[],
-    datas=imageio_ffmpeg_datas,
-    hiddenimports=[
-        'PySide6.QtMultimedia',
-        'imageio_ffmpeg',
-        'librosa',
-        'numpy',
-        'scipy',
-    ],
+    datas=datas,
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
