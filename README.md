@@ -1,48 +1,28 @@
 # Banjofy
 
-## Build 002.1 - Demo Player
+## Build 002.5 - Loop Buttons and Count-In
 
-This build is a visible, interactive step beyond Build 001.
+This build refines the demo player controls and beat grid.
 
-Added in this build:
+Changes in Build 002.5:
 
-- On-screen version now says **Banjofy 0.2.3 - Build 002.4 Grid Diagram Alignment**.
-- Demo song list has Load buttons.
-- Loading a demo song updates BPM, key, duration, Current and Next chord panels.
-- Play/Pause starts and stops a timer.
-- Beat cursor moves through the grid.
-- Current and Next chord panels update as the cursor moves.
-- Back and Forward move one beat at a time.
-- Speed slider affects playback speed.
-- Loop start/end controls work against demo data.
-- Capo and display mode controls visually refresh chord labels/diagrams.
+- On-screen version now says **Banjofy 0.2.5 - Build 002.5 Loop + Count-In**.
+- Loop spin boxes have been replaced by large musician-friendly buttons:
+  - **Set Start**
+  - **Set End**
+  - **Clear Loop**
+- Loop can now be fully turned off with **Clear Loop**.
+- Beat grid keeps the 3-bars-across layout.
+- Added clear **Bar 1 / Bar 2 / Bar 3** style headers above each group of beats.
+- Added a configurable count-in before playback:
+  - 0, 1, 2, 3, 4, or 8 beats
+  - default is 4 beats
+- Pressing Play now counts in before the beat cursor starts, so the player can hit the first beat.
 
-Not included yet:
+Still not included:
 
-- Real YouTube search.
 - Real audio playback.
-- Real chord detection.
+- YouTube search/download.
+- Automatic chord detection.
 
-Those are planned for later builds.
-
-
-## Build 002.4 changes
-
-- Re-aligned the chord diagrams inside the beat grid cells.
-- Added compact diagram mode for grid cells so diagrams remain visible as the beat cursor moves.
-- Updated on-screen version label to Build 002.4.
-
-
-## Build 002.4 changes
-
-- Widened loop start/end controls so they are usable.
-- Grouped Loop and Speed controls into clearer control boxes.
-- Updated on-screen version label to Build 002.4.
-
-
-## Build 002.4 changes
-
-- Loop bar controls widened again for easier clicking.
-- Beat grid changed from 4 bars across to 3 bars across.
-- Diagram size and cell layout kept the same.
-- No audio playback yet: this build remains a demo timing/player grid. Audio comes in a later build.
+Those come later, after the demo timing/playback behaviour is solid.

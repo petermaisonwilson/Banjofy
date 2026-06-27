@@ -22,7 +22,7 @@ from banjofy.banjo.chords import transpose_chord
 from banjofy.player.demo_songs import DEMO_SONGS, DemoSong
 from banjofy.ui.widgets import BanjoDiagram, ChordPanel
 
-BUILD_LABEL = "Banjofy 0.2.4 - Build 002.4 Three-Bar Grid"
+BUILD_LABEL = "Banjofy 0.2.5 - Build 002.5 Loop + Count-In"
 
 
 class MainWindow(QMainWindow):
@@ -36,6 +36,10 @@ class MainWindow(QMainWindow):
         self.grid_cells: list[QFrame] = []
         self.chord_labels: list[QLabel] = []
         self.grid_diagrams: list[BanjoDiagram] = []
+        self.loop_start_bar: int | None = None
+        self.loop_end_bar: int | None = None
+        self.is_counting_in = False
+        self.count_in_remaining = 0
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._advance_beat)
@@ -43,7 +47,7 @@ class MainWindow(QMainWindow):
         self._apply_style()
         self.setCentralWidget(self._build_ui())
         self.setStatusBar(QStatusBar())
-        self.statusBar().showMessage("Build 002.4 ready - 3 bars across / larger loop controls")
+        self.statusBar().showMessage("Build 002.5 ready - visual loop buttons and count-in")
         self._load_demo_song(0)
 
     def _build_ui(self) -> QWidget:
@@ -138,26 +142,26 @@ class MainWindow(QMainWindow):
         loop_layout = QHBoxLayout(loop_box)
         loop_layout.setContentsMargins(10, 4, 10, 4)
         loop_layout.setSpacing(8)
-        loop_label = QLabel("Loop bars")
-        loop_label.setMinimumWidth(95)
-        loop_layout.addWidget(loop_label)
-        self.loop_start = QSpinBox()
-        self.loop_start.setRange(1, 99)
-        self.loop_start.setValue(1)
-        self.loop_start.setMinimumWidth(90)
-        self.loop_start.setButtonSymbols(QSpinBox.ButtonSymbols.UpDownArrows)
-        self.loop_end = QSpinBox()
-        self.loop_end.setRange(1, 99)
-        self.loop_end.setValue(4)
-        self.loop_end.setMinimumWidth(90)
-        self.loop_end.setButtonSymbols(QSpinBox.ButtonSymbols.UpDownArrows)
-        loop_layout.addWidget(self.loop_start)
-        to_label = QLabel("to")
-        to_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        to_label.setMinimumWidth(32)
-        loop_layout.addWidget(to_label)
-        loop_layout.addWidget(self.loop_end)
-        loop_box.setMinimumWidth(350)
+        loop_layout.addWidget(QLabel("Loop"))
+        self.loop_start_label = QLabel("Start: —")
+        self.loop_start_label.setMinimumWidth(70)
+        self.loop_end_label = QLabel("End: —")
+        self.loop_end_label.setMinimumWidth(70)
+        self.set_loop_start_btn = QPushButton("Set Start")
+        self.set_loop_end_btn = QPushButton("Set End")
+        self.clear_loop_btn = QPushButton("Clear Loop")
+        self.set_loop_start_btn.setMinimumWidth(100)
+        self.set_loop_end_btn.setMinimumWidth(90)
+        self.clear_loop_btn.setMinimumWidth(100)
+        self.set_loop_start_btn.clicked.connect(self._set_loop_start)
+        self.set_loop_end_btn.clicked.connect(self._set_loop_end)
+        self.clear_loop_btn.clicked.connect(self._clear_loop)
+        loop_layout.addWidget(self.loop_start_label)
+        loop_layout.addWidget(self.loop_end_label)
+        loop_layout.addWidget(self.set_loop_start_btn)
+        loop_layout.addWidget(self.set_loop_end_btn)
+        loop_layout.addWidget(self.clear_loop_btn)
+        loop_box.setMinimumWidth(560)
         controls_layout.addWidget(loop_box, 0)
 
         speed_box = QFrame()
@@ -177,12 +181,30 @@ class MainWindow(QMainWindow):
         speed_layout.addWidget(self.speed_label)
         controls_layout.addWidget(speed_box, 1)
 
+        count_box = QFrame()
+        count_box.setObjectName("ControlGroup")
+        count_layout = QHBoxLayout(count_box)
+        count_layout.setContentsMargins(10, 4, 10, 4)
+        count_layout.setSpacing(8)
+        count_layout.addWidget(QLabel("Count-in"))
+        self.count_in = QComboBox()
+        self.count_in.addItems(["0", "1", "2", "3", "4", "8"])
+        self.count_in.setCurrentText("4")
+        self.count_in.setMinimumWidth(70)
+        count_layout.addWidget(self.count_in)
+        self.count_in_display = QLabel("Ready")
+        self.count_in_display.setObjectName("CountInDisplay")
+        self.count_in_display.setMinimumWidth(110)
+        self.count_in_display.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        count_layout.addWidget(self.count_in_display)
+        controls_layout.addWidget(count_box, 0)
+
         controls_layout.addStretch()
         outer.addWidget(controls, 0)
 
         grid_panel = self._panel()
         grid_layout = QVBoxLayout(grid_panel)
-        grid_layout.addWidget(QLabel("Build 002.4 demo beat grid - 3 bars across / 12 beat squares per row"))
+        grid_layout.addWidget(QLabel("Build 002.5 demo beat grid - 3 bars across / 12 beats per row, with bar headers"))
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.grid_widget = QWidget()
@@ -220,9 +242,7 @@ class MainWindow(QMainWindow):
         self.bpm_value["value"].setText(str(self.song.bpm))
         self.key_value["value"].setText(self.song.key)
         self.duration_value["value"].setText(self.song.duration)
-        self.loop_start.setMaximum(max(1, len(self.song.chords) // 4))
-        self.loop_end.setMaximum(max(1, len(self.song.chords) // 4))
-        self.loop_end.setValue(min(4, self.loop_end.maximum()))
+        self._clear_loop()
         self._build_grid()
         self._set_timer_interval()
         self._update_position()
@@ -263,7 +283,17 @@ class MainWindow(QMainWindow):
             diagram.setMaximumHeight(82)
             box.addWidget(diagram, 1, Qt.AlignmentFlag.AlignCenter)
 
-            self.grid_layout.addWidget(cell, i // 12, i % 12)
+            group = i // 12
+            col = i % 12
+            if col == 0:
+                for bar_offset in range(3):
+                    bar_number = group * 3 + bar_offset + 1
+                    if (bar_number - 1) * 4 < len(self.song.chords):
+                        header = QLabel(f"Bar {bar_number}")
+                        header.setObjectName("BarHeader")
+                        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                        self.grid_layout.addWidget(header, group * 2, bar_offset * 4, 1, 4)
+            self.grid_layout.addWidget(cell, group * 2 + 1, col)
             self.grid_cells.append(cell)
             self.chord_labels.append(label)
             self.grid_diagrams.append(diagram)
@@ -310,16 +340,67 @@ class MainWindow(QMainWindow):
                 return self.song.chords[i]
         return current
 
+    def _current_bar(self) -> int:
+        return self.beat_index // 4 + 1
+
+    def _set_loop_start(self) -> None:
+        self.loop_start_bar = self._current_bar()
+        if self.loop_end_bar is not None and self.loop_start_bar > self.loop_end_bar:
+            self.loop_start_bar, self.loop_end_bar = self.loop_end_bar, self.loop_start_bar
+        self._update_loop_labels()
+        self.statusBar().showMessage(f"Loop start set to bar {self.loop_start_bar}")
+
+    def _set_loop_end(self) -> None:
+        self.loop_end_bar = self._current_bar()
+        if self.loop_start_bar is not None and self.loop_start_bar > self.loop_end_bar:
+            self.loop_start_bar, self.loop_end_bar = self.loop_end_bar, self.loop_start_bar
+        self._update_loop_labels()
+        self.statusBar().showMessage(f"Loop end set to bar {self.loop_end_bar}")
+
+    def _clear_loop(self) -> None:
+        self.loop_start_bar = None
+        self.loop_end_bar = None
+        if hasattr(self, "loop_start_label"):
+            self._update_loop_labels()
+
+    def _loop_is_active(self) -> bool:
+        return self.loop_start_bar is not None and self.loop_end_bar is not None
+
+    def _update_loop_labels(self) -> None:
+        self.loop_start_label.setText(f"Start: {self.loop_start_bar}" if self.loop_start_bar else "Start: —")
+        self.loop_end_label.setText(f"End: {self.loop_end_bar}" if self.loop_end_bar else "End: —")
+        active = self._loop_is_active()
+        self.clear_loop_btn.setEnabled(active)
+
     def _toggle_play(self) -> None:
-        self.is_playing = not self.is_playing
-        if self.is_playing:
-            self.play_btn.setText("⏸ Pause")
-            self.timer.start()
-            self.statusBar().showMessage("Playing demo grid")
-        else:
-            self.play_btn.setText("▶ Play")
+        if self.is_playing or self.is_counting_in:
+            self.is_playing = False
+            self.is_counting_in = False
             self.timer.stop()
+            self.play_btn.setText("▶ Play")
+            self.count_in_display.setText("Ready")
             self.statusBar().showMessage("Paused")
+            return
+
+        beats = int(self.count_in.currentText())
+        if beats > 0:
+            self.is_counting_in = True
+            self.count_in_remaining = beats
+            self.play_btn.setText("⏸ Cancel")
+            self.count_in_display.setText(str(self.count_in_remaining))
+            self.timer.start()
+            self.statusBar().showMessage(f"Count-in: {self.count_in_remaining}")
+            return
+
+        self._start_playback_after_count_in()
+
+    def _start_playback_after_count_in(self) -> None:
+        self.is_counting_in = False
+        self.is_playing = True
+        self.play_btn.setText("⏸ Pause")
+        self.count_in_display.setText("Play")
+        self.timer.start()
+        self.statusBar().showMessage("Playing demo grid")
 
     def _set_timer_interval(self) -> None:
         if not self.song:
@@ -330,18 +411,33 @@ class MainWindow(QMainWindow):
         self.timer.setInterval(max(80, adjusted))
 
     def _advance_beat(self) -> None:
+        if self.is_counting_in:
+            self.count_in_remaining -= 1
+            if self.count_in_remaining > 0:
+                self.count_in_display.setText(str(self.count_in_remaining))
+                self.statusBar().showMessage(f"Count-in: {self.count_in_remaining}")
+                return
+            self._start_playback_after_count_in()
+            return
         self._move_beat(1)
 
     def _move_beat(self, amount: int) -> None:
         if not self.song:
             return
         self.beat_index += amount
-        loop_start_index = max(0, (self.loop_start.value() - 1) * 4)
-        loop_end_index = min(len(self.song.chords) - 1, self.loop_end.value() * 4 - 1)
-        if self.beat_index > loop_end_index:
-            self.beat_index = loop_start_index
-        if self.beat_index < loop_start_index:
-            self.beat_index = loop_end_index
+        if self._loop_is_active():
+            start_bar, end_bar = sorted((self.loop_start_bar, self.loop_end_bar))  # type: ignore[arg-type]
+            loop_start_index = max(0, (start_bar - 1) * 4)
+            loop_end_index = min(len(self.song.chords) - 1, end_bar * 4 - 1)
+            if self.beat_index > loop_end_index:
+                self.beat_index = loop_start_index
+            if self.beat_index < loop_start_index:
+                self.beat_index = loop_end_index
+        else:
+            if self.beat_index >= len(self.song.chords):
+                self.beat_index = 0
+            if self.beat_index < 0:
+                self.beat_index = len(self.song.chords) - 1
         self._update_position()
 
     def _update_position(self) -> None:
@@ -363,7 +459,8 @@ class MainWindow(QMainWindow):
         self.next_panel.diagram.set_chord(self._diagram_chord(nxt))
         row = self.beat_index // 12
         self.scroll.ensureWidgetVisible(current_cell, 40, 40)
-        self.statusBar().showMessage(f"Beat {self.beat_index + 1} • Row {row + 1} • Current {self._display_chord(current)} • Next {self._display_chord(nxt)}")
+        loop_text = " • Loop ON" if self._loop_is_active() else ""
+        self.statusBar().showMessage(f"Beat {self.beat_index + 1} • Row {row + 1} • Current {self._display_chord(current)} • Next {self._display_chord(nxt)}{loop_text}")
 
     def _panel(self) -> QFrame:
         frame = QFrame()
@@ -399,6 +496,23 @@ class MainWindow(QMainWindow):
                 background: #202020;
                 border: 1px solid #333333;
                 border-radius: 6px;
+            }
+            QLabel#CountInDisplay {
+                background: #111111;
+                color: #f3c25b;
+                border: 1px solid #574018;
+                border-radius: 6px;
+                padding: 7px;
+                font-size: 18px;
+                font-weight: bold;
+            }
+            QLabel#BarHeader {
+                background: #171717;
+                color: #cdbb99;
+                border: 1px solid #333333;
+                border-radius: 4px;
+                padding: 4px;
+                font-weight: bold;
             }
             QLineEdit, QComboBox, QSpinBox {
                 background: #252525;
