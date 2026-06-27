@@ -27,13 +27,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from banjofy.audio.analyser import AnalysisResult, analyse_tempo
 from banjofy.banjo.chords import transpose_chord
 from banjofy.player.demo_data import DEMO_SONGS, DemoSong
 from banjofy.ui.widgets import BeatCell, ChordPanel
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.4.3 - Audio Playback Stage 1"
+APP_VERSION = "Banjofy 0.4.4A - BPM Detection Stage 1"
 
 
 class MainWindow(QMainWindow):
@@ -56,9 +57,11 @@ class MainWindow(QMainWindow):
         self.selected_youtube_result: YouTubeResult | None = None
         self.downloaded_audio_path: Path | None = None
         self.audio_ready = False
+        self.detected_bpm: int | None = None
 
         self.search_queue: queue.Queue[tuple[str, object]] = queue.Queue()
         self.download_queue: queue.Queue[tuple[str, object]] = queue.Queue()
+        self.analysis_queue: queue.Queue[tuple[str, object]] = queue.Queue()
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._tick)
@@ -68,6 +71,9 @@ class MainWindow(QMainWindow):
 
         self.download_poll_timer = QTimer(self)
         self.download_poll_timer.timeout.connect(self._poll_download_results)
+
+        self.analysis_poll_timer = QTimer(self)
+        self.analysis_poll_timer.timeout.connect(self._poll_analysis_results)
 
         self.audio_output = QAudioOutput(self)
         self.audio_output.setVolume(0.8)
@@ -81,7 +87,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 004.3 ready - downloaded YouTube audio can now play.")
+        self.statusBar().showMessage("Build 004.4A ready - after download Banjofy tries to detect BPM.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -160,6 +166,18 @@ class MainWindow(QMainWindow):
         self.download_status.setWordWrap(True)
         self.download_status.setObjectName("HintLabel")
         meta_layout.addWidget(self.download_status)
+
+        self.analysis_progress = QProgressBar()
+        self.analysis_progress.setRange(0, 100)
+        self.analysis_progress.setValue(0)
+        self.analysis_progress.setTextVisible(True)
+        meta_layout.addWidget(self.analysis_progress)
+
+        self.analysis_status = QLabel("Analysis: waiting")
+        self.analysis_status.setWordWrap(True)
+        self.analysis_status.setObjectName("HintLabel")
+        meta_layout.addWidget(self.analysis_status)
+
         top.addWidget(meta_panel, 1)
 
         centre = self._panel()
@@ -279,9 +297,12 @@ class MainWindow(QMainWindow):
         self.result_list.clear()
         self.youtube_results = []
         self.selected_youtube_result = None
+        self.detected_bpm = None
         self.download_btn.setEnabled(False)
         self.download_progress.setValue(0)
+        self.analysis_progress.setValue(0)
         self.download_status.setText("Audio: not downloaded")
+        self.analysis_status.setText("Analysis: waiting")
         self.result_list.addItem(QListWidgetItem(f"Searching YouTube for: {query}\nPlease wait..."))
         self.statusBar().showMessage(f"Searching YouTube for: {query}")
 
@@ -344,6 +365,10 @@ class MainWindow(QMainWindow):
             return
         self._stop()
         self._clear_audio_file()
+        self.detected_bpm = None
+        self.bpm_label.setText(f"BPM: {self.song.bpm} (demo)")
+        self.analysis_progress.setValue(0)
+        self.analysis_status.setText("Analysis: waiting for download")
         self.download_btn.setEnabled(False)
         self.search_button.setEnabled(False)
         self.download_progress.setValue(0)
@@ -387,8 +412,9 @@ class MainWindow(QMainWindow):
                     self.download_progress.setValue(100)
                     cached = "cached" if result.was_cached else "downloaded"
                     self.download_status.setText(f"Audio: {cached} - press Play")
-                    self.statusBar().showMessage(f"Audio {cached}. Press Play to hear it.")
+                    self.statusBar().showMessage(f"Audio {cached}. Starting BPM analysis...")
                     self._load_audio_file(result.file_path)
+                    self._start_tempo_analysis(result.file_path)
                 return
             elif kind == "error":
                 self.download_poll_timer.stop()
@@ -396,6 +422,60 @@ class MainWindow(QMainWindow):
                 self.download_btn.setEnabled(True)
                 self.download_status.setText(f"Audio error: {payload}")
                 self.statusBar().showMessage(f"Audio download error: {payload}")
+                return
+        if not handled:
+            return
+
+    def _start_tempo_analysis(self, path: Path) -> None:
+        self.analysis_progress.setValue(5)
+        self.analysis_status.setText("Analysis: finding tempo...")
+        self.statusBar().showMessage("Analysing audio tempo...")
+
+        def progress(message: str, percent: float) -> None:
+            self.analysis_queue.put(("progress", (message, percent)))
+
+        def worker() -> None:
+            try:
+                result = analyse_tempo(path, progress=progress)
+                self.analysis_queue.put(("done", result))
+            except Exception as exc:
+                self.analysis_queue.put(("error", str(exc)))
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.analysis_poll_timer.start(100)
+
+    def _poll_analysis_results(self) -> None:
+        handled = False
+        while True:
+            try:
+                kind, payload = self.analysis_queue.get_nowait()
+            except queue.Empty:
+                break
+            handled = True
+            if kind == "progress":
+                message, percent = payload  # type: ignore[misc]
+                self.analysis_progress.setValue(int(percent))
+                self.analysis_status.setText(f"Analysis: {message}")
+            elif kind == "done":
+                self.analysis_poll_timer.stop()
+                result = payload
+                if isinstance(result, AnalysisResult) and result.bpm:
+                    self.detected_bpm = int(round(result.bpm))
+                    self.bpm_label.setText(f"BPM: {self.detected_bpm} detected")
+                    self.analysis_progress.setValue(100)
+                    self.analysis_status.setText(f"Analysis: tempo locked at {self.detected_bpm} BPM")
+                    self.statusBar().showMessage(f"Tempo detected: {self.detected_bpm} BPM")
+                    if self.timer.isActive():
+                        self.timer.start(self._interval_ms())
+                else:
+                    self.analysis_progress.setValue(0)
+                    self.analysis_status.setText("Analysis: tempo not found")
+                return
+            elif kind == "error":
+                self.analysis_poll_timer.stop()
+                self.analysis_progress.setValue(0)
+                self.analysis_status.setText(f"Analysis error: {payload}")
+                self.statusBar().showMessage(f"Analysis error: {payload}")
                 return
         if not handled:
             return
@@ -412,6 +492,7 @@ class MainWindow(QMainWindow):
     def _clear_audio_file(self) -> None:
         self.audio_ready = False
         self.downloaded_audio_path = None
+        self.detected_bpm = None
         self.media_player.stop()
         self.media_player.setSource(QUrl())
 
@@ -427,6 +508,8 @@ class MainWindow(QMainWindow):
         self.download_btn.setEnabled(False)
         self.download_progress.setValue(0)
         self.download_status.setText("Audio: not downloaded")
+        self.analysis_progress.setValue(0)
+        self.analysis_status.setText("Analysis: waiting")
         self._set_thumbnail(None)
         self.title_label.setText(song.title)
         self.artist_label.setText(song.artist)
@@ -450,12 +533,15 @@ class MainWindow(QMainWindow):
             self._clear_audio_file()
             self.download_btn.setEnabled(True)
             self.download_progress.setValue(0)
+            self.analysis_progress.setValue(0)
             self.download_status.setText("Audio: ready to download")
+            self.analysis_status.setText("Analysis: waiting")
             self._set_thumbnail(result)
             self.title_label.setText(result.title)
             self.artist_label.setText(result.channel)
             self.source_label.setText("Source: YouTube search result")
             self.duration_label.setText(f"Duration: {result.duration}")
+            self.bpm_label.setText(f"BPM: {self.song.bpm} (demo until analysed)")
             self.statusBar().showMessage("YouTube result selected. Click Download Audio.")
             return
         if 0 <= row < len(DEMO_SONGS):
@@ -532,6 +618,9 @@ class MainWindow(QMainWindow):
             return
         self.scroll.ensureWidgetVisible(self.cells[self.position], 20, 20)
 
+    def _current_bpm(self) -> int:
+        return self.detected_bpm or self.song.bpm
+
     def _play_pause(self) -> None:
         if self.is_playing:
             self._stop()
@@ -555,13 +644,13 @@ class MainWindow(QMainWindow):
             self.media_player.setPlaybackRate(self.speed.value() / 100)
             self.media_player.setPosition(self._audio_position_for_current_beat())
             self.media_player.play()
-            self.statusBar().showMessage("Playing downloaded audio with demo beat grid")
+            bpm_note = f"{self._current_bpm()} BPM"
+            self.statusBar().showMessage(f"Playing downloaded audio with grid timing at {bpm_note}")
         else:
             self.statusBar().showMessage("Playing demo timing grid - no downloaded audio selected")
 
     def _audio_position_for_current_beat(self) -> int:
-        # Stage 004.3 has no audio analysis yet, so this estimates the time from the demo BPM.
-        ms_per_beat = int(60000 / self.song.bpm)
+        ms_per_beat = int(60000 / self._current_bpm())
         return max(0, self.position * ms_per_beat)
 
     def _stop(self) -> None:
@@ -637,7 +726,7 @@ class MainWindow(QMainWindow):
 
     def _interval_ms(self) -> int:
         speed_factor = self.speed.value() / 100
-        return max(120, int((60000 / self.song.bpm) / speed_factor))
+        return max(120, int((60000 / self._current_bpm()) / speed_factor))
 
     def _set_selection_mode(self, mode: str) -> None:
         self.selection_mode = mode
