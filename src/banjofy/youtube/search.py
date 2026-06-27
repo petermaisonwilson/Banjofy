@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
-from urllib.request import Request, urlopen
 
 
 @dataclass(frozen=True)
@@ -12,7 +11,6 @@ class YouTubeResult:
     duration: str
     url: str
     thumbnail: str = ""
-    thumbnail_data: bytes = b""
 
 
 def _format_duration(seconds: Any) -> str:
@@ -29,25 +27,38 @@ def _format_duration(seconds: Any) -> str:
     return f"{mins}:{secs:02d}"
 
 
-def _download_thumbnail(url: str) -> bytes:
-    if not url:
-        return b""
-    try:
-        request = Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urlopen(request, timeout=8) as response:
-            return response.read(1_000_000)
-    except Exception:
-        # Thumbnail failure should never stop the actual search result appearing.
-        return b""
+def _best_thumbnail(entry: dict[str, Any]) -> str:
+    """Return the best thumbnail URL yt-dlp gives us.
+
+    yt-dlp sometimes returns `thumbnail`, sometimes a list called
+    `thumbnails`, and when using flat search results it may return neither.
+    This helper checks all the common places and picks the highest-quality
+    available URL.
+    """
+    direct = entry.get("thumbnail")
+    if isinstance(direct, str) and direct.startswith("http"):
+        return direct
+
+    thumbnails = entry.get("thumbnails") or []
+    if isinstance(thumbnails, list):
+        urls: list[str] = []
+        for item in thumbnails:
+            if isinstance(item, dict):
+                url = item.get("url")
+                if isinstance(url, str) and url.startswith("http"):
+                    urls.append(url)
+        if urls:
+            return urls[-1]
+
+    video_id = entry.get("id") or entry.get("url")
+    if isinstance(video_id, str) and video_id and not video_id.startswith("http"):
+        return f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+
+    return ""
 
 
 def search_youtube(query: str, limit: int = 8) -> list[YouTubeResult]:
-    """Search YouTube using yt-dlp and return display-ready results.
-
-    Build 004.1C also fetches small thumbnail images. Thumbnail download is
-    deliberately best-effort: if YouTube blocks or delays an image, the result
-    still appears with a placeholder instead of failing the whole search.
-    """
+    """Search YouTube using yt-dlp and return display-ready results."""
     query = query.strip()
     if not query:
         return []
@@ -57,12 +68,13 @@ def search_youtube(query: str, limit: int = 8) -> list[YouTubeResult]:
     except Exception as exc:  # pragma: no cover - depends on installed package
         raise RuntimeError("yt-dlp is not installed in this build") from exc
 
+    # Do NOT use extract_flat here. Flat search is faster but often loses
+    # thumbnails, which is exactly what broke Build 004.1C.
     options: dict[str, Any] = {
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
-        "extract_flat": "in_playlist",
-        "socket_timeout": 20,
+        "socket_timeout": 25,
         "noplaylist": True,
     }
 
@@ -76,23 +88,22 @@ def search_youtube(query: str, limit: int = 8) -> list[YouTubeResult]:
     results: list[YouTubeResult] = []
 
     for entry in entries:
-        if not entry:
+        if not isinstance(entry, dict):
             continue
         title = entry.get("title") or "Untitled result"
-        channel = entry.get("uploader") or entry.get("channel") or "Unknown channel"
+        channel = entry.get("uploader") or entry.get("channel") or entry.get("channel_id") or "Unknown channel"
         duration = _format_duration(entry.get("duration"))
-        webpage_url = entry.get("webpage_url") or entry.get("url") or ""
-        if webpage_url and not webpage_url.startswith("http"):
+        webpage_url = entry.get("webpage_url") or entry.get("original_url") or entry.get("url") or ""
+        if webpage_url and not str(webpage_url).startswith("http"):
             webpage_url = f"https://www.youtube.com/watch?v={webpage_url}"
-        thumb = entry.get("thumbnail") or ""
+        thumb = _best_thumbnail(entry)
         results.append(
             YouTubeResult(
-                title=title,
-                channel=channel,
+                title=str(title),
+                channel=str(channel),
                 duration=duration,
-                url=webpage_url,
+                url=str(webpage_url),
                 thumbnail=thumb,
-                thumbnail_data=_download_thumbnail(thumb),
             )
         )
 
