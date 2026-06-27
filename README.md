@@ -1,28 +1,26 @@
 # Banjofy
 
-## Build 002.5 - Loop Buttons and Count-In
+## Build 002.6 - Loop Selection and Navigation
 
-This build refines the demo player controls and beat grid.
+Changes in Build 002.6:
 
-Changes in Build 002.5:
+- On-screen version now says **Banjofy 0.2.6 - Build 002.6 Loop Select + To Start**.
+- Loop start/end are now selected by clicking a beat in the grid.
+- **Select Start**: click a beat/bar to set the loop start.
+- **Select End**: click a beat/bar to set the loop end.
+- Pressing Play with a loop selected jumps to the loop start, then starts the count-in.
+- Added **To Start** button.
+  - No loop: jumps to the first beat of the song.
+  - Loop active: jumps to the first beat of the loop.
+- Back no longer wraps from the first beat to the final beat.
+- The 3-bars-across layout remains unchanged.
 
-- On-screen version now says **Banjofy 0.2.5 - Build 002.5 Loop + Count-In**.
-- Loop spin boxes have been replaced by large musician-friendly buttons:
-  - **Set Start**
-  - **Set End**
-  - **Clear Loop**
-- Loop can now be fully turned off with **Clear Loop**.
-- Beat grid keeps the 3-bars-across layout.
-- Added clear **Bar 1 / Bar 2 / Bar 3** style headers above each group of beats.
-- Added a configurable count-in before playback:
-  - 0, 1, 2, 3, 4, or 8 beats
-  - default is 4 beats
-- Pressing Play now counts in before the beat cursor starts, so the player can hit the first beat.
+Note on audio:
 
-Still not included:
+- There is still no real sound playback in this build. The app is currently testing timing-grid behaviour only.
 
-- Real audio playback.
-- YouTube search/download.
-- Automatic chord detection.
+Note on Concert Chords vs Banjo Shapes:
 
-Those come later, after the demo timing/playback behaviour is solid.
+- **Banjo Shapes** shows the chord shape name being played.
+- **Concert Chords** shows the chord that would be heard after applying the capo.
+- At this stage this is only basic display logic. Full capo/chord-engine behaviour will come later.

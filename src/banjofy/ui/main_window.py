@@ -22,7 +22,7 @@ from banjofy.banjo.chords import transpose_chord
 from banjofy.player.demo_songs import DEMO_SONGS, DemoSong
 from banjofy.ui.widgets import BanjoDiagram, ChordPanel
 
-BUILD_LABEL = "Banjofy 0.2.5 - Build 002.5 Loop + Count-In"
+BUILD_LABEL = "Banjofy 0.2.6 - Build 002.6 Loop Select + To Start"
 
 
 class MainWindow(QMainWindow):
@@ -38,6 +38,7 @@ class MainWindow(QMainWindow):
         self.grid_diagrams: list[BanjoDiagram] = []
         self.loop_start_bar: int | None = None
         self.loop_end_bar: int | None = None
+        self.loop_select_mode: str | None = None
         self.is_counting_in = False
         self.count_in_remaining = 0
 
@@ -47,7 +48,7 @@ class MainWindow(QMainWindow):
         self._apply_style()
         self.setCentralWidget(self._build_ui())
         self.setStatusBar(QStatusBar())
-        self.statusBar().showMessage("Build 002.5 ready - visual loop buttons and count-in")
+        self.statusBar().showMessage("Build 002.6 ready - click a beat to set loop start/end")
         self._load_demo_song(0)
 
     def _build_ui(self) -> QWidget:
@@ -63,7 +64,7 @@ class MainWindow(QMainWindow):
         search_layout = QVBoxLayout(search_panel)
         search_row = QHBoxLayout()
         self.search = QLineEdit()
-        self.search.setPlaceholderText("Build 002.4: demo search only - audio comes later")
+        self.search.setPlaceholderText("Build 002.6: demo search only - audio comes later")
         self.search.textChanged.connect(self._filter_demo_results)
         search_row.addWidget(self.search)
         search_layout.addLayout(search_row)
@@ -124,15 +125,19 @@ class MainWindow(QMainWindow):
         controls_layout.setContentsMargins(12, 8, 12, 8)
         controls_layout.setSpacing(10)
 
-        self.back_btn = QPushButton("⏮ Back")
+        self.to_start_btn = QPushButton("⏮ To Start")
+        self.back_btn = QPushButton("◀ Back")
         self.play_btn = QPushButton("▶ Play")
-        self.forward_btn = QPushButton("⏭ Forward")
+        self.forward_btn = QPushButton("Forward ▶")
+        self.to_start_btn.setMinimumWidth(110)
         self.back_btn.setMinimumWidth(90)
         self.play_btn.setMinimumWidth(95)
         self.forward_btn.setMinimumWidth(105)
+        self.to_start_btn.clicked.connect(self._jump_to_start)
         self.back_btn.clicked.connect(lambda: self._move_beat(-1))
         self.play_btn.clicked.connect(self._toggle_play)
         self.forward_btn.clicked.connect(lambda: self._move_beat(1))
+        controls_layout.addWidget(self.to_start_btn)
         controls_layout.addWidget(self.back_btn)
         controls_layout.addWidget(self.play_btn)
         controls_layout.addWidget(self.forward_btn)
@@ -147,12 +152,12 @@ class MainWindow(QMainWindow):
         self.loop_start_label.setMinimumWidth(70)
         self.loop_end_label = QLabel("End: —")
         self.loop_end_label.setMinimumWidth(70)
-        self.set_loop_start_btn = QPushButton("Set Start")
-        self.set_loop_end_btn = QPushButton("Set End")
+        self.set_loop_start_btn = QPushButton("Select Start")
+        self.set_loop_end_btn = QPushButton("Select End")
         self.clear_loop_btn = QPushButton("Clear Loop")
-        self.set_loop_start_btn.setMinimumWidth(100)
-        self.set_loop_end_btn.setMinimumWidth(90)
-        self.clear_loop_btn.setMinimumWidth(100)
+        self.set_loop_start_btn.setMinimumWidth(130)
+        self.set_loop_end_btn.setMinimumWidth(120)
+        self.clear_loop_btn.setMinimumWidth(120)
         self.set_loop_start_btn.clicked.connect(self._set_loop_start)
         self.set_loop_end_btn.clicked.connect(self._set_loop_end)
         self.clear_loop_btn.clicked.connect(self._clear_loop)
@@ -161,7 +166,7 @@ class MainWindow(QMainWindow):
         loop_layout.addWidget(self.set_loop_start_btn)
         loop_layout.addWidget(self.set_loop_end_btn)
         loop_layout.addWidget(self.clear_loop_btn)
-        loop_box.setMinimumWidth(560)
+        loop_box.setMinimumWidth(680)
         controls_layout.addWidget(loop_box, 0)
 
         speed_box = QFrame()
@@ -204,7 +209,7 @@ class MainWindow(QMainWindow):
 
         grid_panel = self._panel()
         grid_layout = QVBoxLayout(grid_panel)
-        grid_layout.addWidget(QLabel("Build 002.5 demo beat grid - 3 bars across / 12 beats per row, with bar headers"))
+        grid_layout.addWidget(QLabel("Build 002.6 demo beat grid - click a beat to set loop start/end; 3 bars across / 12 beats per row"))
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.grid_widget = QWidget()
@@ -261,6 +266,8 @@ class MainWindow(QMainWindow):
         for i, chord in enumerate(self.song.chords):
             cell = QFrame()
             cell.setObjectName("BeatCell")
+            cell.setCursor(Qt.CursorShape.PointingHandCursor)
+            cell.mousePressEvent = lambda event, idx=i: self._grid_cell_clicked(idx)  # type: ignore[method-assign]
             cell.setMinimumHeight(122)
             cell.setMinimumWidth(92)
             box = QVBoxLayout(cell)
@@ -344,22 +351,44 @@ class MainWindow(QMainWindow):
         return self.beat_index // 4 + 1
 
     def _set_loop_start(self) -> None:
-        self.loop_start_bar = self._current_bar()
-        if self.loop_end_bar is not None and self.loop_start_bar > self.loop_end_bar:
-            self.loop_start_bar, self.loop_end_bar = self.loop_end_bar, self.loop_start_bar
-        self._update_loop_labels()
-        self.statusBar().showMessage(f"Loop start set to bar {self.loop_start_bar}")
+        self.loop_select_mode = "start"
+        self.statusBar().showMessage("Click any beat in the grid to set the loop START bar")
+        self.set_loop_start_btn.setText("Click beat…")
+        self.set_loop_end_btn.setText("Select End")
 
     def _set_loop_end(self) -> None:
-        self.loop_end_bar = self._current_bar()
-        if self.loop_start_bar is not None and self.loop_start_bar > self.loop_end_bar:
+        self.loop_select_mode = "end"
+        self.statusBar().showMessage("Click any beat in the grid to set the loop END bar")
+        self.set_loop_end_btn.setText("Click beat…")
+        self.set_loop_start_btn.setText("Select Start")
+
+    def _grid_cell_clicked(self, beat_index: int) -> None:
+        bar = beat_index // 4 + 1
+        if self.loop_select_mode == "start":
+            self.loop_start_bar = bar
+            self.loop_select_mode = None
+            self.statusBar().showMessage(f"Loop start set to bar {bar}")
+        elif self.loop_select_mode == "end":
+            self.loop_end_bar = bar
+            self.loop_select_mode = None
+            self.statusBar().showMessage(f"Loop end set to bar {bar}")
+        else:
+            self.beat_index = beat_index
+            self.statusBar().showMessage(f"Moved cursor to bar {bar}, beat {(beat_index % 4) + 1}")
+        if self.loop_start_bar is not None and self.loop_end_bar is not None and self.loop_start_bar > self.loop_end_bar:
             self.loop_start_bar, self.loop_end_bar = self.loop_end_bar, self.loop_start_bar
+        self.set_loop_start_btn.setText("Select Start")
+        self.set_loop_end_btn.setText("Select End")
         self._update_loop_labels()
-        self.statusBar().showMessage(f"Loop end set to bar {self.loop_end_bar}")
+        self._update_position()
 
     def _clear_loop(self) -> None:
         self.loop_start_bar = None
         self.loop_end_bar = None
+        self.loop_select_mode = None
+        if hasattr(self, "set_loop_start_btn"):
+            self.set_loop_start_btn.setText("Select Start")
+            self.set_loop_end_btn.setText("Select End")
         if hasattr(self, "loop_start_label"):
             self._update_loop_labels()
 
@@ -372,6 +401,19 @@ class MainWindow(QMainWindow):
         active = self._loop_is_active()
         self.clear_loop_btn.setEnabled(active)
 
+
+    def _jump_to_start(self) -> None:
+        if not self.song:
+            return
+        if self._loop_is_active():
+            start_bar = min(self.loop_start_bar, self.loop_end_bar)  # type: ignore[arg-type]
+            self.beat_index = max(0, (start_bar - 1) * 4)
+            self.statusBar().showMessage(f"Jumped to loop start: bar {start_bar}")
+        else:
+            self.beat_index = 0
+            self.statusBar().showMessage("Jumped to song start")
+        self._update_position()
+
     def _toggle_play(self) -> None:
         if self.is_playing or self.is_counting_in:
             self.is_playing = False
@@ -381,6 +423,11 @@ class MainWindow(QMainWindow):
             self.count_in_display.setText("Ready")
             self.statusBar().showMessage("Paused")
             return
+
+        if self._loop_is_active():
+            start_bar = min(self.loop_start_bar, self.loop_end_bar)  # type: ignore[arg-type]
+            self.beat_index = max(0, (start_bar - 1) * 4)
+            self._update_position()
 
         beats = int(self.count_in.currentText())
         if beats > 0:
@@ -435,9 +482,9 @@ class MainWindow(QMainWindow):
                 self.beat_index = loop_end_index
         else:
             if self.beat_index >= len(self.song.chords):
-                self.beat_index = 0
-            if self.beat_index < 0:
                 self.beat_index = len(self.song.chords) - 1
+            if self.beat_index < 0:
+                self.beat_index = 0
         self._update_position()
 
     def _update_position(self) -> None:
