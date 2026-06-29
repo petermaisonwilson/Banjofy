@@ -4,8 +4,6 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 block_cipher = None
 
-# imageio_ffmpeg stores the ffmpeg executable as package data. Without collecting
-# that data, BPM analysis may work in Python but fail inside the Windows EXE.
 datas = []
 datas += collect_data_files('imageio_ffmpeg')
 datas += collect_data_files('librosa')
