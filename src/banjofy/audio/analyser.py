@@ -156,23 +156,16 @@ def analyse_audio(path: Path, progress: ProgressCallback | None = None) -> Analy
     key, key_confidence = _estimate_key(y, sr)
 
     if progress:
-        progress("estimating 4/4 beat/bar grid...", 92)
+        progress("building 4/4 practice grid...", 92)
 
     bpm_confidence = min(1.0, max(0.1, beat_count / 80)) if beat_count else 0.2
-
-    # Build 004.5B: the current UI only has BPM and Key labels, so for now
-    # we include the new beat/bar information in the key text as a visible
-    # bridge toward the coming real chord grid.
-    display_key = key
-    if display_key and beat_count:
-        display_key = f"{display_key} · {beat_count} beats · ~{estimated_bars} bars"
 
     if progress:
         progress("analysis complete", 100)
 
     return AnalysisResult(
         bpm=bpm,
-        key=display_key,
+        key=key,
         key_confidence=key_confidence,
         method="ffmpeg WAV conversion + librosa tempo/chroma key + beat grid estimate",
         confidence=bpm_confidence,

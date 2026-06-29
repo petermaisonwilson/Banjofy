@@ -20,7 +20,7 @@ from banjofy.ui.widgets import BeatCell, ChordPanel
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.4.5A - BPM + Key Detection"
+APP_VERSION = "Banjofy 0.4.6A - Analysis Grid Scaffold"
 
 
 class MainWindow(QMainWindow):
@@ -47,12 +47,18 @@ class MainWindow(QMainWindow):
         self.search_queue: queue.Queue[tuple[str, object]] = queue.Queue()
         self.download_queue: queue.Queue[tuple[str, object]] = queue.Queue()
         self.analysis_queue: queue.Queue[tuple[str, object]] = queue.Queue()
-        self.timer = QTimer(self); self.timer.timeout.connect(self._tick)
-        self.search_poll_timer = QTimer(self); self.search_poll_timer.timeout.connect(self._poll_search_results)
-        self.download_poll_timer = QTimer(self); self.download_poll_timer.timeout.connect(self._poll_download_results)
-        self.analysis_poll_timer = QTimer(self); self.analysis_poll_timer.timeout.connect(self._poll_analysis_results)
-        self.audio_output = QAudioOutput(self); self.audio_output.setVolume(0.8)
-        self.media_player = QMediaPlayer(self); self.media_player.setAudioOutput(self.audio_output)
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._tick)
+        self.search_poll_timer = QTimer(self)
+        self.search_poll_timer.timeout.connect(self._poll_search_results)
+        self.download_poll_timer = QTimer(self)
+        self.download_poll_timer.timeout.connect(self._poll_download_results)
+        self.analysis_poll_timer = QTimer(self)
+        self.analysis_poll_timer.timeout.connect(self._poll_analysis_results)
+        self.audio_output = QAudioOutput(self)
+        self.audio_output.setVolume(0.8)
+        self.media_player = QMediaPlayer(self)
+        self.media_player.setAudioOutput(self.audio_output)
         self.media_player.errorOccurred.connect(self._media_error)
         self.media_player.mediaStatusChanged.connect(self._media_status_changed)
         self._apply_style()
@@ -60,232 +66,698 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 004.5A ready - downloaded songs analyse BPM and likely key.")
+        self.statusBar().showMessage("Build 004.6A ready - analysis now creates a song-length practice grid scaffold.")
 
     def _build_ui(self) -> QWidget:
-        root = QWidget(); outer = QVBoxLayout(root); outer.setContentsMargins(8,8,8,8); outer.setSpacing(6)
-        top = QHBoxLayout(); top.setSpacing(6); outer.addLayout(top, 0)
-        search_panel = self._panel(); search_layout = QVBoxLayout(search_panel); search_layout.setContentsMargins(8,6,8,6)
-        search_row = QHBoxLayout(); self.search = QLineEdit(); self.search.setPlaceholderText("Search YouTube, e.g. Country Roads banjo"); self.search.returnPressed.connect(self._start_youtube_search)
-        self.search_button = QPushButton("Search"); self.search_button.clicked.connect(self._start_youtube_search)
-        search_row.addWidget(self.search); search_row.addWidget(self.search_button); search_layout.addLayout(search_row)
-        self.result_list = QListWidget(); self.result_list.setMaximumHeight(210); self.result_list.setIconSize(QSize(96,54)); self.result_list.currentRowChanged.connect(self._select_result)
+        root = QWidget()
+        outer = QVBoxLayout(root)
+        outer.setContentsMargins(8, 8, 8, 8)
+        outer.setSpacing(6)
+        top = QHBoxLayout()
+        top.setSpacing(6)
+        outer.addLayout(top, 0)
+
+        search_panel = self._panel()
+        search_layout = QVBoxLayout(search_panel)
+        search_layout.setContentsMargins(8, 6, 8, 6)
+        search_row = QHBoxLayout()
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("Search YouTube, e.g. Country Roads banjo")
+        self.search.returnPressed.connect(self._start_youtube_search)
+        self.search_button = QPushButton("Search")
+        self.search_button.clicked.connect(self._start_youtube_search)
+        search_row.addWidget(self.search)
+        search_row.addWidget(self.search_button)
+        search_layout.addLayout(search_row)
+        self.result_list = QListWidget()
+        self.result_list.setMaximumHeight(210)
+        self.result_list.setIconSize(QSize(96, 54))
+        self.result_list.currentRowChanged.connect(self._select_result)
         for song in DEMO_SONGS:
             self.result_list.addItem(QListWidgetItem(f"DEMO · {song.title}\n{song.artist} · {song.duration} · {song.bpm} BPM"))
-        search_layout.addWidget(self.result_list); self.search_hint = QLabel("Search uses yt-dlp. Select a result, download audio, then press Play."); self.search_hint.setObjectName("HintLabel"); search_layout.addWidget(self.search_hint); top.addWidget(search_panel, 2)
-        meta_panel = self._panel(); meta_layout = QVBoxLayout(meta_panel); meta_layout.setContentsMargins(8,6,8,6)
-        self.thumbnail_label = QLabel("No image"); self.thumbnail_label.setObjectName("ThumbnailBox"); self.thumbnail_label.setAlignment(Qt.AlignmentFlag.AlignCenter); self.thumbnail_label.setFixedSize(160,90); meta_layout.addWidget(self.thumbnail_label, alignment=Qt.AlignmentFlag.AlignCenter)
-        self.title_label = QLabel("—"); self.title_label.setWordWrap(True); self.title_label.setStyleSheet("font-size: 15px; font-weight: bold; color: #f3d99a;")
-        self.artist_label = QLabel("—"); self.artist_label.setWordWrap(True); self.source_label = QLabel("Source: Demo")
-        meta_layout.addWidget(self.title_label); meta_layout.addWidget(self.artist_label); meta_layout.addWidget(self.source_label)
-        self.bpm_label = QLabel("BPM: —"); self.key_label = QLabel("Key: —"); self.duration_label = QLabel("Duration: —")
-        for w in [self.bpm_label, self.key_label, self.duration_label]: meta_layout.addWidget(w)
-        self.download_btn = QPushButton("Download Audio"); self.download_btn.clicked.connect(self._start_audio_download); self.download_btn.setEnabled(False); meta_layout.addWidget(self.download_btn)
-        self.download_progress = QProgressBar(); self.download_progress.setRange(0,100); self.download_progress.setTextVisible(True); meta_layout.addWidget(self.download_progress)
-        self.download_status = QLabel("Audio: not downloaded"); self.download_status.setWordWrap(True); self.download_status.setObjectName("HintLabel"); meta_layout.addWidget(self.download_status)
-        self.analysis_progress = QProgressBar(); self.analysis_progress.setRange(0,100); self.analysis_progress.setTextVisible(True); meta_layout.addWidget(self.analysis_progress)
-        self.analysis_status = QLabel("Analysis: waiting"); self.analysis_status.setWordWrap(True); self.analysis_status.setObjectName("HintLabel"); meta_layout.addWidget(self.analysis_status); top.addWidget(meta_panel, 1)
-        centre = self._panel(); centre_layout = QVBoxLayout(centre); centre_layout.setContentsMargins(8,6,8,6)
-        title = QLabel(APP_VERSION); title.setAlignment(Qt.AlignmentFlag.AlignCenter); title.setStyleSheet("font-size: 18px; font-weight: bold; color: #f3d99a;"); centre_layout.addWidget(title)
-        chord_row = QHBoxLayout(); self.current_panel = ChordPanel("CURRENT", "—", "#65b95c"); self.next_panel = ChordPanel("NEXT", "—", "#c99424", "in 1 beat")
-        chord_row.addWidget(self.current_panel, 1); chord_row.addWidget(self.next_panel, 1); centre_layout.addLayout(chord_row)
-        self.countdown_label = QLabel(""); self.countdown_label.setAlignment(Qt.AlignmentFlag.AlignCenter); self.countdown_label.setObjectName("CountdownLabel"); self.countdown_label.setVisible(False); centre_layout.addWidget(self.countdown_label); top.addWidget(centre, 4)
-        settings = self._panel(); settings_layout = QVBoxLayout(settings); settings_layout.setContentsMargins(8,6,8,6)
-        settings_layout.addWidget(QLabel("Mode")); self.mode = QComboBox(); self.mode.addItems(["Beginner","Intermediate","Professional"]); self.mode.setCurrentText("Intermediate"); self.mode.currentTextChanged.connect(self._mode_changed); settings_layout.addWidget(self.mode)
-        settings_layout.addWidget(QLabel("Capo")); self.capo = QSpinBox(); self.capo.setRange(0,12); self.capo.valueChanged.connect(self._update_all); settings_layout.addWidget(self.capo)
-        settings_layout.addWidget(QLabel("Show")); self.show_mode = QComboBox(); self.show_mode.addItems(["Concert Chords","Banjo Shapes"]); self.show_mode.currentTextChanged.connect(self._update_all); settings_layout.addWidget(self.show_mode)
-        settings_layout.addWidget(QLabel("Count-in")); self.count_in = QComboBox(); self.count_in.addItems(["0","1","2","3","4","8"]); self.count_in.setCurrentText("4"); settings_layout.addWidget(self.count_in); settings_layout.addStretch(); top.addWidget(settings, 1)
-        controls = self._panel(); controls_layout = QHBoxLayout(controls); controls_layout.setContentsMargins(8,6,8,6); controls_layout.setSpacing(8)
-        self.back_btn = QPushButton("⏮ Back"); self.back_btn.clicked.connect(self._back); self.play_btn = QPushButton("▶ Play"); self.play_btn.clicked.connect(self._play_pause); self.forward_btn = QPushButton("⏭ Forward"); self.forward_btn.clicked.connect(self._forward); self.start_btn = QPushButton("⇤ To Start"); self.start_btn.clicked.connect(self._to_start)
-        for btn in [self.back_btn, self.play_btn, self.forward_btn, self.start_btn]: controls_layout.addWidget(btn)
-        loop_box = self._panel("LoopBox"); loop_layout = QHBoxLayout(loop_box); loop_layout.setContentsMargins(8,4,8,4); self.loop_status = QLabel("Loop: off"); self.select_start_btn = QPushButton("Select Start"); self.select_start_btn.clicked.connect(lambda: self._set_selection_mode("start")); self.select_end_btn = QPushButton("Select End"); self.select_end_btn.clicked.connect(lambda: self._set_selection_mode("end")); self.clear_loop_btn = QPushButton("Clear Loop"); self.clear_loop_btn.clicked.connect(self._clear_loop)
-        for w in [self.loop_status,self.select_start_btn,self.select_end_btn,self.clear_loop_btn]: loop_layout.addWidget(w)
-        controls_layout.addWidget(loop_box,2); controls_layout.addWidget(QLabel("Speed")); self.speed = QSlider(Qt.Orientation.Horizontal); self.speed.setRange(50,125); self.speed.setValue(100); self.speed.valueChanged.connect(self._speed_changed); self.speed.setMinimumWidth(150); controls_layout.addWidget(self.speed); self.speed_label = QLabel("100%"); controls_layout.addWidget(self.speed_label); controls_layout.addStretch(); outer.addWidget(controls, 0)
-        grid_panel = self._panel(); grid_layout = QVBoxLayout(grid_panel); grid_layout.setContentsMargins(8,6,8,6); grid_layout.addWidget(QLabel("Beat grid - 3 bars across / 12 beat squares per row. Click a beat to set loop start/end or move position."))
-        self.scroll = QScrollArea(); self.scroll.setWidgetResizable(True); self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff); self.grid_host = QWidget(); self.grid = QGridLayout(self.grid_host); self.grid.setSpacing(4); self.grid.setContentsMargins(2,2,2,2); self.scroll.setWidget(self.grid_host); grid_layout.addWidget(self.scroll); outer.addWidget(grid_panel,1)
+        search_layout.addWidget(self.result_list)
+        self.search_hint = QLabel("Search uses yt-dlp. Select a result, download audio, then press Play.")
+        self.search_hint.setObjectName("HintLabel")
+        search_layout.addWidget(self.search_hint)
+        top.addWidget(search_panel, 2)
+
+        meta_panel = self._panel()
+        meta_layout = QVBoxLayout(meta_panel)
+        meta_layout.setContentsMargins(8, 6, 8, 6)
+        self.thumbnail_label = QLabel("No image")
+        self.thumbnail_label.setObjectName("ThumbnailBox")
+        self.thumbnail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.thumbnail_label.setFixedSize(160, 90)
+        meta_layout.addWidget(self.thumbnail_label, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.title_label = QLabel("—")
+        self.title_label.setWordWrap(True)
+        self.title_label.setStyleSheet("font-size: 15px; font-weight: bold; color: #f3d99a;")
+        self.artist_label = QLabel("—")
+        self.artist_label.setWordWrap(True)
+        self.source_label = QLabel("Source: Demo")
+        meta_layout.addWidget(self.title_label)
+        meta_layout.addWidget(self.artist_label)
+        meta_layout.addWidget(self.source_label)
+        self.bpm_label = QLabel("BPM: —")
+        self.key_label = QLabel("Key: —")
+        self.duration_label = QLabel("Duration: —")
+        for w in [self.bpm_label, self.key_label, self.duration_label]:
+            meta_layout.addWidget(w)
+        self.download_btn = QPushButton("Download Audio")
+        self.download_btn.clicked.connect(self._start_audio_download)
+        self.download_btn.setEnabled(False)
+        meta_layout.addWidget(self.download_btn)
+        self.download_progress = QProgressBar()
+        self.download_progress.setRange(0, 100)
+        self.download_progress.setTextVisible(True)
+        meta_layout.addWidget(self.download_progress)
+        self.download_status = QLabel("Audio: not downloaded")
+        self.download_status.setWordWrap(True)
+        self.download_status.setObjectName("HintLabel")
+        meta_layout.addWidget(self.download_status)
+        self.analysis_progress = QProgressBar()
+        self.analysis_progress.setRange(0, 100)
+        self.analysis_progress.setTextVisible(True)
+        meta_layout.addWidget(self.analysis_progress)
+        self.analysis_status = QLabel("Analysis: waiting")
+        self.analysis_status.setWordWrap(True)
+        self.analysis_status.setObjectName("HintLabel")
+        meta_layout.addWidget(self.analysis_status)
+        top.addWidget(meta_panel, 1)
+
+        centre = self._panel()
+        centre_layout = QVBoxLayout(centre)
+        centre_layout.setContentsMargins(8, 6, 8, 6)
+        title = QLabel(APP_VERSION)
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #f3d99a;")
+        centre_layout.addWidget(title)
+        chord_row = QHBoxLayout()
+        self.current_panel = ChordPanel("CURRENT", "—", "#65b95c")
+        self.next_panel = ChordPanel("NEXT", "—", "#c99424", "in 1 beat")
+        chord_row.addWidget(self.current_panel, 1)
+        chord_row.addWidget(self.next_panel, 1)
+        centre_layout.addLayout(chord_row)
+        self.countdown_label = QLabel("")
+        self.countdown_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.countdown_label.setObjectName("CountdownLabel")
+        self.countdown_label.setVisible(False)
+        centre_layout.addWidget(self.countdown_label)
+        top.addWidget(centre, 4)
+
+        settings = self._panel()
+        settings_layout = QVBoxLayout(settings)
+        settings_layout.setContentsMargins(8, 6, 8, 6)
+        settings_layout.addWidget(QLabel("Mode"))
+        self.mode = QComboBox()
+        self.mode.addItems(["Beginner", "Intermediate", "Professional"])
+        self.mode.setCurrentText("Intermediate")
+        self.mode.currentTextChanged.connect(self._mode_changed)
+        settings_layout.addWidget(self.mode)
+        settings_layout.addWidget(QLabel("Capo"))
+        self.capo = QSpinBox()
+        self.capo.setRange(0, 12)
+        self.capo.valueChanged.connect(self._update_all)
+        settings_layout.addWidget(self.capo)
+        settings_layout.addWidget(QLabel("Show"))
+        self.show_mode = QComboBox()
+        self.show_mode.addItems(["Concert Chords", "Banjo Shapes"])
+        self.show_mode.currentTextChanged.connect(self._update_all)
+        settings_layout.addWidget(self.show_mode)
+        settings_layout.addWidget(QLabel("Count-in"))
+        self.count_in = QComboBox()
+        self.count_in.addItems(["0", "1", "2", "3", "4", "8"])
+        self.count_in.setCurrentText("4")
+        settings_layout.addWidget(self.count_in)
+        settings_layout.addStretch()
+        top.addWidget(settings, 1)
+
+        controls = self._panel()
+        controls_layout = QHBoxLayout(controls)
+        controls_layout.setContentsMargins(8, 6, 8, 6)
+        controls_layout.setSpacing(8)
+        self.back_btn = QPushButton("⏮ Back")
+        self.back_btn.clicked.connect(self._back)
+        self.play_btn = QPushButton("▶ Play")
+        self.play_btn.clicked.connect(self._play_pause)
+        self.forward_btn = QPushButton("⏭ Forward")
+        self.forward_btn.clicked.connect(self._forward)
+        self.start_btn = QPushButton("⇤ To Start")
+        self.start_btn.clicked.connect(self._to_start)
+        for btn in [self.back_btn, self.play_btn, self.forward_btn, self.start_btn]:
+            controls_layout.addWidget(btn)
+        loop_box = self._panel("LoopBox")
+        loop_layout = QHBoxLayout(loop_box)
+        loop_layout.setContentsMargins(8, 4, 8, 4)
+        self.loop_status = QLabel("Loop: off")
+        self.select_start_btn = QPushButton("Select Start")
+        self.select_start_btn.clicked.connect(lambda: self._set_selection_mode("start"))
+        self.select_end_btn = QPushButton("Select End")
+        self.select_end_btn.clicked.connect(lambda: self._set_selection_mode("end"))
+        self.clear_loop_btn = QPushButton("Clear Loop")
+        self.clear_loop_btn.clicked.connect(self._clear_loop)
+        for w in [self.loop_status, self.select_start_btn, self.select_end_btn, self.clear_loop_btn]:
+            loop_layout.addWidget(w)
+        controls_layout.addWidget(loop_box, 2)
+        controls_layout.addWidget(QLabel("Speed"))
+        self.speed = QSlider(Qt.Orientation.Horizontal)
+        self.speed.setRange(50, 125)
+        self.speed.setValue(100)
+        self.speed.valueChanged.connect(self._speed_changed)
+        self.speed.setMinimumWidth(150)
+        controls_layout.addWidget(self.speed)
+        self.speed_label = QLabel("100%")
+        controls_layout.addWidget(self.speed_label)
+        controls_layout.addStretch()
+        outer.addWidget(controls, 0)
+
+        grid_panel = self._panel()
+        grid_layout = QVBoxLayout(grid_panel)
+        grid_layout.setContentsMargins(8, 6, 8, 6)
+        grid_layout.addWidget(QLabel("Beat grid - now rebuilt from analysed beat/bar count. Chords are still placeholders until chord detection."))
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.grid_host = QWidget()
+        self.grid = QGridLayout(self.grid_host)
+        self.grid.setSpacing(4)
+        self.grid.setContentsMargins(2, 2, 2, 2)
+        self.scroll.setWidget(self.grid_host)
+        grid_layout.addWidget(self.scroll)
+        outer.addWidget(grid_panel, 1)
         return root
 
     def _start_youtube_search(self) -> None:
         query = self.search.text().strip()
-        if not query: self.statusBar().showMessage("Enter a song or artist to search YouTube"); return
-        self._stop(); self._clear_audio_file(); self.search_button.setEnabled(False); self.result_list.clear(); self.youtube_results = []; self.selected_youtube_result = None; self.download_btn.setEnabled(False); self.download_progress.setValue(0); self.analysis_progress.setValue(0); self.download_status.setText("Audio: not downloaded"); self.analysis_status.setText("Analysis: waiting"); self.result_list.addItem(QListWidgetItem(f"Searching YouTube for: {query}\nPlease wait...")); self.statusBar().showMessage(f"Searching YouTube for: {query}")
+        if not query:
+            self.statusBar().showMessage("Enter a song or artist to search YouTube")
+            return
+        self._stop()
+        self._clear_audio_file()
+        self.search_button.setEnabled(False)
+        self.result_list.clear()
+        self.youtube_results = []
+        self.selected_youtube_result = None
+        self.download_btn.setEnabled(False)
+        self.download_progress.setValue(0)
+        self.analysis_progress.setValue(0)
+        self.download_status.setText("Audio: not downloaded")
+        self.analysis_status.setText("Analysis: waiting")
+        self.result_list.addItem(QListWidgetItem(f"Searching YouTube for: {query}\nPlease wait..."))
+        self.statusBar().showMessage(f"Searching YouTube for: {query}")
+
         def worker() -> None:
-            try: self.search_queue.put(("results", search_youtube(query, limit=8)))
-            except Exception as exc: self.search_queue.put(("error", str(exc)))
-        threading.Thread(target=worker, daemon=True).start(); self.search_poll_timer.start(100)
+            try:
+                self.search_queue.put(("results", search_youtube(query, limit=8)))
+            except Exception as exc:
+                self.search_queue.put(("error", str(exc)))
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.search_poll_timer.start(100)
 
     def _poll_search_results(self) -> None:
-        try: kind, payload = self.search_queue.get_nowait()
-        except queue.Empty: return
-        self.search_poll_timer.stop(); self.search_button.setEnabled(True); self.result_list.clear()
-        if kind == "error": self.result_list.addItem(QListWidgetItem(f"YouTube search error\n{payload}")); self.statusBar().showMessage(f"YouTube search error: {payload}"); return
-        results = payload if isinstance(payload, list) else []; self.youtube_results = results
-        if not results: self.result_list.addItem(QListWidgetItem("No YouTube results found\nTry a different search phrase.")); self.statusBar().showMessage("No YouTube results found"); return
+        try:
+            kind, payload = self.search_queue.get_nowait()
+        except queue.Empty:
+            return
+        self.search_poll_timer.stop()
+        self.search_button.setEnabled(True)
+        self.result_list.clear()
+        if kind == "error":
+            self.result_list.addItem(QListWidgetItem(f"YouTube search error\n{payload}"))
+            self.statusBar().showMessage(f"YouTube search error: {payload}")
+            return
+        results = payload if isinstance(payload, list) else []
+        self.youtube_results = results
+        if not results:
+            self.result_list.addItem(QListWidgetItem("No YouTube results found\nTry a different search phrase."))
+            self.statusBar().showMessage("No YouTube results found")
+            return
         for result in results:
             item = QListWidgetItem(f"YOUTUBE · {result.title}\n{result.channel} · {result.duration}")
             if result.thumbnail_data:
                 pix = QPixmap()
-                if pix.loadFromData(result.thumbnail_data): item.setIcon(QIcon(pix.scaled(96,54,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation)))
+                if pix.loadFromData(result.thumbnail_data):
+                    item.setIcon(QIcon(pix.scaled(96, 54, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)))
             self.result_list.addItem(item)
         self.statusBar().showMessage(f"Found {len(results)} YouTube results. Click one, then Download Audio.")
 
     def _set_thumbnail(self, result: YouTubeResult | None) -> None:
         if result and result.thumbnail_data:
             pix = QPixmap()
-            if pix.loadFromData(result.thumbnail_data): self.thumbnail_label.setPixmap(pix.scaled(160,90,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation)); self.thumbnail_label.setText(""); return
-        self.thumbnail_label.setPixmap(QPixmap()); self.thumbnail_label.setText("No image")
+            if pix.loadFromData(result.thumbnail_data):
+                self.thumbnail_label.setPixmap(pix.scaled(160, 90, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+                self.thumbnail_label.setText("")
+                return
+        self.thumbnail_label.setPixmap(QPixmap())
+        self.thumbnail_label.setText("No image")
 
     def _start_audio_download(self) -> None:
         result = self.selected_youtube_result
-        if not result: self.statusBar().showMessage("Select a YouTube result before downloading audio"); return
-        self._stop(); self._clear_audio_file(); self.bpm_label.setText(f"BPM: {self.song.bpm} (demo)"); self.key_label.setText("Key: analysing after download"); self.analysis_progress.setValue(0); self.analysis_status.setText("Analysis: waiting for download"); self.download_btn.setEnabled(False); self.search_button.setEnabled(False); self.download_progress.setValue(0); self.download_status.setText("Audio: preparing download..."); self.statusBar().showMessage("Preparing YouTube audio download...")
-        def progress(message: str, percent: float, detail: str) -> None: self.download_queue.put(("progress", (message, percent, detail)))
+        if not result:
+            self.statusBar().showMessage("Select a YouTube result before downloading audio")
+            return
+        self._stop()
+        self._clear_audio_file()
+        self.bpm_label.setText(f"BPM: {self.song.bpm} (demo)")
+        self.key_label.setText("Key: analysing after download")
+        self.analysis_progress.setValue(0)
+        self.analysis_status.setText("Analysis: waiting for download")
+        self.download_btn.setEnabled(False)
+        self.search_button.setEnabled(False)
+        self.download_progress.setValue(0)
+        self.download_status.setText("Audio: preparing download...")
+        self.statusBar().showMessage("Preparing YouTube audio download...")
+
+        def progress(message: str, percent: float, detail: str) -> None:
+            self.download_queue.put(("progress", (message, percent, detail)))
+
         def worker() -> None:
-            try: self.download_queue.put(("done", download_audio(result.url, result.title, progress=progress)))
-            except Exception as exc: self.download_queue.put(("error", str(exc)))
-        threading.Thread(target=worker, daemon=True).start(); self.download_poll_timer.start(100)
+            try:
+                self.download_queue.put(("done", download_audio(result.url, result.title, progress=progress)))
+            except Exception as exc:
+                self.download_queue.put(("error", str(exc)))
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.download_poll_timer.start(100)
 
     def _poll_download_results(self) -> None:
         while True:
-            try: kind, payload = self.download_queue.get_nowait()
-            except queue.Empty: return
+            try:
+                kind, payload = self.download_queue.get_nowait()
+            except queue.Empty:
+                return
             if kind == "progress":
-                message, percent, detail = payload; self.download_progress.setValue(int(percent)); detail_text = f" ({detail})" if detail else ""; self.download_status.setText(f"Audio: {message}{detail_text}"); self.statusBar().showMessage(f"{message}{detail_text}")
+                message, percent, detail = payload
+                self.download_progress.setValue(int(percent))
+                detail_text = f" ({detail})" if detail else ""
+                self.download_status.setText(f"Audio: {message}{detail_text}")
+                self.statusBar().showMessage(f"{message}{detail_text}")
             elif kind == "done":
-                self.download_poll_timer.stop(); self.search_button.setEnabled(True); self.download_btn.setEnabled(True); result = payload
+                self.download_poll_timer.stop()
+                self.search_button.setEnabled(True)
+                self.download_btn.setEnabled(True)
+                result = payload
                 if isinstance(result, DownloadResult):
-                    self.downloaded_audio_path = result.file_path; self.download_progress.setValue(100); cached = "cached" if result.was_cached else "downloaded"; self.download_status.setText(f"Audio: {cached} - press Play"); self.statusBar().showMessage(f"Audio {cached}. Starting BPM/key analysis..."); self._load_audio_file(result.file_path); self._start_audio_analysis(result.file_path)
+                    self.downloaded_audio_path = result.file_path
+                    self.download_progress.setValue(100)
+                    cached = "cached" if result.was_cached else "downloaded"
+                    self.download_status.setText(f"Audio: {cached} - press Play")
+                    self.statusBar().showMessage(f"Audio {cached}. Starting BPM/key/grid analysis...")
+                    self._load_audio_file(result.file_path)
+                    self._start_audio_analysis(result.file_path)
                 return
             elif kind == "error":
-                self.download_poll_timer.stop(); self.search_button.setEnabled(True); self.download_btn.setEnabled(True); self.download_status.setText(f"Audio error: {payload}"); self.statusBar().showMessage(f"Audio download error: {payload}"); return
+                self.download_poll_timer.stop()
+                self.search_button.setEnabled(True)
+                self.download_btn.setEnabled(True)
+                self.download_status.setText(f"Audio error: {payload}")
+                self.statusBar().showMessage(f"Audio download error: {payload}")
+                return
 
     def _start_audio_analysis(self, path: Path) -> None:
-        self.analysis_progress.setValue(5); self.analysis_status.setText("Analysis: finding tempo and key..."); self.statusBar().showMessage("Analysing audio tempo and key...")
-        def progress(message: str, percent: float) -> None: self.analysis_queue.put(("progress", (message, percent)))
+        self.analysis_progress.setValue(5)
+        self.analysis_status.setText("Analysis: finding tempo, key and beat grid...")
+        self.statusBar().showMessage("Analysing audio tempo, key and beat grid...")
+
+        def progress(message: str, percent: float) -> None:
+            self.analysis_queue.put(("progress", (message, percent)))
+
         def worker() -> None:
-            try: self.analysis_queue.put(("done", analyse_audio(path, progress=progress)))
-            except Exception as exc: self.analysis_queue.put(("error", str(exc)))
-        threading.Thread(target=worker, daemon=True).start(); self.analysis_poll_timer.start(100)
+            try:
+                self.analysis_queue.put(("done", analyse_audio(path, progress=progress)))
+            except Exception as exc:
+                self.analysis_queue.put(("error", str(exc)))
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.analysis_poll_timer.start(100)
 
     def _poll_analysis_results(self) -> None:
         while True:
-            try: kind, payload = self.analysis_queue.get_nowait()
-            except queue.Empty: return
-            if kind == "progress":
-                message, percent = payload; self.analysis_progress.setValue(int(percent)); self.analysis_status.setText(f"Analysis: {message}")
-            elif kind == "done":
-                self.analysis_poll_timer.stop(); result = payload
-                if isinstance(result, AnalysisResult):
-                    if result.bpm: self.detected_bpm = int(round(result.bpm)); self.bpm_label.setText(f"BPM: {self.detected_bpm} detected")
-                    if result.key: self.detected_key = result.key; self.detected_key_confidence = result.key_confidence; self.key_label.setText(f"Key: {result.key} detected ({int(round(result.key_confidence*100))}%)")
-                    self.analysis_progress.setValue(100); bits = [b for b in [f"{self.detected_bpm} BPM" if self.detected_bpm else "", self.detected_key or ""] if b]; summary = " · ".join(bits) or "complete"; self.analysis_status.setText(f"Analysis: {summary}"); self.statusBar().showMessage(f"Analysis complete: {summary}");
-                    if self.timer.isActive(): self.timer.start(self._interval_ms())
+            try:
+                kind, payload = self.analysis_queue.get_nowait()
+            except queue.Empty:
                 return
-            elif kind == "error": self.analysis_poll_timer.stop(); self.analysis_progress.setValue(0); self.analysis_status.setText(f"Analysis error: {payload}"); self.statusBar().showMessage(f"Analysis error: {payload}"); return
+            if kind == "progress":
+                message, percent = payload
+                self.analysis_progress.setValue(int(percent))
+                self.analysis_status.setText(f"Analysis: {message}")
+            elif kind == "done":
+                self.analysis_poll_timer.stop()
+                result = payload
+                if isinstance(result, AnalysisResult):
+                    if result.bpm:
+                        self.detected_bpm = int(round(result.bpm))
+                        self.bpm_label.setText(f"BPM: {self.detected_bpm} detected")
+                    if result.key:
+                        self.detected_key = result.key
+                        self.detected_key_confidence = result.key_confidence
+                        self.key_label.setText(f"Key: {result.key} detected ({int(round(result.key_confidence * 100))}%)")
+                    if result.estimated_bars:
+                        self._build_analysis_grid(result)
+                    self.analysis_progress.setValue(100)
+                    summary_bits = []
+                    if self.detected_bpm:
+                        summary_bits.append(f"{self.detected_bpm} BPM")
+                    if self.detected_key:
+                        summary_bits.append(self.detected_key)
+                    if result.beat_count:
+                        summary_bits.append(f"{result.beat_count} beats")
+                    if result.estimated_bars:
+                        summary_bits.append(f"~{result.estimated_bars} bars")
+                    summary = " · ".join(summary_bits) or "complete"
+                    self.analysis_status.setText(f"Analysis: {summary}")
+                    self.statusBar().showMessage(f"Analysis complete: {summary}")
+                    if self.timer.isActive():
+                        self.timer.start(self._interval_ms())
+                return
+            elif kind == "error":
+                self.analysis_poll_timer.stop()
+                self.analysis_progress.setValue(0)
+                self.analysis_status.setText(f"Analysis error: {payload}")
+                self.statusBar().showMessage(f"Analysis error: {payload}")
+                return
+
+    def _build_analysis_grid(self, result: AnalysisResult) -> None:
+        bars = max(4, min(240, result.estimated_bars or 16))
+        tonic = self._tonic_chord(result.key)
+        chords_by_bar = [tonic] + [""] * (bars - 1)
+        title = self.title_label.text() or "Analysed YouTube Song"
+        artist = self.artist_label.text() or "YouTube"
+        key = result.key or "Unknown"
+        bpm = int(round(result.bpm or self.song.bpm))
+        self.song = DemoSong(title=title, artist=artist, bpm=bpm, key=key, duration=self.duration_label.text().replace("Duration: ", ""), chords_by_bar=chords_by_bar)
+        self.position = 0
+        self.loop_start = None
+        self.loop_end = None
+        self._build_grid()
+        self._update_loop_status()
+        self._update_all()
+
+    def _tonic_chord(self, key: str | None) -> str:
+        if not key:
+            return "G"
+        root = key.split()[0]
+        root = root.split("/")[0]
+        root = root.replace("#", "♯").replace("b", "♭")
+        if "Minor" in key and not root.endswith("m"):
+            return f"{root}m"
+        return root
 
     def _load_audio_file(self, path: Path) -> None:
         self.audio_ready = False
-        if not path or not path.exists(): self.download_status.setText("Audio error: downloaded file not found"); return
-        self.media_player.setSource(QUrl.fromLocalFile(str(path))); self.media_player.setPlaybackRate(self.speed.value()/100); self.audio_ready = True
+        if not path or not path.exists():
+            self.download_status.setText("Audio error: downloaded file not found")
+            return
+        self.media_player.setSource(QUrl.fromLocalFile(str(path)))
+        self.media_player.setPlaybackRate(self.speed.value() / 100)
+        self.audio_ready = True
 
     def _clear_audio_file(self) -> None:
-        self.audio_ready = False; self.downloaded_audio_path = None; self.detected_bpm = None; self.detected_key = None; self.detected_key_confidence = 0.0; self.media_player.stop(); self.media_player.setSource(QUrl())
+        self.audio_ready = False
+        self.downloaded_audio_path = None
+        self.detected_bpm = None
+        self.detected_key = None
+        self.detected_key_confidence = 0.0
+        self.media_player.stop()
+        self.media_player.setSource(QUrl())
 
     def _load_song(self, song: DemoSong) -> None:
-        self._stop(); self.song = song; self.position = 0; self.loop_start = None; self.loop_end = None; self.selection_mode = None; self.selected_youtube_result = None; self._clear_audio_file(); self.download_btn.setEnabled(False); self.download_progress.setValue(0); self.download_status.setText("Audio: not downloaded"); self.analysis_progress.setValue(0); self.analysis_status.setText("Analysis: waiting"); self._set_thumbnail(None); self.title_label.setText(song.title); self.artist_label.setText(song.artist); self.source_label.setText("Source: Demo"); self.bpm_label.setText(f"BPM: {song.bpm}"); self.key_label.setText(f"Key: {song.key}"); self.duration_label.setText(f"Duration: {song.duration}"); self._build_grid(); self._update_loop_status(); self._update_all()
+        self._stop()
+        self.song = song
+        self.position = 0
+        self.loop_start = None
+        self.loop_end = None
+        self.selection_mode = None
+        self.selected_youtube_result = None
+        self._clear_audio_file()
+        self.download_btn.setEnabled(False)
+        self.download_progress.setValue(0)
+        self.download_status.setText("Audio: not downloaded")
+        self.analysis_progress.setValue(0)
+        self.analysis_status.setText("Analysis: waiting")
+        self._set_thumbnail(None)
+        self.title_label.setText(song.title)
+        self.artist_label.setText(song.artist)
+        self.source_label.setText("Source: Demo")
+        self.bpm_label.setText(f"BPM: {song.bpm}")
+        self.key_label.setText(f"Key: {song.key}")
+        self.duration_label.setText(f"Duration: {song.duration}")
+        self._build_grid()
+        self._update_loop_status()
+        self._update_all()
 
     def _select_result(self, row: int) -> None:
-        if row < 0: return
+        if row < 0:
+            return
         if self.youtube_results:
-            if row >= len(self.youtube_results): return
-            result = self.youtube_results[row]; self._stop(); self.selected_youtube_result = result; self._clear_audio_file(); self.download_btn.setEnabled(True); self.download_progress.setValue(0); self.analysis_progress.setValue(0); self.download_status.setText("Audio: ready to download"); self.analysis_status.setText("Analysis: waiting"); self._set_thumbnail(result); self.title_label.setText(result.title); self.artist_label.setText(result.channel); self.source_label.setText("Source: YouTube search result"); self.duration_label.setText(f"Duration: {result.duration}"); self.bpm_label.setText(f"BPM: {self.song.bpm} (demo until analysed)"); self.key_label.setText("Key: waiting for analysis"); self.statusBar().showMessage("YouTube result selected. Click Download Audio."); return
-        if 0 <= row < len(DEMO_SONGS): self._load_song(DEMO_SONGS[row]); self.statusBar().showMessage(f"Loaded demo: {DEMO_SONGS[row].title}")
+            if row >= len(self.youtube_results):
+                return
+            result = self.youtube_results[row]
+            self._stop()
+            self.selected_youtube_result = result
+            self._clear_audio_file()
+            self.download_btn.setEnabled(True)
+            self.download_progress.setValue(0)
+            self.analysis_progress.setValue(0)
+            self.download_status.setText("Audio: ready to download")
+            self.analysis_status.setText("Analysis: waiting")
+            self._set_thumbnail(result)
+            self.title_label.setText(result.title)
+            self.artist_label.setText(result.channel)
+            self.source_label.setText("Source: YouTube search result")
+            self.duration_label.setText(f"Duration: {result.duration}")
+            self.bpm_label.setText(f"BPM: {self.song.bpm} (demo until analysed)")
+            self.key_label.setText("Key: waiting for analysis")
+            self.statusBar().showMessage("YouTube result selected. Click Download Audio.")
+            return
+        if 0 <= row < len(DEMO_SONGS):
+            self._load_song(DEMO_SONGS[row])
+            self.statusBar().showMessage(f"Loaded demo: {DEMO_SONGS[row].title}")
 
     def _build_grid(self) -> None:
         while self.grid.count():
             item = self.grid.takeAt(0)
-            if item.widget(): item.widget().deleteLater()
-        self.cells = []; beats = self.song.beat_chords; bars_per_row = 3; beats_per_row = bars_per_row*4
+            if item.widget():
+                item.widget().deleteLater()
+        self.cells = []
+        beats = self.song.beat_chords
+        bars_per_row = 3
+        beats_per_row = bars_per_row * 4
         for bar_start in range(0, len(beats), beats_per_row):
-            visual_row = (bar_start//beats_per_row)*2
+            visual_row = (bar_start // beats_per_row) * 2
             for bar_offset in range(bars_per_row):
-                bar_num = (bar_start//4)+bar_offset+1
-                if (bar_num-1)*4 >= len(beats): continue
-                hdr = QLabel(f"Bar {bar_num}"); hdr.setAlignment(Qt.AlignmentFlag.AlignCenter); hdr.setObjectName("BarHeader"); self.grid.addWidget(hdr, visual_row, bar_offset*4, 1, 4)
+                bar_num = (bar_start // 4) + bar_offset + 1
+                if (bar_num - 1) * 4 >= len(beats):
+                    continue
+                hdr = QLabel(f"Bar {bar_num}")
+                hdr.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                hdr.setObjectName("BarHeader")
+                self.grid.addWidget(hdr, visual_row, bar_offset * 4, 1, 4)
             for i in range(beats_per_row):
-                idx = bar_start+i
-                if idx >= len(beats): break
-                cell = BeatCell(idx, self._display_chord(beats[idx]) if beats[idx] else ""); cell.clicked.connect(self._cell_clicked); self.cells.append(cell); self.grid.addWidget(cell, visual_row+1, i)
-        for col in range(beats_per_row): self.grid.setColumnStretch(col,1)
+                idx = bar_start + i
+                if idx >= len(beats):
+                    break
+                cell = BeatCell(idx, self._display_chord(beats[idx]) if beats[idx] else "")
+                cell.clicked.connect(self._cell_clicked)
+                self.cells.append(cell)
+                self.grid.addWidget(cell, visual_row + 1, i)
+        for col in range(beats_per_row):
+            self.grid.setColumnStretch(col, 1)
 
     def _display_chord(self, chord: str) -> str:
-        if not chord: return ""
+        if not chord:
+            return ""
         return transpose_chord(chord, self.capo.value()) if self.show_mode.currentText() == "Concert Chords" else chord
+
     def _current_raw_chord(self) -> str:
         beats = self.song.beat_chords
-        for i in range(min(self.position, len(beats)-1), -1, -1):
-            if beats[i]: return beats[i]
+        for i in range(min(self.position, len(beats) - 1), -1, -1):
+            if beats[i]:
+                return beats[i]
         return "G"
+
     def _next_raw_chord(self) -> str:
-        beats = self.song.beat_chords; current = self._current_raw_chord()
-        for i in range(self.position+1, len(beats)):
-            if beats[i] and beats[i] != current: return beats[i]
+        beats = self.song.beat_chords
+        current = self._current_raw_chord()
+        for i in range(self.position + 1, len(beats)):
+            if beats[i] and beats[i] != current:
+                return beats[i]
         return ""
+
     def _update_all(self) -> None:
-        current = self._current_raw_chord(); nxt = self._next_raw_chord(); self.current_panel.set_chord(self._display_chord(current)); self.next_panel.set_chord(self._display_chord(nxt) if nxt else "—")
-        for idx, cell in enumerate(self.cells): raw = self.song.beat_chords[idx]; cell.set_chord(self._display_chord(raw) if raw else ""); cell.set_active(idx == self.position); cell.set_loop(self.loop_start is not None and self.loop_end is not None and self.loop_start <= idx <= self.loop_end)
+        current = self._current_raw_chord()
+        nxt = self._next_raw_chord()
+        self.current_panel.set_chord(self._display_chord(current))
+        self.next_panel.set_chord(self._display_chord(nxt) if nxt else "—")
+        for idx, cell in enumerate(self.cells):
+            raw = self.song.beat_chords[idx]
+            cell.set_chord(self._display_chord(raw) if raw else "")
+            cell.set_active(idx == self.position)
+            cell.set_loop(self.loop_start is not None and self.loop_end is not None and self.loop_start <= idx <= self.loop_end)
         self._scroll_to_position()
+
     def _scroll_to_position(self) -> None:
-        if self.cells and self.position < len(self.cells): self.scroll.ensureWidgetVisible(self.cells[self.position], 20, 20)
-    def _current_bpm(self) -> int: return self.detected_bpm or self.song.bpm
+        if self.cells and self.position < len(self.cells):
+            self.scroll.ensureWidgetVisible(self.cells[self.position], 20, 20)
+
+    def _current_bpm(self) -> int:
+        return self.detected_bpm or self.song.bpm
+
     def _play_pause(self) -> None:
-        if self.is_playing: self._stop(); return
-        if self.loop_start is not None and self.loop_end is not None: self.position = self.loop_start
-        self.count_in_remaining = int(self.count_in.currentText()); self.is_playing = True; self.play_btn.setText("⏸ Pause")
-        if self.count_in_remaining: self._show_countdown(self.count_in_remaining); self.statusBar().showMessage(f"Count-in: {self.count_in_remaining}")
-        else: self._hide_countdown(); self._begin_playback_after_count_in()
-        self._update_all(); self.timer.start(self._interval_ms())
-    def _begin_playback_after_count_in(self) -> None:
-        if self.audio_ready and self.downloaded_audio_path: self.media_player.setPlaybackRate(self.speed.value()/100); self.media_player.setPosition(self._audio_position_for_current_beat()); self.media_player.play(); self.statusBar().showMessage(f"Playing downloaded audio with grid timing at {self._current_bpm()} BPM")
-        else: self.statusBar().showMessage("Playing demo timing grid - no downloaded audio selected")
-    def _audio_position_for_current_beat(self) -> int: return max(0, self.position * int(60000/self._current_bpm()))
-    def _stop(self) -> None: self.is_playing = False; self.timer.stop(); self.media_player.pause(); self.play_btn.setText("▶ Play"); self._hide_countdown(); self.statusBar().showMessage("Paused")
-    def _tick(self) -> None:
-        if self.count_in_remaining > 0: self.count_in_remaining -= 1; self._show_countdown(self.count_in_remaining); self.statusBar().showMessage(f"Count-in: {self.count_in_remaining}"); return
-        if self.count_in_remaining == 0: self.count_in_remaining = -1; self._hide_countdown(); self._begin_playback_after_count_in(); return
-        self._advance_one()
-    def _show_countdown(self, value: int) -> None: self.countdown_label.setText("PLAY" if value == 0 else f"COUNT-IN  {value}"); self.countdown_label.setVisible(True)
-    def _hide_countdown(self) -> None: self.countdown_label.setVisible(False); self.countdown_label.setText("")
-    def _advance_one(self) -> None:
-        end = len(self.song.beat_chords)-1
+        if self.is_playing:
+            self._stop()
+            return
         if self.loop_start is not None and self.loop_end is not None:
-            if self.position >= self.loop_end: self.position = self.loop_start; self.media_player.setPosition(self._audio_position_for_current_beat()) if self.audio_ready else None
-            else: self.position += 1
+            self.position = self.loop_start
+        self.count_in_remaining = int(self.count_in.currentText())
+        self.is_playing = True
+        self.play_btn.setText("⏸ Pause")
+        if self.count_in_remaining:
+            self._show_countdown(self.count_in_remaining)
+            self.statusBar().showMessage(f"Count-in: {self.count_in_remaining}")
         else:
-            if self.position >= end: self._stop(); return
+            self._hide_countdown()
+            self._begin_playback_after_count_in()
+        self._update_all()
+        self.timer.start(self._interval_ms())
+
+    def _begin_playback_after_count_in(self) -> None:
+        if self.audio_ready and self.downloaded_audio_path:
+            self.media_player.setPlaybackRate(self.speed.value() / 100)
+            self.media_player.setPosition(self._audio_position_for_current_beat())
+            self.media_player.play()
+            self.statusBar().showMessage(f"Playing downloaded audio with grid timing at {self._current_bpm()} BPM")
+        else:
+            self.statusBar().showMessage("Playing demo timing grid - no downloaded audio selected")
+
+    def _audio_position_for_current_beat(self) -> int:
+        return max(0, self.position * int(60000 / self._current_bpm()))
+
+    def _stop(self) -> None:
+        self.is_playing = False
+        self.timer.stop()
+        self.media_player.pause()
+        self.play_btn.setText("▶ Play")
+        self._hide_countdown()
+        self.statusBar().showMessage("Paused")
+
+    def _tick(self) -> None:
+        if self.count_in_remaining > 0:
+            self.count_in_remaining -= 1
+            self._show_countdown(self.count_in_remaining)
+            self.statusBar().showMessage(f"Count-in: {self.count_in_remaining}")
+            return
+        if self.count_in_remaining == 0:
+            self.count_in_remaining = -1
+            self._hide_countdown()
+            self._begin_playback_after_count_in()
+            return
+        self._advance_one()
+
+    def _show_countdown(self, value: int) -> None:
+        self.countdown_label.setText("PLAY" if value == 0 else f"COUNT-IN  {value}")
+        self.countdown_label.setVisible(True)
+
+    def _hide_countdown(self) -> None:
+        self.countdown_label.setVisible(False)
+        self.countdown_label.setText("")
+
+    def _advance_one(self) -> None:
+        end = len(self.song.beat_chords) - 1
+        if self.loop_start is not None and self.loop_end is not None:
+            if self.position >= self.loop_end:
+                self.position = self.loop_start
+                if self.audio_ready:
+                    self.media_player.setPosition(self._audio_position_for_current_beat())
+            else:
+                self.position += 1
+        else:
+            if self.position >= end:
+                self._stop()
+                return
             self.position += 1
         self._update_all()
+
     def _back(self) -> None:
-        if self.position > 0: self.position -= 1; self.media_player.setPosition(self._audio_position_for_current_beat()) if self.audio_ready else None; self._update_all()
+        if self.position > 0:
+            self.position -= 1
+            if self.audio_ready:
+                self.media_player.setPosition(self._audio_position_for_current_beat())
+            self._update_all()
+
     def _forward(self) -> None:
-        if self.position < len(self.song.beat_chords)-1: self.position += 1; self.media_player.setPosition(self._audio_position_for_current_beat()) if self.audio_ready else None; self._update_all()
-    def _to_start(self) -> None: self.position = self.loop_start if self.loop_start is not None else 0; self.media_player.setPosition(self._audio_position_for_current_beat()) if self.audio_ready else None; self._update_all()
-    def _speed_changed(self, value: int) -> None: self.speed_label.setText(f"{value}%"); self.media_player.setPlaybackRate(value/100); self.timer.start(self._interval_ms()) if self.timer.isActive() else None
-    def _interval_ms(self) -> int: return max(120, int((60000/self._current_bpm())/(self.speed.value()/100)))
-    def _set_selection_mode(self, mode: str) -> None: self.selection_mode = mode; self.statusBar().showMessage(f"Click a beat square to set loop {mode}")
+        if self.position < len(self.song.beat_chords) - 1:
+            self.position += 1
+            if self.audio_ready:
+                self.media_player.setPosition(self._audio_position_for_current_beat())
+            self._update_all()
+
+    def _to_start(self) -> None:
+        self.position = self.loop_start if self.loop_start is not None else 0
+        if self.audio_ready:
+            self.media_player.setPosition(self._audio_position_for_current_beat())
+        self._update_all()
+
+    def _speed_changed(self, value: int) -> None:
+        self.speed_label.setText(f"{value}%")
+        self.media_player.setPlaybackRate(value / 100)
+        if self.timer.isActive():
+            self.timer.start(self._interval_ms())
+
+    def _interval_ms(self) -> int:
+        return max(120, int((60000 / self._current_bpm()) / (self.speed.value() / 100)))
+
+    def _set_selection_mode(self, mode: str) -> None:
+        self.selection_mode = mode
+        self.statusBar().showMessage(f"Click a beat square to set loop {mode}")
+
     def _cell_clicked(self, index: int) -> None:
-        if self.selection_mode == "start": self.loop_start = index; self.loop_end = None if self.loop_end is not None and self.loop_end < self.loop_start else self.loop_end; self.selection_mode = None
-        elif self.selection_mode == "end": self.loop_start = index if self.loop_start is None else self.loop_start; self.loop_end = max(index, self.loop_start); self.selection_mode = None
-        else: self.position = index; self.media_player.setPosition(self._audio_position_for_current_beat()) if self.audio_ready else None
-        self._update_loop_status(); self._update_all()
-    def _clear_loop(self) -> None: self.loop_start = None; self.loop_end = None; self.selection_mode = None; self._update_loop_status(); self._update_all()
-    def _update_loop_status(self) -> None: self.loop_status.setText("Loop: off" if self.loop_start is None or self.loop_end is None else f"Loop: bar {self.loop_start//4+1} to {self.loop_end//4+1}")
-    def _mode_changed(self) -> None: self.statusBar().showMessage(f"Mode set to {self.mode.currentText()} - simplification engine comes later"); self._update_all()
+        if self.selection_mode == "start":
+            self.loop_start = index
+            if self.loop_end is not None and self.loop_end < self.loop_start:
+                self.loop_end = None
+            self.selection_mode = None
+        elif self.selection_mode == "end":
+            if self.loop_start is None:
+                self.loop_start = index
+            self.loop_end = max(index, self.loop_start)
+            self.selection_mode = None
+        else:
+            self.position = index
+            if self.audio_ready:
+                self.media_player.setPosition(self._audio_position_for_current_beat())
+        self._update_loop_status()
+        self._update_all()
+
+    def _clear_loop(self) -> None:
+        self.loop_start = None
+        self.loop_end = None
+        self.selection_mode = None
+        self._update_loop_status()
+        self._update_all()
+
+    def _update_loop_status(self) -> None:
+        self.loop_status.setText("Loop: off" if self.loop_start is None or self.loop_end is None else f"Loop: bar {self.loop_start // 4 + 1} to {self.loop_end // 4 + 1}")
+
+    def _mode_changed(self) -> None:
+        self.statusBar().showMessage(f"Mode set to {self.mode.currentText()} - simplification engine comes later")
+        self._update_all()
+
     def _media_error(self, error, error_string: str = "") -> None:
-        if error_string: self.download_status.setText(f"Audio playback error: {error_string}"); self.statusBar().showMessage(f"Audio playback error: {error_string}")
+        if error_string:
+            self.download_status.setText(f"Audio playback error: {error_string}")
+            self.statusBar().showMessage(f"Audio playback error: {error_string}")
+
     def _media_status_changed(self, status) -> None:
-        if status == QMediaPlayer.MediaStatus.EndOfMedia and self.is_playing: self._stop()
-    def _panel(self, name: str = "Panel") -> QFrame: frame = QFrame(); frame.setObjectName(name); return frame
+        if status == QMediaPlayer.MediaStatus.EndOfMedia and self.is_playing:
+            self._stop()
+
+    def _panel(self, name: str = "Panel") -> QFrame:
+        frame = QFrame()
+        frame.setObjectName(name)
+        return frame
+
     def _apply_style(self) -> None:
         self.setStyleSheet("""
             QMainWindow, QWidget { background: #111111; color: #f3e6cc; font-family: Segoe UI, Arial, sans-serif; font-size: 13px; }
