@@ -17,6 +17,9 @@ class AnalysisResult:
     key_confidence: float = 0.0
     method: str = ""
     confidence: float = 0.0
+    beat_count: int = 0
+    estimated_bars: int = 0
+    time_signature: str = "4/4"
 
 
 def _convert_to_wav_with_bundled_ffmpeg(source: Path, progress: ProgressCallback | None = None) -> Path:
@@ -111,7 +114,7 @@ def analyse_audio(path: Path, progress: ProgressCallback | None = None) -> Analy
         raise RuntimeError("Audio analysis package librosa is not installed in this build") from exc
 
     if progress:
-        progress("loading converted audio...", 40)
+        progress("loading converted audio...", 38)
 
     try:
         y, sr = librosa.load(str(wav_path), sr=22050, mono=True, duration=180)
@@ -122,12 +125,12 @@ def analyse_audio(path: Path, progress: ProgressCallback | None = None) -> Analy
         raise RuntimeError("Audio was too short for analysis")
 
     if progress:
-        progress("measuring tempo...", 60)
+        progress("measuring tempo and beats...", 58)
 
     try:
         tempo, beats = librosa.beat.beat_track(y=y, sr=sr, units="time")
     except Exception as exc:
-        raise RuntimeError(f"Tempo analysis failed: {exc}") from exc
+        raise RuntimeError(f"Tempo/beat analysis failed: {exc}") from exc
 
     try:
         if hasattr(tempo, "__len__") and not isinstance(tempo, (str, bytes)):
@@ -144,21 +147,38 @@ def analyse_audio(path: Path, progress: ProgressCallback | None = None) -> Analy
     if not bpm or math.isnan(bpm):
         raise RuntimeError("No reliable tempo detected")
 
+    beat_count = int(len(beats)) if beats is not None else 0
+    estimated_bars = int(round(beat_count / 4)) if beat_count else 0
+
     if progress:
-        progress("detecting key...", 82)
+        progress("detecting key...", 78)
 
     key, key_confidence = _estimate_key(y, sr)
-    bpm_confidence = min(1.0, max(0.1, len(beats) / 80)) if beats is not None else 0.2
+
+    if progress:
+        progress("estimating 4/4 beat/bar grid...", 92)
+
+    bpm_confidence = min(1.0, max(0.1, beat_count / 80)) if beat_count else 0.2
+
+    # Build 004.5B: the current UI only has BPM and Key labels, so for now
+    # we include the new beat/bar information in the key text as a visible
+    # bridge toward the coming real chord grid.
+    display_key = key
+    if display_key and beat_count:
+        display_key = f"{display_key} · {beat_count} beats · ~{estimated_bars} bars"
 
     if progress:
         progress("analysis complete", 100)
 
     return AnalysisResult(
         bpm=bpm,
-        key=key,
+        key=display_key,
         key_confidence=key_confidence,
-        method="ffmpeg WAV conversion + librosa tempo/chroma key",
+        method="ffmpeg WAV conversion + librosa tempo/chroma key + beat grid estimate",
         confidence=bpm_confidence,
+        beat_count=beat_count,
+        estimated_bars=estimated_bars,
+        time_signature="4/4",
     )
 
 
