@@ -20,7 +20,7 @@ from banjofy.ui.widgets import BeatCell, ChordPanel
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.4.6B - First Chord Detection"
+APP_VERSION = "Banjofy 0.4.7 - Beat-Synced Timing"
 
 
 class MainWindow(QMainWindow):
@@ -44,6 +44,7 @@ class MainWindow(QMainWindow):
         self.detected_bpm: int | None = None
         self.detected_key: str | None = None
         self.detected_key_confidence = 0.0
+        self.beat_times_ms: list[int] = []
         self.search_queue: queue.Queue[tuple[str, object]] = queue.Queue()
         self.download_queue: queue.Queue[tuple[str, object]] = queue.Queue()
         self.analysis_queue: queue.Queue[tuple[str, object]] = queue.Queue()
@@ -66,7 +67,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 004.6B ready - analysis now attempts first-pass chord detection.")
+        self.statusBar().showMessage("Build 004.7 ready - cursor follows detected beat positions during audio playback.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -234,7 +235,7 @@ class MainWindow(QMainWindow):
         grid_panel = self._panel()
         grid_layout = QVBoxLayout(grid_panel)
         grid_layout.setContentsMargins(8, 6, 8, 6)
-        grid_layout.addWidget(QLabel("Beat grid - first-pass chord detection. Expect rough guesses; accuracy improves next."))
+        grid_layout.addWidget(QLabel("Beat grid - cursor now follows detected beat timestamps during downloaded audio playback."))
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -363,7 +364,7 @@ class MainWindow(QMainWindow):
                     self.download_progress.setValue(100)
                     cached = "cached" if result.was_cached else "downloaded"
                     self.download_status.setText(f"Audio: {cached} - press Play")
-                    self.statusBar().showMessage(f"Audio {cached}. Starting chord analysis...")
+                    self.statusBar().showMessage(f"Audio {cached}. Starting beat-timing analysis...")
                     self._load_audio_file(result.file_path)
                     self._start_audio_analysis(result.file_path)
                 return
@@ -377,8 +378,8 @@ class MainWindow(QMainWindow):
 
     def _start_audio_analysis(self, path: Path) -> None:
         self.analysis_progress.setValue(5)
-        self.analysis_status.setText("Analysis: finding tempo, key and chords...")
-        self.statusBar().showMessage("Analysing audio tempo, key and first-pass chords...")
+        self.analysis_status.setText("Analysis: finding tempo, key, chords and beat positions...")
+        self.statusBar().showMessage("Analysing audio tempo, key, chords and exact beat positions...")
 
         def progress(message: str, percent: float) -> None:
             self.analysis_queue.put(("progress", (message, percent)))
@@ -416,6 +417,7 @@ class MainWindow(QMainWindow):
                     self._build_analysis_grid(result)
                     self.analysis_progress.setValue(100)
                     chord_count = len([c for c in (result.chords_by_bar or []) if c])
+                    beat_sync = "beat-sync on" if self.beat_times_ms else "average BPM timing"
                     summary_bits = []
                     if self.detected_bpm:
                         summary_bits.append(f"{self.detected_bpm} BPM")
@@ -424,6 +426,7 @@ class MainWindow(QMainWindow):
                     if result.estimated_bars:
                         summary_bits.append(f"~{result.estimated_bars} bars")
                     summary_bits.append(f"{chord_count} chord changes")
+                    summary_bits.append(beat_sync)
                     summary = " · ".join(summary_bits)
                     self.analysis_status.setText(f"Analysis: {summary}")
                     self.statusBar().showMessage(f"Analysis complete: {summary}")
@@ -448,6 +451,13 @@ class MainWindow(QMainWindow):
                 chords_by_bar[0] = tonic
         else:
             chords_by_bar = [tonic] + [""] * (bars - 1)
+
+        self.beat_times_ms = list(result.beat_times_ms or [])
+        target_beats = len(chords_by_bar) * 4
+        if self.beat_times_ms:
+            self.beat_times_ms = self.beat_times_ms[:target_beats]
+            if len(self.beat_times_ms) < target_beats:
+                self.beat_times_ms = []
 
         title = self.title_label.text() or "Analysed YouTube Song"
         artist = self.artist_label.text() or "YouTube"
@@ -485,6 +495,7 @@ class MainWindow(QMainWindow):
         self.detected_bpm = None
         self.detected_key = None
         self.detected_key_confidence = 0.0
+        self.beat_times_ms = []
         self.media_player.stop()
         self.media_player.setSource(QUrl())
 
@@ -622,23 +633,41 @@ class MainWindow(QMainWindow):
         if self.count_in_remaining:
             self._show_countdown(self.count_in_remaining)
             self.statusBar().showMessage(f"Count-in: {self.count_in_remaining}")
+            self.timer.start(self._interval_ms())
         else:
             self._hide_countdown()
             self._begin_playback_after_count_in()
         self._update_all()
-        self.timer.start(self._interval_ms())
 
     def _begin_playback_after_count_in(self) -> None:
         if self.audio_ready and self.downloaded_audio_path:
             self.media_player.setPlaybackRate(self.speed.value() / 100)
             self.media_player.setPosition(self._audio_position_for_current_beat())
             self.media_player.play()
-            self.statusBar().showMessage(f"Playing downloaded audio with grid timing at {self._current_bpm()} BPM")
+            if self.beat_times_ms:
+                self.timer.start(40)
+                self.statusBar().showMessage("Playing downloaded audio with detected beat-sync timing")
+            else:
+                self.timer.start(self._interval_ms())
+                self.statusBar().showMessage(f"Playing downloaded audio with average BPM timing at {self._current_bpm()} BPM")
         else:
+            self.timer.start(self._interval_ms())
             self.statusBar().showMessage("Playing demo timing grid - no downloaded audio selected")
 
     def _audio_position_for_current_beat(self) -> int:
+        if self.beat_times_ms and 0 <= self.position < len(self.beat_times_ms):
+            return self.beat_times_ms[self.position]
         return max(0, self.position * int(60000 / self._current_bpm()))
+
+    def _position_from_audio_ms(self, audio_ms: int) -> int:
+        if not self.beat_times_ms:
+            return self.position
+        pos = self.position
+        while pos + 1 < len(self.beat_times_ms) and self.beat_times_ms[pos + 1] <= audio_ms:
+            pos += 1
+        while pos > 0 and self.beat_times_ms[pos] > audio_ms:
+            pos -= 1
+        return max(0, min(pos, len(self.song.beat_chords) - 1))
 
     def _stop(self) -> None:
         self.is_playing = False
@@ -659,7 +688,23 @@ class MainWindow(QMainWindow):
             self._hide_countdown()
             self._begin_playback_after_count_in()
             return
+        if self.beat_times_ms and self.audio_ready and self.media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+            self._sync_position_to_audio()
+            return
         self._advance_one()
+
+    def _sync_position_to_audio(self) -> None:
+        if self.loop_start is not None and self.loop_end is not None:
+            end_ms = self.beat_times_ms[self.loop_end] if self.loop_end < len(self.beat_times_ms) else None
+            if end_ms is not None and self.media_player.position() >= end_ms:
+                self.position = self.loop_start
+                self.media_player.setPosition(self._audio_position_for_current_beat())
+                self._update_all()
+                return
+        new_pos = self._position_from_audio_ms(self.media_player.position())
+        if new_pos != self.position:
+            self.position = new_pos
+            self._update_all()
 
     def _show_countdown(self, value: int) -> None:
         self.countdown_label.setText("PLAY" if value == 0 else f"COUNT-IN  {value}")
@@ -708,7 +753,7 @@ class MainWindow(QMainWindow):
     def _speed_changed(self, value: int) -> None:
         self.speed_label.setText(f"{value}%")
         self.media_player.setPlaybackRate(value / 100)
-        if self.timer.isActive():
+        if self.timer.isActive() and not (self.beat_times_ms and self.audio_ready and self.count_in_remaining < 0):
             self.timer.start(self._interval_ms())
 
     def _interval_ms(self) -> int:
