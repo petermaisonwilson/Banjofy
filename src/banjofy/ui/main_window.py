@@ -20,7 +20,7 @@ from banjofy.ui.widgets import BeatCell, ChordPanel
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.4.7C - Compact Top Layout"
+APP_VERSION = "Banjofy 0.4.7D - Rebalanced Top Layout"
 
 
 class MainWindow(QMainWindow):
@@ -74,7 +74,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 004.7C ready - top section reduced so two grid rows are visible.")
+        self.statusBar().showMessage("Build 004.7D ready - download/analysis controls moved into search panel and chord boxes raised.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -99,17 +99,51 @@ class MainWindow(QMainWindow):
         search_layout.addLayout(search_row)
 
         self.result_list = QListWidget()
-        self.result_list.setMaximumHeight(150)
+        self.result_list.setMaximumHeight(128)
         self.result_list.setIconSize(QSize(96, 54))
         self.result_list.currentRowChanged.connect(self._select_result)
         for song in DEMO_SONGS:
             self.result_list.addItem(QListWidgetItem(f"DEMO · {song.title}\n{song.artist} · {song.duration} · {song.bpm} BPM"))
         search_layout.addWidget(self.result_list)
 
+        action_row = QHBoxLayout()
+        action_row.setSpacing(6)
+
         self.search_hint = QLabel("Search → select → download → play")
         self.search_hint.setObjectName("HintLabel")
-        search_layout.addWidget(self.search_hint, 0)
-        top.addWidget(search_panel, 2)
+        self.search_hint.setMaximumWidth(155)
+        action_row.addWidget(self.search_hint)
+
+        self.download_btn = QPushButton("Download")
+        self.download_btn.clicked.connect(self._start_audio_download)
+        self.download_btn.setEnabled(False)
+        self.download_btn.setMaximumWidth(92)
+        action_row.addWidget(self.download_btn)
+
+        self.download_progress = QProgressBar()
+        self.download_progress.setRange(0, 100)
+        self.download_progress.setTextVisible(True)
+        self.download_progress.setMaximumWidth(120)
+        action_row.addWidget(self.download_progress)
+
+        self.analysis_progress = QProgressBar()
+        self.analysis_progress.setRange(0, 100)
+        self.analysis_progress.setTextVisible(True)
+        self.analysis_progress.setMaximumWidth(120)
+        action_row.addWidget(self.analysis_progress)
+
+        self.download_status = QLabel("Audio: not downloaded")
+        self.download_status.setWordWrap(False)
+        self.download_status.setObjectName("HintLabel")
+        action_row.addWidget(self.download_status, 1)
+
+        self.analysis_status = QLabel("Analysis: waiting")
+        self.analysis_status.setWordWrap(False)
+        self.analysis_status.setObjectName("HintLabel")
+        action_row.addWidget(self.analysis_status, 1)
+
+        search_layout.addLayout(action_row)
+        top.addWidget(search_panel, 3)
 
         meta_panel = self._panel()
         meta_layout = QVBoxLayout(meta_panel)
@@ -117,14 +151,16 @@ class MainWindow(QMainWindow):
         self.thumbnail_label = QLabel("No image")
         self.thumbnail_label.setObjectName("ThumbnailBox")
         self.thumbnail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.thumbnail_label.setFixedSize(128, 72)
+        self.thumbnail_label.setFixedSize(112, 63)
         meta_layout.addWidget(self.thumbnail_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
         self.title_label = QLabel("—")
         self.title_label.setWordWrap(True)
-        self.title_label.setStyleSheet("font-size: 15px; font-weight: bold; color: #f3d99a;")
+        self.title_label.setMaximumHeight(36)
+        self.title_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #f3d99a;")
         self.artist_label = QLabel("—")
         self.artist_label.setWordWrap(True)
+        self.artist_label.setMaximumHeight(30)
         self.source_label = QLabel("Source: Demo")
         meta_layout.addWidget(self.title_label)
         meta_layout.addWidget(self.artist_label)
@@ -136,31 +172,6 @@ class MainWindow(QMainWindow):
         for w in [self.bpm_label, self.key_label, self.duration_label]:
             meta_layout.addWidget(w)
 
-        self.download_btn = QPushButton("Download Audio")
-        self.download_btn.clicked.connect(self._start_audio_download)
-        self.download_btn.setEnabled(False)
-        meta_layout.addWidget(self.download_btn)
-
-        self.download_progress = QProgressBar()
-        self.download_progress.setRange(0, 100)
-        self.download_progress.setTextVisible(True)
-        meta_layout.addWidget(self.download_progress)
-
-        self.download_status = QLabel("Audio: not downloaded")
-        self.download_status.setWordWrap(True)
-        self.download_status.setObjectName("HintLabel")
-        meta_layout.addWidget(self.download_status)
-
-        self.analysis_progress = QProgressBar()
-        self.analysis_progress.setRange(0, 100)
-        self.analysis_progress.setTextVisible(True)
-        meta_layout.addWidget(self.analysis_progress)
-
-        self.analysis_status = QLabel("Analysis: waiting")
-        self.analysis_status.setWordWrap(True)
-        self.analysis_status.setObjectName("HintLabel")
-        meta_layout.addWidget(self.analysis_status)
-
         top.addWidget(meta_panel, 1)
 
         centre = self._panel()
@@ -168,14 +179,14 @@ class MainWindow(QMainWindow):
         centre_layout.setContentsMargins(6, 4, 6, 4)
         title = QLabel(APP_VERSION)
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size: 15px; font-weight: bold; color: #f3d99a;")
+        title.setStyleSheet("font-size: 13px; font-weight: bold; color: #f3d99a;")
         centre_layout.addWidget(title)
 
         chord_row = QHBoxLayout()
         self.current_panel = ChordPanel("NOW", "—", "#65b95c")
         self.next_panel = ChordPanel("NEXT", "—", "#c99424", "in 1")
-        self.current_panel.setMaximumHeight(118)
-        self.next_panel.setMaximumHeight(118)
+        self.current_panel.setMaximumHeight(145)
+        self.next_panel.setMaximumHeight(145)
         chord_row.addWidget(self.current_panel, 1)
         chord_row.addWidget(self.next_panel, 1)
         centre_layout.addLayout(chord_row)
@@ -185,7 +196,7 @@ class MainWindow(QMainWindow):
         self.countdown_label.setObjectName("CountdownLabel")
         self.countdown_label.setVisible(False)
         centre_layout.addWidget(self.countdown_label)
-        top.addWidget(centre, 4)
+        top.addWidget(centre, 3)
 
         settings = self._panel()
         settings_layout = QVBoxLayout(settings)
@@ -352,7 +363,7 @@ class MainWindow(QMainWindow):
         if result and result.thumbnail_data:
             pix = QPixmap()
             if pix.loadFromData(result.thumbnail_data):
-                self.thumbnail_label.setPixmap(pix.scaled(128, 72, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+                self.thumbnail_label.setPixmap(pix.scaled(112, 63, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
                 self.thumbnail_label.setText("")
                 return
         self.thumbnail_label.setPixmap(QPixmap())
@@ -680,7 +691,7 @@ class MainWindow(QMainWindow):
         # Use scrollbar positioning rather than ensureWidgetVisible alone,
         # because ensureWidgetVisible can leave the active row tucked under the
         # fixed top area on some screen sizes.
-        target_y = max(0, current_cell.y() - 8)
+        target_y = max(0, current_cell.y() - 2)
         self.scroll.verticalScrollBar().setValue(target_y)
 
     def _current_bpm(self) -> int:
@@ -902,7 +913,7 @@ class MainWindow(QMainWindow):
         self.setStyleSheet("""
             QMainWindow, QWidget { background: #111111; color: #f3e6cc; font-family: Segoe UI, Arial, sans-serif; font-size: 13px; }
             QFrame#Panel, QFrame#LoopBox { background: #1a1a1a; border: 1px solid #333333; border-radius: 8px; }
-            QLabel#HintLabel { color: #bcae91; font-size: 11px; }
+            QLabel#HintLabel { color: #bcae91; font-size: 10px; }
             QLabel#ThumbnailBox { background: #101010; color: #8c806d; border: 1px solid #444444; border-radius: 6px; }
             QLabel#BarHeader { background: #2a2418; color: #f3d99a; border: 1px solid #4b3920; border-radius: 4px; padding: 3px; font-weight: bold; }
             QLabel#CountdownLabel { background: #352915; color: #ffd06a; border: 2px solid #f3c15f; border-radius: 8px; padding: 8px; font-size: 28px; font-weight: bold; }
