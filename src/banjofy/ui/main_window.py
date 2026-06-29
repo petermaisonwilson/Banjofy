@@ -20,7 +20,7 @@ from banjofy.ui.widgets import BeatCell, ChordPanel
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.4.7 - Beat-Synced Timing"
+APP_VERSION = "Banjofy 0.4.7A - Beat Sync Adjuster"
 
 
 class MainWindow(QMainWindow):
@@ -29,6 +29,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(APP_VERSION)
         self.resize(1360, 840)
         self.setMinimumSize(1050, 700)
+
         self.song: DemoSong = DEMO_SONGS[0]
         self.position = 0
         self.is_playing = False
@@ -37,6 +38,7 @@ class MainWindow(QMainWindow):
         self.loop_end: int | None = None
         self.selection_mode: str | None = None
         self.cells: list[BeatCell] = []
+
         self.youtube_results: list[YouTubeResult] = []
         self.selected_youtube_result: YouTubeResult | None = None
         self.downloaded_audio_path: Path | None = None
@@ -45,9 +47,12 @@ class MainWindow(QMainWindow):
         self.detected_key: str | None = None
         self.detected_key_confidence = 0.0
         self.beat_times_ms: list[int] = []
+        self.sync_offset_beats = 0
+
         self.search_queue: queue.Queue[tuple[str, object]] = queue.Queue()
         self.download_queue: queue.Queue[tuple[str, object]] = queue.Queue()
         self.analysis_queue: queue.Queue[tuple[str, object]] = queue.Queue()
+
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._tick)
         self.search_poll_timer = QTimer(self)
@@ -56,18 +61,20 @@ class MainWindow(QMainWindow):
         self.download_poll_timer.timeout.connect(self._poll_download_results)
         self.analysis_poll_timer = QTimer(self)
         self.analysis_poll_timer.timeout.connect(self._poll_analysis_results)
+
         self.audio_output = QAudioOutput(self)
         self.audio_output.setVolume(0.8)
         self.media_player = QMediaPlayer(self)
         self.media_player.setAudioOutput(self.audio_output)
         self.media_player.errorOccurred.connect(self._media_error)
         self.media_player.mediaStatusChanged.connect(self._media_status_changed)
+
         self._apply_style()
         self.setCentralWidget(self._build_ui())
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 004.7 ready - cursor follows detected beat positions during audio playback.")
+        self.statusBar().showMessage("Build 004.7A ready - use Sync -1/+1 if the cursor is a beat early or late.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -90,6 +97,7 @@ class MainWindow(QMainWindow):
         search_row.addWidget(self.search)
         search_row.addWidget(self.search_button)
         search_layout.addLayout(search_row)
+
         self.result_list = QListWidget()
         self.result_list.setMaximumHeight(210)
         self.result_list.setIconSize(QSize(96, 54))
@@ -97,6 +105,7 @@ class MainWindow(QMainWindow):
         for song in DEMO_SONGS:
             self.result_list.addItem(QListWidgetItem(f"DEMO · {song.title}\n{song.artist} · {song.duration} · {song.bpm} BPM"))
         search_layout.addWidget(self.result_list)
+
         self.search_hint = QLabel("Search uses yt-dlp. Select a result, download audio, then press Play.")
         self.search_hint.setObjectName("HintLabel")
         search_layout.addWidget(self.search_hint)
@@ -110,6 +119,7 @@ class MainWindow(QMainWindow):
         self.thumbnail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.thumbnail_label.setFixedSize(160, 90)
         meta_layout.addWidget(self.thumbnail_label, alignment=Qt.AlignmentFlag.AlignCenter)
+
         self.title_label = QLabel("—")
         self.title_label.setWordWrap(True)
         self.title_label.setStyleSheet("font-size: 15px; font-weight: bold; color: #f3d99a;")
@@ -119,31 +129,38 @@ class MainWindow(QMainWindow):
         meta_layout.addWidget(self.title_label)
         meta_layout.addWidget(self.artist_label)
         meta_layout.addWidget(self.source_label)
+
         self.bpm_label = QLabel("BPM: —")
         self.key_label = QLabel("Key: —")
         self.duration_label = QLabel("Duration: —")
         for w in [self.bpm_label, self.key_label, self.duration_label]:
             meta_layout.addWidget(w)
+
         self.download_btn = QPushButton("Download Audio")
         self.download_btn.clicked.connect(self._start_audio_download)
         self.download_btn.setEnabled(False)
         meta_layout.addWidget(self.download_btn)
+
         self.download_progress = QProgressBar()
         self.download_progress.setRange(0, 100)
         self.download_progress.setTextVisible(True)
         meta_layout.addWidget(self.download_progress)
+
         self.download_status = QLabel("Audio: not downloaded")
         self.download_status.setWordWrap(True)
         self.download_status.setObjectName("HintLabel")
         meta_layout.addWidget(self.download_status)
+
         self.analysis_progress = QProgressBar()
         self.analysis_progress.setRange(0, 100)
         self.analysis_progress.setTextVisible(True)
         meta_layout.addWidget(self.analysis_progress)
+
         self.analysis_status = QLabel("Analysis: waiting")
         self.analysis_status.setWordWrap(True)
         self.analysis_status.setObjectName("HintLabel")
         meta_layout.addWidget(self.analysis_status)
+
         top.addWidget(meta_panel, 1)
 
         centre = self._panel()
@@ -153,12 +170,14 @@ class MainWindow(QMainWindow):
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet("font-size: 18px; font-weight: bold; color: #f3d99a;")
         centre_layout.addWidget(title)
+
         chord_row = QHBoxLayout()
         self.current_panel = ChordPanel("CURRENT", "—", "#65b95c")
         self.next_panel = ChordPanel("NEXT", "—", "#c99424", "in 1 beat")
         chord_row.addWidget(self.current_panel, 1)
         chord_row.addWidget(self.next_panel, 1)
         centre_layout.addLayout(chord_row)
+
         self.countdown_label = QLabel("")
         self.countdown_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.countdown_label.setObjectName("CountdownLabel")
@@ -197,6 +216,7 @@ class MainWindow(QMainWindow):
         controls_layout = QHBoxLayout(controls)
         controls_layout.setContentsMargins(8, 6, 8, 6)
         controls_layout.setSpacing(8)
+
         self.back_btn = QPushButton("⏮ Back")
         self.back_btn.clicked.connect(self._back)
         self.play_btn = QPushButton("▶ Play")
@@ -207,6 +227,7 @@ class MainWindow(QMainWindow):
         self.start_btn.clicked.connect(self._to_start)
         for btn in [self.back_btn, self.play_btn, self.forward_btn, self.start_btn]:
             controls_layout.addWidget(btn)
+
         loop_box = self._panel("LoopBox")
         loop_layout = QHBoxLayout(loop_box)
         loop_layout.setContentsMargins(8, 4, 8, 4)
@@ -220,6 +241,21 @@ class MainWindow(QMainWindow):
         for w in [self.loop_status, self.select_start_btn, self.select_end_btn, self.clear_loop_btn]:
             loop_layout.addWidget(w)
         controls_layout.addWidget(loop_box, 2)
+
+        sync_box = self._panel("LoopBox")
+        sync_layout = QHBoxLayout(sync_box)
+        sync_layout.setContentsMargins(8, 4, 8, 4)
+        self.sync_minus_btn = QPushButton("Sync -1")
+        self.sync_minus_btn.clicked.connect(lambda: self._adjust_sync(-1))
+        self.sync_plus_btn = QPushButton("Sync +1")
+        self.sync_plus_btn.clicked.connect(lambda: self._adjust_sync(1))
+        self.sync_reset_btn = QPushButton("Reset")
+        self.sync_reset_btn.clicked.connect(self._reset_sync)
+        self.sync_label = QLabel("Sync: 0")
+        for w in [self.sync_minus_btn, self.sync_label, self.sync_plus_btn, self.sync_reset_btn]:
+            sync_layout.addWidget(w)
+        controls_layout.addWidget(sync_box, 1)
+
         controls_layout.addWidget(QLabel("Speed"))
         self.speed = QSlider(Qt.Orientation.Horizontal)
         self.speed.setRange(50, 125)
@@ -235,7 +271,7 @@ class MainWindow(QMainWindow):
         grid_panel = self._panel()
         grid_layout = QVBoxLayout(grid_panel)
         grid_layout.setContentsMargins(8, 6, 8, 6)
-        grid_layout.addWidget(QLabel("Beat grid - cursor now follows detected beat timestamps during downloaded audio playback."))
+        grid_layout.addWidget(QLabel("Beat grid - use Sync +1 if the cursor is behind the music, Sync -1 if it is ahead."))
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -417,7 +453,7 @@ class MainWindow(QMainWindow):
                     self._build_analysis_grid(result)
                     self.analysis_progress.setValue(100)
                     chord_count = len([c for c in (result.chords_by_bar or []) if c])
-                    beat_sync = "beat-sync on" if self.beat_times_ms else "average BPM timing"
+                    beat_sync = f"beat-sync on / offset {self.sync_offset_beats:+d}" if self.beat_times_ms else "average BPM timing"
                     summary_bits = []
                     if self.detected_bpm:
                         summary_bits.append(f"{self.detected_bpm} BPM")
@@ -453,6 +489,8 @@ class MainWindow(QMainWindow):
             chords_by_bar = [tonic] + [""] * (bars - 1)
 
         self.beat_times_ms = list(result.beat_times_ms or [])
+        self.sync_offset_beats = 0
+        self._update_sync_label()
         target_beats = len(chords_by_bar) * 4
         if self.beat_times_ms:
             self.beat_times_ms = self.beat_times_ms[:target_beats]
@@ -496,6 +534,9 @@ class MainWindow(QMainWindow):
         self.detected_key = None
         self.detected_key_confidence = 0.0
         self.beat_times_ms = []
+        self.sync_offset_beats = 0
+        if hasattr(self, "sync_label"):
+            self._update_sync_label()
         self.media_player.stop()
         self.media_player.setSource(QUrl())
 
@@ -646,7 +687,7 @@ class MainWindow(QMainWindow):
             self.media_player.play()
             if self.beat_times_ms:
                 self.timer.start(40)
-                self.statusBar().showMessage("Playing downloaded audio with detected beat-sync timing")
+                self.statusBar().showMessage(f"Playing with detected beat-sync timing, offset {self.sync_offset_beats:+d}")
             else:
                 self.timer.start(self._interval_ms())
                 self.statusBar().showMessage(f"Playing downloaded audio with average BPM timing at {self._current_bpm()} BPM")
@@ -655,19 +696,43 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Playing demo timing grid - no downloaded audio selected")
 
     def _audio_position_for_current_beat(self) -> int:
-        if self.beat_times_ms and 0 <= self.position < len(self.beat_times_ms):
-            return self.beat_times_ms[self.position]
+        if self.beat_times_ms:
+            audio_index = self.position - self.sync_offset_beats
+            audio_index = max(0, min(audio_index, len(self.beat_times_ms) - 1))
+            return self.beat_times_ms[audio_index]
         return max(0, self.position * int(60000 / self._current_bpm()))
 
     def _position_from_audio_ms(self, audio_ms: int) -> int:
         if not self.beat_times_ms:
             return self.position
-        pos = self.position
+        pos = self.position - self.sync_offset_beats
+        pos = max(0, min(pos, len(self.beat_times_ms) - 1))
         while pos + 1 < len(self.beat_times_ms) and self.beat_times_ms[pos + 1] <= audio_ms:
             pos += 1
         while pos > 0 and self.beat_times_ms[pos] > audio_ms:
             pos -= 1
-        return max(0, min(pos, len(self.song.beat_chords) - 1))
+        display_pos = pos + self.sync_offset_beats
+        return max(0, min(display_pos, len(self.song.beat_chords) - 1))
+
+    def _adjust_sync(self, delta: int) -> None:
+        self.sync_offset_beats = max(-8, min(8, self.sync_offset_beats + delta))
+        self._update_sync_label()
+        if self.beat_times_ms and self.audio_ready and self.is_playing:
+            self._sync_position_to_audio()
+        self.statusBar().showMessage(
+            f"Sync offset {self.sync_offset_beats:+d}. Use + if cursor is behind, - if cursor is ahead."
+        )
+
+    def _reset_sync(self) -> None:
+        self.sync_offset_beats = 0
+        self._update_sync_label()
+        if self.beat_times_ms and self.audio_ready and self.is_playing:
+            self._sync_position_to_audio()
+        self.statusBar().showMessage("Sync offset reset to 0")
+
+    def _update_sync_label(self) -> None:
+        if hasattr(self, "sync_label"):
+            self.sync_label.setText(f"Sync: {self.sync_offset_beats:+d}")
 
     def _stop(self) -> None:
         self.is_playing = False
@@ -695,8 +760,8 @@ class MainWindow(QMainWindow):
 
     def _sync_position_to_audio(self) -> None:
         if self.loop_start is not None and self.loop_end is not None:
-            end_ms = self.beat_times_ms[self.loop_end] if self.loop_end < len(self.beat_times_ms) else None
-            if end_ms is not None and self.media_player.position() >= end_ms:
+            end_index = self.loop_end - self.sync_offset_beats
+            if 0 <= end_index < len(self.beat_times_ms) and self.media_player.position() >= self.beat_times_ms[end_index]:
                 self.position = self.loop_start
                 self.media_player.setPosition(self._audio_position_for_current_beat())
                 self._update_all()
