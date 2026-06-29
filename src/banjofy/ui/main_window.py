@@ -20,7 +20,7 @@ from banjofy.ui.widgets import BeatCell, ChordPanel
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.4.7B - Layout + Grid Scroll Fix"
+APP_VERSION = "Banjofy 0.4.7C - Compact Top Layout"
 
 
 class MainWindow(QMainWindow):
@@ -74,20 +74,20 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 004.7B ready - compact controls and improved grid scrolling.")
+        self.statusBar().showMessage("Build 004.7C ready - top section reduced so two grid rows are visible.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
         outer = QVBoxLayout(root)
         outer.setContentsMargins(8, 8, 8, 8)
-        outer.setSpacing(6)
+        outer.setSpacing(4)
         top = QHBoxLayout()
-        top.setSpacing(6)
+        top.setSpacing(4)
         outer.addLayout(top, 0)
 
         search_panel = self._panel()
         search_layout = QVBoxLayout(search_panel)
-        search_layout.setContentsMargins(8, 6, 8, 6)
+        search_layout.setContentsMargins(6, 4, 6, 4)
         search_row = QHBoxLayout()
         self.search = QLineEdit()
         self.search.setPlaceholderText("Search YouTube, e.g. Country Roads banjo")
@@ -99,25 +99,25 @@ class MainWindow(QMainWindow):
         search_layout.addLayout(search_row)
 
         self.result_list = QListWidget()
-        self.result_list.setMaximumHeight(210)
+        self.result_list.setMaximumHeight(150)
         self.result_list.setIconSize(QSize(96, 54))
         self.result_list.currentRowChanged.connect(self._select_result)
         for song in DEMO_SONGS:
             self.result_list.addItem(QListWidgetItem(f"DEMO · {song.title}\n{song.artist} · {song.duration} · {song.bpm} BPM"))
         search_layout.addWidget(self.result_list)
 
-        self.search_hint = QLabel("Search uses yt-dlp. Select a result, download audio, then press Play.")
+        self.search_hint = QLabel("Search → select → download → play")
         self.search_hint.setObjectName("HintLabel")
-        search_layout.addWidget(self.search_hint)
+        search_layout.addWidget(self.search_hint, 0)
         top.addWidget(search_panel, 2)
 
         meta_panel = self._panel()
         meta_layout = QVBoxLayout(meta_panel)
-        meta_layout.setContentsMargins(8, 6, 8, 6)
+        meta_layout.setContentsMargins(6, 4, 6, 4)
         self.thumbnail_label = QLabel("No image")
         self.thumbnail_label.setObjectName("ThumbnailBox")
         self.thumbnail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.thumbnail_label.setFixedSize(160, 90)
+        self.thumbnail_label.setFixedSize(128, 72)
         meta_layout.addWidget(self.thumbnail_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
         self.title_label = QLabel("—")
@@ -165,15 +165,17 @@ class MainWindow(QMainWindow):
 
         centre = self._panel()
         centre_layout = QVBoxLayout(centre)
-        centre_layout.setContentsMargins(8, 6, 8, 6)
+        centre_layout.setContentsMargins(6, 4, 6, 4)
         title = QLabel(APP_VERSION)
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #f3d99a;")
+        title.setStyleSheet("font-size: 15px; font-weight: bold; color: #f3d99a;")
         centre_layout.addWidget(title)
 
         chord_row = QHBoxLayout()
-        self.current_panel = ChordPanel("CURRENT", "—", "#65b95c")
-        self.next_panel = ChordPanel("NEXT", "—", "#c99424", "in 1 beat")
+        self.current_panel = ChordPanel("NOW", "—", "#65b95c")
+        self.next_panel = ChordPanel("NEXT", "—", "#c99424", "in 1")
+        self.current_panel.setMaximumHeight(118)
+        self.next_panel.setMaximumHeight(118)
         chord_row.addWidget(self.current_panel, 1)
         chord_row.addWidget(self.next_panel, 1)
         centre_layout.addLayout(chord_row)
@@ -187,7 +189,7 @@ class MainWindow(QMainWindow):
 
         settings = self._panel()
         settings_layout = QVBoxLayout(settings)
-        settings_layout.setContentsMargins(8, 6, 8, 6)
+        settings_layout.setContentsMargins(6, 4, 6, 4)
         settings_layout.addWidget(QLabel("Mode"))
         self.mode = QComboBox()
         self.mode.addItems(["Beginner", "Intermediate", "Professional"])
@@ -277,8 +279,8 @@ class MainWindow(QMainWindow):
 
         grid_panel = self._panel()
         grid_layout = QVBoxLayout(grid_panel)
-        grid_layout.setContentsMargins(8, 6, 8, 6)
-        grid_layout.addWidget(QLabel("Beat grid - use Sync +1 if the cursor is behind the music, Sync -1 if it is ahead."))
+        grid_layout.setContentsMargins(6, 4, 6, 4)
+        grid_layout.addWidget(QLabel("Grid - current row plus next row should remain visible. Use Sync + / - to correct one-beat offset."))
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -350,7 +352,7 @@ class MainWindow(QMainWindow):
         if result and result.thumbnail_data:
             pix = QPixmap()
             if pix.loadFromData(result.thumbnail_data):
-                self.thumbnail_label.setPixmap(pix.scaled(160, 90, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+                self.thumbnail_label.setPixmap(pix.scaled(128, 72, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
                 self.thumbnail_label.setText("")
                 return
         self.thumbnail_label.setPixmap(QPixmap())
@@ -663,25 +665,23 @@ class MainWindow(QMainWindow):
         self._scroll_to_position()
 
     def _scroll_to_position(self) -> None:
-        """Keep the active row fully visible, with the next row also visible where possible."""
+        """Place the active row near the top of the grid viewport.
+
+        This makes the row being played fully visible and leaves room for the
+        next row underneath it.
+        """
         if not self.cells or self.position >= len(self.cells):
             return
 
-        bars_per_row = 3
-        beats_per_row = bars_per_row * 4
+        beats_per_row = 12
         current_row_start = (self.position // beats_per_row) * beats_per_row
-        next_row_start = min(current_row_start + beats_per_row, len(self.cells) - 1)
-
         current_cell = self.cells[current_row_start]
-        next_cell = self.cells[next_row_start]
 
-        # First ensure the top/current row is not hidden under the fixed header.
-        self.scroll.ensureWidgetVisible(current_cell, 20, 70)
-
-        # Then ensure the following row is also visible. This gives the player
-        # the line being played plus the next line coming up.
-        if next_row_start != current_row_start:
-            self.scroll.ensureWidgetVisible(next_cell, 20, 35)
+        # Use scrollbar positioning rather than ensureWidgetVisible alone,
+        # because ensureWidgetVisible can leave the active row tucked under the
+        # fixed top area on some screen sizes.
+        target_y = max(0, current_cell.y() - 8)
+        self.scroll.verticalScrollBar().setValue(target_y)
 
     def _current_bpm(self) -> int:
         return self.detected_bpm or self.song.bpm
@@ -902,10 +902,10 @@ class MainWindow(QMainWindow):
         self.setStyleSheet("""
             QMainWindow, QWidget { background: #111111; color: #f3e6cc; font-family: Segoe UI, Arial, sans-serif; font-size: 13px; }
             QFrame#Panel, QFrame#LoopBox { background: #1a1a1a; border: 1px solid #333333; border-radius: 8px; }
-            QLabel#HintLabel { color: #bcae91; font-size: 12px; }
+            QLabel#HintLabel { color: #bcae91; font-size: 11px; }
             QLabel#ThumbnailBox { background: #101010; color: #8c806d; border: 1px solid #444444; border-radius: 6px; }
             QLabel#BarHeader { background: #2a2418; color: #f3d99a; border: 1px solid #4b3920; border-radius: 4px; padding: 3px; font-weight: bold; }
-            QLabel#CountdownLabel { background: #352915; color: #ffd06a; border: 2px solid #f3c15f; border-radius: 8px; padding: 8px; font-size: 34px; font-weight: bold; }
+            QLabel#CountdownLabel { background: #352915; color: #ffd06a; border: 2px solid #f3c15f; border-radius: 8px; padding: 8px; font-size: 28px; font-weight: bold; }
             QLineEdit, QComboBox, QSpinBox, QListWidget, QProgressBar { background: #252525; color: #f3e6cc; border: 1px solid #444444; border-radius: 5px; padding: 5px; }
             QProgressBar::chunk { background: #6abf69; border-radius: 4px; }
             QListWidget::item { padding: 6px; min-height: 58px; }
