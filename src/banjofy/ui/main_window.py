@@ -20,7 +20,7 @@ from banjofy.ui.widgets import BeatCell, ChordPanel
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.4.7A - Beat Sync Adjuster"
+APP_VERSION = "Banjofy 0.4.7B - Layout + Grid Scroll Fix"
 
 
 class MainWindow(QMainWindow):
@@ -74,7 +74,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 004.7A ready - use Sync -1/+1 if the cursor is a beat early or late.")
+        self.statusBar().showMessage("Build 004.7B ready - compact controls and improved grid scrolling.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -215,44 +215,50 @@ class MainWindow(QMainWindow):
         controls = self._panel()
         controls_layout = QHBoxLayout(controls)
         controls_layout.setContentsMargins(8, 6, 8, 6)
-        controls_layout.setSpacing(8)
+        controls_layout.setSpacing(4)
 
-        self.back_btn = QPushButton("⏮ Back")
+        self.back_btn = QPushButton("◀")
         self.back_btn.clicked.connect(self._back)
-        self.play_btn = QPushButton("▶ Play")
+        self.play_btn = QPushButton("Play")
         self.play_btn.clicked.connect(self._play_pause)
-        self.forward_btn = QPushButton("⏭ Forward")
+        self.forward_btn = QPushButton("▶")
         self.forward_btn.clicked.connect(self._forward)
-        self.start_btn = QPushButton("⇤ To Start")
+        self.start_btn = QPushButton("Start")
         self.start_btn.clicked.connect(self._to_start)
         for btn in [self.back_btn, self.play_btn, self.forward_btn, self.start_btn]:
+            btn.setMinimumWidth(52)
+            btn.setMaximumWidth(70)
             controls_layout.addWidget(btn)
 
         loop_box = self._panel("LoopBox")
         loop_layout = QHBoxLayout(loop_box)
-        loop_layout.setContentsMargins(8, 4, 8, 4)
+        loop_layout.setContentsMargins(4, 3, 4, 3)
         self.loop_status = QLabel("Loop: off")
-        self.select_start_btn = QPushButton("Select Start")
+        self.select_start_btn = QPushButton("Loop In")
         self.select_start_btn.clicked.connect(lambda: self._set_selection_mode("start"))
-        self.select_end_btn = QPushButton("Select End")
+        self.select_end_btn = QPushButton("Loop Out")
         self.select_end_btn.clicked.connect(lambda: self._set_selection_mode("end"))
-        self.clear_loop_btn = QPushButton("Clear Loop")
+        self.clear_loop_btn = QPushButton("Clear")
         self.clear_loop_btn.clicked.connect(self._clear_loop)
         for w in [self.loop_status, self.select_start_btn, self.select_end_btn, self.clear_loop_btn]:
+            if hasattr(w, "setMaximumWidth"):
+                w.setMaximumWidth(78)
             loop_layout.addWidget(w)
         controls_layout.addWidget(loop_box, 2)
 
         sync_box = self._panel("LoopBox")
         sync_layout = QHBoxLayout(sync_box)
-        sync_layout.setContentsMargins(8, 4, 8, 4)
-        self.sync_minus_btn = QPushButton("Sync -1")
+        sync_layout.setContentsMargins(4, 3, 4, 3)
+        self.sync_minus_btn = QPushButton("Sync -")
         self.sync_minus_btn.clicked.connect(lambda: self._adjust_sync(-1))
-        self.sync_plus_btn = QPushButton("Sync +1")
+        self.sync_plus_btn = QPushButton("Sync +")
         self.sync_plus_btn.clicked.connect(lambda: self._adjust_sync(1))
         self.sync_reset_btn = QPushButton("Reset")
         self.sync_reset_btn.clicked.connect(self._reset_sync)
         self.sync_label = QLabel("Sync: 0")
         for w in [self.sync_minus_btn, self.sync_label, self.sync_plus_btn, self.sync_reset_btn]:
+            if hasattr(w, "setMaximumWidth"):
+                w.setMaximumWidth(72)
             sync_layout.addWidget(w)
         controls_layout.addWidget(sync_box, 1)
 
@@ -261,7 +267,8 @@ class MainWindow(QMainWindow):
         self.speed.setRange(50, 125)
         self.speed.setValue(100)
         self.speed.valueChanged.connect(self._speed_changed)
-        self.speed.setMinimumWidth(150)
+        self.speed.setMinimumWidth(105)
+        self.speed.setMaximumWidth(135)
         controls_layout.addWidget(self.speed)
         self.speed_label = QLabel("100%")
         controls_layout.addWidget(self.speed_label)
@@ -656,8 +663,25 @@ class MainWindow(QMainWindow):
         self._scroll_to_position()
 
     def _scroll_to_position(self) -> None:
-        if self.cells and self.position < len(self.cells):
-            self.scroll.ensureWidgetVisible(self.cells[self.position], 20, 20)
+        """Keep the active row fully visible, with the next row also visible where possible."""
+        if not self.cells or self.position >= len(self.cells):
+            return
+
+        bars_per_row = 3
+        beats_per_row = bars_per_row * 4
+        current_row_start = (self.position // beats_per_row) * beats_per_row
+        next_row_start = min(current_row_start + beats_per_row, len(self.cells) - 1)
+
+        current_cell = self.cells[current_row_start]
+        next_cell = self.cells[next_row_start]
+
+        # First ensure the top/current row is not hidden under the fixed header.
+        self.scroll.ensureWidgetVisible(current_cell, 20, 70)
+
+        # Then ensure the following row is also visible. This gives the player
+        # the line being played plus the next line coming up.
+        if next_row_start != current_row_start:
+            self.scroll.ensureWidgetVisible(next_cell, 20, 35)
 
     def _current_bpm(self) -> int:
         return self.detected_bpm or self.song.bpm
@@ -886,7 +910,7 @@ class MainWindow(QMainWindow):
             QProgressBar::chunk { background: #6abf69; border-radius: 4px; }
             QListWidget::item { padding: 6px; min-height: 58px; }
             QListWidget::item:selected { background: #4b3920; color: #ffffff; }
-            QPushButton { background: #2f2f2f; color: #f3e6cc; border: 1px solid #444444; border-radius: 6px; padding: 8px 12px; min-width: 82px; }
+            QPushButton { background: #2f2f2f; color: #f3e6cc; border: 1px solid #444444; border-radius: 6px; padding: 6px 7px; min-width: 48px; }
             QPushButton:hover { background: #3b3b3b; }
             QPushButton:disabled { color: #777777; }
             QScrollArea { border: none; }
