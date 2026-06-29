@@ -20,6 +20,7 @@ class AnalysisResult:
     beat_count: int = 0
     estimated_bars: int = 0
     time_signature: str = "4/4"
+    chords_by_bar: list[str] | None = None
 
 
 def _convert_to_wav_with_bundled_ffmpeg(source: Path, progress: ProgressCallback | None = None) -> Path:
@@ -33,7 +34,7 @@ def _convert_to_wav_with_bundled_ffmpeg(source: Path, progress: ProgressCallback
         raise RuntimeError("Bundled ffmpeg executable could not be located")
 
     if progress:
-        progress("converting audio for analysis...", 20)
+        progress("converting audio for analysis...", 18)
 
     temp_dir = Path(tempfile.gettempdir()) / "Banjofy" / "analysis"
     temp_dir.mkdir(parents=True, exist_ok=True)
@@ -98,6 +99,103 @@ def _estimate_key(y, sr: int) -> tuple[str | None, float]:
     return best_key, confidence
 
 
+def _root_names() -> list[str]:
+    return ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
+
+
+def _template_for_chord(root: int, quality: str):
+    import numpy as np
+
+    template = np.zeros(12, dtype=float)
+    if quality == "maj":
+        intervals = [0, 4, 7]
+    elif quality == "min":
+        intervals = [0, 3, 7]
+    elif quality == "7":
+        intervals = [0, 4, 7, 10]
+    else:
+        intervals = [0, 4, 7]
+
+    for interval in intervals:
+        template[(root + interval) % 12] = 1.0
+
+    # Lightly reward fifth/root stability.
+    template[root % 12] += 0.35
+    template[(root + 7) % 12] += 0.15
+    total = template.sum()
+    return template / total if total else template
+
+
+def _estimate_bar_chords(y, sr: int, beats, max_bars: int = 180) -> list[str]:
+    """Very first-stage chord detection.
+
+    This compares each 4-beat bar's chroma profile against simple major/minor/7
+    chord templates. It is intentionally conservative and will improve in later
+    builds, but it gives us real automatic chord labels to test against audio.
+    """
+    import numpy as np
+    import librosa
+
+    if beats is None or len(beats) < 4:
+        return []
+
+    chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
+    if chroma is None or chroma.size == 0:
+        return []
+
+    times = librosa.frames_to_time(np.arange(chroma.shape[1]), sr=sr)
+    roots = _root_names()
+
+    chord_templates: list[tuple[str, object]] = []
+    for root_index, name in enumerate(roots):
+        chord_templates.append((name, _template_for_chord(root_index, "maj")))
+        chord_templates.append((f"{name}m", _template_for_chord(root_index, "min")))
+        chord_templates.append((f"{name}7", _template_for_chord(root_index, "7")))
+
+    chords: list[str] = []
+    beat_times = list(beats)
+    if len(beat_times) < 5:
+        return []
+
+    max_start = min(len(beat_times) - 4, max_bars * 4)
+    previous = ""
+    for start in range(0, max_start, 4):
+        bar_start = beat_times[start]
+        bar_end = beat_times[start + 4] if start + 4 < len(beat_times) else beat_times[-1]
+        if bar_end <= bar_start:
+            continue
+
+        mask = (times >= bar_start) & (times < bar_end)
+        if not np.any(mask):
+            chords.append(previous or "")
+            continue
+
+        profile = np.mean(chroma[:, mask], axis=1)
+        total = np.sum(profile)
+        if not total:
+            chords.append(previous or "")
+            continue
+        profile = profile / total
+
+        best_name = ""
+        best_score = -999.0
+        for name, template in chord_templates:
+            score = float(np.dot(profile, template))
+            if score > best_score:
+                best_score = score
+                best_name = name
+
+        # Avoid flickering repeated labels: the grid only needs a chord at the
+        # point where the chord changes.
+        if best_name == previous:
+            chords.append("")
+        else:
+            chords.append(best_name)
+            previous = best_name
+
+    return chords
+
+
 def analyse_audio(path: Path, progress: ProgressCallback | None = None) -> AnalysisResult:
     source = Path(path)
     if not source.exists():
@@ -114,7 +212,7 @@ def analyse_audio(path: Path, progress: ProgressCallback | None = None) -> Analy
         raise RuntimeError("Audio analysis package librosa is not installed in this build") from exc
 
     if progress:
-        progress("loading converted audio...", 38)
+        progress("loading converted audio...", 34)
 
     try:
         y, sr = librosa.load(str(wav_path), sr=22050, mono=True, duration=180)
@@ -125,7 +223,7 @@ def analyse_audio(path: Path, progress: ProgressCallback | None = None) -> Analy
         raise RuntimeError("Audio was too short for analysis")
 
     if progress:
-        progress("measuring tempo and beats...", 58)
+        progress("measuring tempo and beats...", 52)
 
     try:
         tempo, beats = librosa.beat.beat_track(y=y, sr=sr, units="time")
@@ -151,27 +249,32 @@ def analyse_audio(path: Path, progress: ProgressCallback | None = None) -> Analy
     estimated_bars = int(round(beat_count / 4)) if beat_count else 0
 
     if progress:
-        progress("detecting key...", 78)
+        progress("detecting key...", 70)
 
     key, key_confidence = _estimate_key(y, sr)
 
     if progress:
-        progress("building 4/4 practice grid...", 92)
+        progress("detecting first-pass chords...", 86)
 
-    bpm_confidence = min(1.0, max(0.1, beat_count / 80)) if beat_count else 0.2
+    chords_by_bar = _estimate_bar_chords(y, sr, beats)
+    if chords_by_bar:
+        estimated_bars = len(chords_by_bar)
 
     if progress:
         progress("analysis complete", 100)
+
+    bpm_confidence = min(1.0, max(0.1, beat_count / 80)) if beat_count else 0.2
 
     return AnalysisResult(
         bpm=bpm,
         key=key,
         key_confidence=key_confidence,
-        method="ffmpeg WAV conversion + librosa tempo/chroma key + beat grid estimate",
+        method="ffmpeg WAV conversion + librosa tempo/key + first-pass chroma chords",
         confidence=bpm_confidence,
         beat_count=beat_count,
         estimated_bars=estimated_bars,
         time_signature="4/4",
+        chords_by_bar=chords_by_bar,
     )
 
 

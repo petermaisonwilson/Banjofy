@@ -20,7 +20,7 @@ from banjofy.ui.widgets import BeatCell, ChordPanel
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.4.6A - Analysis Grid Scaffold"
+APP_VERSION = "Banjofy 0.4.6B - First Chord Detection"
 
 
 class MainWindow(QMainWindow):
@@ -66,7 +66,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 004.6A ready - analysis now creates a song-length practice grid scaffold.")
+        self.statusBar().showMessage("Build 004.6B ready - analysis now attempts first-pass chord detection.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -234,7 +234,7 @@ class MainWindow(QMainWindow):
         grid_panel = self._panel()
         grid_layout = QVBoxLayout(grid_panel)
         grid_layout.setContentsMargins(8, 6, 8, 6)
-        grid_layout.addWidget(QLabel("Beat grid - now rebuilt from analysed beat/bar count. Chords are still placeholders until chord detection."))
+        grid_layout.addWidget(QLabel("Beat grid - first-pass chord detection. Expect rough guesses; accuracy improves next."))
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -363,7 +363,7 @@ class MainWindow(QMainWindow):
                     self.download_progress.setValue(100)
                     cached = "cached" if result.was_cached else "downloaded"
                     self.download_status.setText(f"Audio: {cached} - press Play")
-                    self.statusBar().showMessage(f"Audio {cached}. Starting BPM/key/grid analysis...")
+                    self.statusBar().showMessage(f"Audio {cached}. Starting chord analysis...")
                     self._load_audio_file(result.file_path)
                     self._start_audio_analysis(result.file_path)
                 return
@@ -377,8 +377,8 @@ class MainWindow(QMainWindow):
 
     def _start_audio_analysis(self, path: Path) -> None:
         self.analysis_progress.setValue(5)
-        self.analysis_status.setText("Analysis: finding tempo, key and beat grid...")
-        self.statusBar().showMessage("Analysing audio tempo, key and beat grid...")
+        self.analysis_status.setText("Analysis: finding tempo, key and chords...")
+        self.statusBar().showMessage("Analysing audio tempo, key and first-pass chords...")
 
         def progress(message: str, percent: float) -> None:
             self.analysis_queue.put(("progress", (message, percent)))
@@ -413,19 +413,18 @@ class MainWindow(QMainWindow):
                         self.detected_key = result.key
                         self.detected_key_confidence = result.key_confidence
                         self.key_label.setText(f"Key: {result.key} detected ({int(round(result.key_confidence * 100))}%)")
-                    if result.estimated_bars:
-                        self._build_analysis_grid(result)
+                    self._build_analysis_grid(result)
                     self.analysis_progress.setValue(100)
+                    chord_count = len([c for c in (result.chords_by_bar or []) if c])
                     summary_bits = []
                     if self.detected_bpm:
                         summary_bits.append(f"{self.detected_bpm} BPM")
                     if self.detected_key:
                         summary_bits.append(self.detected_key)
-                    if result.beat_count:
-                        summary_bits.append(f"{result.beat_count} beats")
                     if result.estimated_bars:
                         summary_bits.append(f"~{result.estimated_bars} bars")
-                    summary = " · ".join(summary_bits) or "complete"
+                    summary_bits.append(f"{chord_count} chord changes")
+                    summary = " · ".join(summary_bits)
                     self.analysis_status.setText(f"Analysis: {summary}")
                     self.statusBar().showMessage(f"Analysis complete: {summary}")
                     if self.timer.isActive():
@@ -441,7 +440,15 @@ class MainWindow(QMainWindow):
     def _build_analysis_grid(self, result: AnalysisResult) -> None:
         bars = max(4, min(240, result.estimated_bars or 16))
         tonic = self._tonic_chord(result.key)
-        chords_by_bar = [tonic] + [""] * (bars - 1)
+        if result.chords_by_bar:
+            chords_by_bar = list(result.chords_by_bar[:bars])
+            if len(chords_by_bar) < bars:
+                chords_by_bar.extend([""] * (bars - len(chords_by_bar)))
+            if not any(chords_by_bar):
+                chords_by_bar[0] = tonic
+        else:
+            chords_by_bar = [tonic] + [""] * (bars - 1)
+
         title = self.title_label.text() or "Analysed YouTube Song"
         artist = self.artist_label.text() or "YouTube"
         key = result.key or "Unknown"
@@ -459,7 +466,6 @@ class MainWindow(QMainWindow):
             return "G"
         root = key.split()[0]
         root = root.split("/")[0]
-        root = root.replace("#", "♯").replace("b", "♭")
         if "Minor" in key and not root.endswith("m"):
             return f"{root}m"
         return root
