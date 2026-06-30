@@ -19,10 +19,11 @@ from banjofy.player.demo_data import DEMO_SONGS, DemoSong
 from banjofy.player.playback_engine import PlaybackClock
 from banjofy.ui.widgets import BeatCell, ChordPanel
 from banjofy.ui.chord_grid import ChordGridController
+from banjofy.ui.youtube_panel import make_youtube_result_item, set_thumbnail
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.4.9 - Chord Grid Split"
+APP_VERSION = "Banjofy 0.5.0 - YouTube Panel Split"
 
 
 class MainWindow(QMainWindow):
@@ -76,7 +77,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 004.9 ready - chord grid moved into its own module.")
+        self.statusBar().showMessage("Build 005.0 ready - YouTube result/thumbnail UI moved into its own module.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -369,23 +370,11 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("No YouTube results found")
             return
         for result in results:
-            item = QListWidgetItem(f"YOUTUBE · {result.title}\n{result.channel} · {result.duration}")
-            if result.thumbnail_data:
-                pix = QPixmap()
-                if pix.loadFromData(result.thumbnail_data):
-                    item.setIcon(QIcon(pix.scaled(96, 54, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)))
-            self.result_list.addItem(item)
+            self.result_list.addItem(make_youtube_result_item(result))
         self.statusBar().showMessage(f"Found {len(results)} YouTube results. Click one, then Download Audio.")
 
     def _set_thumbnail(self, result: YouTubeResult | None) -> None:
-        if result and result.thumbnail_data:
-            pix = QPixmap()
-            if pix.loadFromData(result.thumbnail_data):
-                self.thumbnail_label.setPixmap(pix.scaled(112, 63, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-                self.thumbnail_label.setText("")
-                return
-        self.thumbnail_label.setPixmap(QPixmap())
-        self.thumbnail_label.setText("No image")
+        set_thumbnail(self.thumbnail_label, result)
 
     def _start_audio_download(self) -> None:
         result = self.selected_youtube_result
