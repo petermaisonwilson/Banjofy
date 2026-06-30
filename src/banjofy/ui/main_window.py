@@ -25,7 +25,7 @@ from banjofy.ui.song_info import SongInfoController
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.5.3 - Beat Map + Beat Chords"
+APP_VERSION = "Banjofy 0.5.3A - Beat Map Stabilised"
 
 
 class MainWindow(QMainWindow):
@@ -79,7 +79,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 005.3 ready - beat map engine and beat-level chord detection added.")
+        self.statusBar().showMessage("Build 005.3A ready - beat map stabilised, full grid restored, key analysis safer.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -495,53 +495,40 @@ class MainWindow(QMainWindow):
                 return
 
     def _build_analysis_grid(self, result: AnalysisResult) -> None:
-        bars = max(4, min(240, result.estimated_bars or 16))
         duration_bars = self._estimated_bars_from_display_duration(result.bpm)
-        if duration_bars:
-            bars = max(bars, duration_bars)
+        bars = max(4, result.estimated_bars or 16, duration_bars or 0)
+        bars = min(260, bars)
         tonic = self._tonic_chord(result.key)
+
+        beat_chords_override = None
         if result.chords_by_beat:
-            beat_chords = list(result.chords_by_beat)
-            expected_beats = max(len(beat_chords), bars * 4)
-
-            last_chord = tonic
-            for i, chord in enumerate(beat_chords):
-                if chord:
-                    last_chord = chord
-                else:
-                    beat_chords[i] = ""
-
-            if len(beat_chords) < expected_beats:
-                beat_chords.extend([""] * (expected_beats - len(beat_chords)))
+            beat_chords_override = list(result.chords_by_beat)
+            expected_beats = bars * 4
+            if len(beat_chords_override) < expected_beats:
+                beat_chords_override.extend([""] * (expected_beats - len(beat_chords_override)))
 
             chords_by_bar = []
-            for start in range(0, len(beat_chords), 4):
-                window = beat_chords[start:start + 4]
+            for start in range(0, len(beat_chords_override), 4):
+                window = beat_chords_override[start:start + 4]
                 chord = next((c for c in window if c), "")
                 chords_by_bar.append(chord)
-
-            bars = max(bars, len(chords_by_bar))
         elif result.chords_by_bar:
             chords_by_bar = list(result.chords_by_bar[:bars])
             if len(chords_by_bar) < bars:
                 chords_by_bar.extend([""] * (bars - len(chords_by_bar)))
-
             last_chord = tonic
             for i, chord in enumerate(chords_by_bar):
                 if chord:
                     last_chord = chord
                 else:
                     chords_by_bar[i] = last_chord
-
-            if not any(chords_by_bar):
-                chords_by_bar[0] = tonic
         else:
             chords_by_bar = [tonic for _ in range(bars)]
 
         self.beat_times_ms = list(result.beat_times_ms or [])
         self.sync_offset_beats = 0
         self._update_sync_label()
-        target_beats = len(result.chords_by_beat or []) or (len(chords_by_bar) * 4)
+        target_beats = len(beat_chords_override) if beat_chords_override is not None else (len(chords_by_bar) * 4)
         if self.beat_times_ms:
             self.beat_times_ms = self.beat_times_ms[:target_beats]
 
@@ -550,9 +537,8 @@ class MainWindow(QMainWindow):
         key = result.key or "Unknown"
         bpm = int(round(result.bpm or self.song.bpm))
         self.song = DemoSong(title=title, artist=artist, bpm=bpm, key=key, duration=self.duration_label.text().replace("Duration: ", ""), chords_by_bar=chords_by_bar)
-        if result.chords_by_beat:
-            # Override generated bar-only beat data with true beat-level chord changes.
-            self.song.beat_chords = list(result.chords_by_beat)
+        if beat_chords_override is not None:
+            self.song.beat_chords = beat_chords_override
         self.position = 0
         self.loop_start = None
         self.loop_end = None
@@ -729,7 +715,7 @@ class MainWindow(QMainWindow):
             self.media_player.setPosition(self._audio_position_for_current_beat())
             self.media_player.play()
             self.timer.start(40)
-            self.statusBar().showMessage(f"Playing with stable BPM audio-clock timing, sync {self.sync_offset_beats:+d}")
+            self.statusBar().showMessage(f"Playing with beat-map timing where available, sync {self.sync_offset_beats:+d}")
         else:
             self.timer.start(self._interval_ms())
             self.statusBar().showMessage("Playing demo timing grid - no downloaded audio selected")
@@ -738,13 +724,26 @@ class MainWindow(QMainWindow):
         return PlaybackClock(bpm=self._current_bpm(), sync_offset_beats=self.sync_offset_beats)
 
     def _audio_position_for_current_beat(self) -> int:
-        return self._playback_clock().audio_position_for_display_beat(self.position)
+        audio_index = self.position - self.sync_offset_beats
+        if self.beat_times_ms and 0 <= audio_index < len(self.beat_times_ms):
+            return self.beat_times_ms[audio_index]
+        ms_per_beat = int(60000 / self._current_bpm())
+        return max(0, audio_index * ms_per_beat)
 
     def _position_from_audio_ms(self, audio_ms: int) -> int:
-        return self._playback_clock().display_beat_from_audio_ms(
-            audio_ms,
-            max_position=len(self.song.beat_chords) - 1,
-        )
+        if self.beat_times_ms:
+            idx = 0
+            for i, beat_ms in enumerate(self.beat_times_ms):
+                if beat_ms <= audio_ms:
+                    idx = i
+                else:
+                    break
+            display_pos = idx + self.sync_offset_beats
+            return max(0, min(display_pos, len(self.song.beat_chords) - 1))
+        ms_per_beat = int(60000 / self._current_bpm())
+        base_pos = int(audio_ms / max(1, ms_per_beat))
+        display_pos = base_pos + self.sync_offset_beats
+        return max(0, min(display_pos, len(self.song.beat_chords) - 1))
 
     def _adjust_sync(self, delta: int) -> None:
         self.sync_offset_beats = max(-8, min(8, self.sync_offset_beats + delta))
