@@ -25,7 +25,7 @@ from banjofy.ui.song_info import SongInfoController
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.5.2 - Song Progress"
+APP_VERSION = "Banjofy 0.5.3 - Beat Map + Beat Chords"
 
 
 class MainWindow(QMainWindow):
@@ -79,7 +79,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 005.2 ready - song progress indicator added.")
+        self.statusBar().showMessage("Build 005.3 ready - beat map engine and beat-level chord detection added.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -500,7 +500,28 @@ class MainWindow(QMainWindow):
         if duration_bars:
             bars = max(bars, duration_bars)
         tonic = self._tonic_chord(result.key)
-        if result.chords_by_bar:
+        if result.chords_by_beat:
+            beat_chords = list(result.chords_by_beat)
+            expected_beats = max(len(beat_chords), bars * 4)
+
+            last_chord = tonic
+            for i, chord in enumerate(beat_chords):
+                if chord:
+                    last_chord = chord
+                else:
+                    beat_chords[i] = ""
+
+            if len(beat_chords) < expected_beats:
+                beat_chords.extend([""] * (expected_beats - len(beat_chords)))
+
+            chords_by_bar = []
+            for start in range(0, len(beat_chords), 4):
+                window = beat_chords[start:start + 4]
+                chord = next((c for c in window if c), "")
+                chords_by_bar.append(chord)
+
+            bars = max(bars, len(chords_by_bar))
+        elif result.chords_by_bar:
             chords_by_bar = list(result.chords_by_bar[:bars])
             if len(chords_by_bar) < bars:
                 chords_by_bar.extend([""] * (bars - len(chords_by_bar)))
@@ -520,17 +541,18 @@ class MainWindow(QMainWindow):
         self.beat_times_ms = list(result.beat_times_ms or [])
         self.sync_offset_beats = 0
         self._update_sync_label()
-        target_beats = len(chords_by_bar) * 4
+        target_beats = len(result.chords_by_beat or []) or (len(chords_by_bar) * 4)
         if self.beat_times_ms:
             self.beat_times_ms = self.beat_times_ms[:target_beats]
-            if len(self.beat_times_ms) < target_beats:
-                self.beat_times_ms = []
 
         title = self.title_label.text() or "Analysed YouTube Song"
         artist = self.artist_label.text() or "YouTube"
         key = result.key or "Unknown"
         bpm = int(round(result.bpm or self.song.bpm))
         self.song = DemoSong(title=title, artist=artist, bpm=bpm, key=key, duration=self.duration_label.text().replace("Duration: ", ""), chords_by_bar=chords_by_bar)
+        if result.chords_by_beat:
+            # Override generated bar-only beat data with true beat-level chord changes.
+            self.song.beat_chords = list(result.chords_by_beat)
         self.position = 0
         self.loop_start = None
         self.loop_end = None

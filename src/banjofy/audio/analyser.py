@@ -22,6 +22,7 @@ class AnalysisResult:
     time_signature: str = "4/4"
     chords_by_bar: list[str] | None = None
     beat_times_ms: list[int] | None = None
+    chords_by_beat: list[str] | None = None
 
 
 def _convert_to_wav_with_bundled_ffmpeg(source: Path, progress: ProgressCallback | None = None) -> Path:
@@ -43,14 +44,11 @@ def _convert_to_wav_with_bundled_ffmpeg(source: Path, progress: ProgressCallback
 
     cmd = [
         str(ffmpeg), "-y", "-hide_banner", "-loglevel", "error",
-        "-i", str(source), "-t", "180", "-ac", "1", "-ar", "22050",
+        "-i", str(source), "-t", "240", "-ac", "1", "-ar", "22050",
         "-vn", "-f", "wav", str(wav_path),
     ]
 
-    try:
-        completed = subprocess.run(cmd, capture_output=True, text=True, timeout=90, check=False)
-    except Exception as exc:
-        raise RuntimeError(f"ffmpeg conversion could not run: {exc}") from exc
+    completed = subprocess.run(cmd, capture_output=True, text=True, timeout=120, check=False)
 
     if completed.returncode != 0 or not wav_path.exists() or wav_path.stat().st_size < 1000:
         details = (completed.stderr or completed.stdout or "unknown ffmpeg error").strip()
@@ -125,54 +123,62 @@ def _template_for_chord(root: int, quality: str):
     return template / total if total else template
 
 
-def _estimate_bar_chords(y, sr: int, beats, max_bars: int = 180) -> list[str]:
+def _chord_templates():
+    roots = _root_names()
+    templates: list[tuple[str, object]] = []
+    for root_index, name in enumerate(roots):
+        templates.append((name, _template_for_chord(root_index, "maj")))
+        templates.append((f"{name}m", _template_for_chord(root_index, "min")))
+        templates.append((f"{name}7", _template_for_chord(root_index, "7")))
+    return templates
+
+
+def _estimate_beat_chords(y, sr: int, beat_times: list[float], max_beats: int = 960) -> list[str]:
+    """First true beat-level chord detection.
+
+    One chord is estimated for each detected beat window. Repeated chords are
+    left blank so the grid remains readable while still allowing changes on
+    any beat.
+    """
     import numpy as np
     import librosa
 
-    if beats is None or len(beats) < 4:
+    if len(beat_times) < 2:
         return []
 
     chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
     if chroma is None or chroma.size == 0:
         return []
 
-    times = librosa.frames_to_time(np.arange(chroma.shape[1]), sr=sr)
-    roots = _root_names()
-
-    chord_templates: list[tuple[str, object]] = []
-    for root_index, name in enumerate(roots):
-        chord_templates.append((name, _template_for_chord(root_index, "maj")))
-        chord_templates.append((f"{name}m", _template_for_chord(root_index, "min")))
-        chord_templates.append((f"{name}7", _template_for_chord(root_index, "7")))
+    frame_times = librosa.frames_to_time(np.arange(chroma.shape[1]), sr=sr)
+    templates = _chord_templates()
 
     chords: list[str] = []
-    beat_times = list(beats)
-    if len(beat_times) < 5:
-        return []
-
-    max_start = min(len(beat_times) - 4, max_bars * 4)
     previous = ""
-    for start in range(0, max_start, 4):
-        bar_start = beat_times[start]
-        bar_end = beat_times[start + 4] if start + 4 < len(beat_times) else beat_times[-1]
-        if bar_end <= bar_start:
+    usable = min(len(beat_times) - 1, max_beats)
+
+    for i in range(usable):
+        start = beat_times[i]
+        end = beat_times[i + 1]
+        if end <= start:
+            chords.append("")
             continue
 
-        mask = (times >= bar_start) & (times < bar_end)
+        mask = (frame_times >= start) & (frame_times < end)
         if not np.any(mask):
-            chords.append(previous or "")
+            chords.append("")
             continue
 
         profile = np.mean(chroma[:, mask], axis=1)
         total = np.sum(profile)
         if not total:
-            chords.append(previous or "")
+            chords.append("")
             continue
         profile = profile / total
 
         best_name = ""
         best_score = -999.0
-        for name, template in chord_templates:
+        for name, template in templates:
             score = float(np.dot(profile, template))
             if score > best_score:
                 best_score = score
@@ -185,6 +191,20 @@ def _estimate_bar_chords(y, sr: int, beats, max_bars: int = 180) -> list[str]:
             previous = best_name
 
     return chords
+
+
+def _bars_from_beat_chords(chords_by_beat: list[str]) -> list[str]:
+    bars: list[str] = []
+    previous = ""
+    for start in range(0, len(chords_by_beat), 4):
+        window = chords_by_beat[start:start + 4]
+        chord = next((c for c in window if c), "")
+        if chord and chord != previous:
+            bars.append(chord)
+            previous = chord
+        else:
+            bars.append("")
+    return bars
 
 
 def analyse_audio(path: Path, progress: ProgressCallback | None = None) -> AnalysisResult:
@@ -203,23 +223,17 @@ def analyse_audio(path: Path, progress: ProgressCallback | None = None) -> Analy
         raise RuntimeError("Audio analysis package librosa is not installed in this build") from exc
 
     if progress:
-        progress("loading converted audio...", 34)
+        progress("loading converted audio...", 30)
 
-    try:
-        y, sr = librosa.load(str(wav_path), sr=22050, mono=True, duration=180)
-    except Exception as exc:
-        raise RuntimeError(f"Could not load converted WAV for analysis: {exc}") from exc
+    y, sr = librosa.load(str(wav_path), sr=22050, mono=True, duration=240)
 
     if y is None or len(y) < sr:
         raise RuntimeError("Audio was too short for analysis")
 
     if progress:
-        progress("measuring tempo and exact beat positions...", 52)
+        progress("building beat map...", 48)
 
-    try:
-        tempo, beats = librosa.beat.beat_track(y=y, sr=sr, units="time")
-    except Exception as exc:
-        raise RuntimeError(f"Tempo/beat analysis failed: {exc}") from exc
+    tempo, beats = librosa.beat.beat_track(y=y, sr=sr, units="time")
 
     try:
         if hasattr(tempo, "__len__") and not isinstance(tempo, (str, bytes)):
@@ -236,42 +250,41 @@ def analyse_audio(path: Path, progress: ProgressCallback | None = None) -> Analy
     if not bpm or math.isnan(bpm):
         raise RuntimeError("No reliable tempo detected")
 
-    beat_times = list(beats) if beats is not None else []
-    beat_times_ms = [int(round(t * 1000)) for t in beat_times if t >= 0]
-    beat_count = len(beat_times_ms)
-    estimated_bars = int(beat_count // 4) if beat_count else 0
+    beat_times = [float(t) for t in list(beats or []) if float(t) >= 0]
+    beat_times_ms = [int(round(t * 1000)) for t in beat_times]
 
     if progress:
-        progress("detecting key...", 70)
+        progress("detecting key...", 65)
 
     key, key_confidence = _estimate_key(y, sr)
 
     if progress:
-        progress("detecting first-pass chords...", 86)
+        progress("detecting chords on each beat...", 82)
 
-    chords_by_bar = _estimate_bar_chords(y, sr, beats)
-    if chords_by_bar:
-        estimated_bars = len(chords_by_bar)
-        # Keep timing and grid lengths aligned to complete 4-beat bars.
-        beat_times_ms = beat_times_ms[: estimated_bars * 4]
-        beat_count = len(beat_times_ms)
+    chords_by_beat = _estimate_beat_chords(y, sr, beat_times)
+    if chords_by_beat:
+        beat_times_ms = beat_times_ms[:len(chords_by_beat)]
+    beat_count = len(chords_by_beat) if chords_by_beat else len(beat_times_ms)
+    estimated_bars = max(1, int(math.ceil(beat_count / 4))) if beat_count else 0
+    chords_by_bar = _bars_from_beat_chords(chords_by_beat) if chords_by_beat else []
 
     if progress:
         progress("analysis complete", 100)
 
-    bpm_confidence = min(1.0, max(0.1, beat_count / 80)) if beat_count else 0.2
+    bpm_confidence = min(1.0, max(0.1, beat_count / 120)) if beat_count else 0.2
 
     return AnalysisResult(
         bpm=bpm,
         key=key,
         key_confidence=key_confidence,
-        method="ffmpeg WAV conversion + librosa exact beat timing + first-pass chords",
+        method="ffmpeg WAV conversion + librosa beat map + beat-level chroma chords",
         confidence=bpm_confidence,
         beat_count=beat_count,
         estimated_bars=estimated_bars,
         time_signature="4/4",
         chords_by_bar=chords_by_bar,
         beat_times_ms=beat_times_ms,
+        chords_by_beat=chords_by_beat,
     )
 
 
