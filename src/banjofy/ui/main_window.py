@@ -20,10 +20,11 @@ from banjofy.player.playback_engine import PlaybackClock
 from banjofy.ui.widgets import BeatCell, ChordPanel
 from banjofy.ui.chord_grid import ChordGridController
 from banjofy.ui.youtube_panel import make_youtube_result_item, set_thumbnail
+from banjofy.ui.analysis_panel import AnalysisPanelController
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.5.0 - YouTube Panel Split"
+APP_VERSION = "Banjofy 0.5.1 - Analysis Panel Split"
 
 
 class MainWindow(QMainWindow):
@@ -77,7 +78,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 005.0 ready - YouTube result/thumbnail UI moved into its own module.")
+        self.statusBar().showMessage("Build 005.1 ready - analysis display moved into its own module.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -157,6 +158,13 @@ class MainWindow(QMainWindow):
         self.analysis_status = QLabel("")
         self.analysis_status.setObjectName("HintLabel")
         self.analysis_status.setVisible(False)
+
+        self.analysis_panel = AnalysisPanelController(
+            self.bpm_label,
+            self.key_label,
+            self.analysis_progress,
+            self.analysis_status,
+        )
 
         search_layout.addLayout(workflow_layout)
         top.addWidget(search_panel, 3)
@@ -385,8 +393,7 @@ class MainWindow(QMainWindow):
         self._clear_audio_file()
         self.bpm_label.setText(f"BPM: {self.song.bpm} (demo)")
         self.key_label.setText("Key: analysing after download")
-        self.analysis_progress.setValue(0)
-        self.analysis_status.setText("Analysis: waiting for download")
+        self.analysis_panel.waiting_for_download()
         self.download_btn.setEnabled(False)
         self.search_button.setEnabled(False)
         self.download_progress.setValue(0)
@@ -440,8 +447,7 @@ class MainWindow(QMainWindow):
                 return
 
     def _start_audio_analysis(self, path: Path) -> None:
-        self.analysis_progress.setValue(5)
-        self.analysis_status.setText("Analysis: finding tempo, key, chords and beat positions...")
+        self.analysis_panel.progress("finding tempo, key, chords and beat positions...", 5)
         self.statusBar().showMessage("Analysing audio tempo, key, chords and exact beat positions...")
 
         def progress(message: str, percent: float) -> None:
@@ -464,42 +470,20 @@ class MainWindow(QMainWindow):
                 return
             if kind == "progress":
                 message, percent = payload
-                self.analysis_progress.setValue(int(percent))
-                self.analysis_status.setText(f"Analysis: {message}")
+                self.analysis_panel.progress(str(message), float(percent))
             elif kind == "done":
                 self.analysis_poll_timer.stop()
                 result = payload
                 if isinstance(result, AnalysisResult):
-                    if result.bpm:
-                        self.detected_bpm = int(round(result.bpm))
-                        self.bpm_label.setText(f"BPM: {self.detected_bpm} detected")
-                    if result.key:
-                        self.detected_key = result.key
-                        self.detected_key_confidence = result.key_confidence
-                        self.key_label.setText(f"Key: {result.key} detected ({int(round(result.key_confidence * 100))}%)")
+                    self.detected_bpm, self.detected_key, self.detected_key_confidence, summary = self.analysis_panel.apply_result(result)
                     self._build_analysis_grid(result)
-                    self.analysis_progress.setValue(100)
-                    chord_count = len([c for c in (result.chords_by_bar or []) if c])
-                    beat_sync = f"stable timing / sync {self.sync_offset_beats:+d}"
-                    summary_bits = []
-                    if self.detected_bpm:
-                        summary_bits.append(f"{self.detected_bpm} BPM")
-                    if self.detected_key:
-                        summary_bits.append(self.detected_key)
-                    if result.estimated_bars:
-                        summary_bits.append(f"~{result.estimated_bars} bars")
-                    summary_bits.append(f"{chord_count} chord changes")
-                    summary_bits.append(beat_sync)
-                    summary = " · ".join(summary_bits)
-                    self.analysis_status.setText(f"Analysis: {summary}")
                     self.statusBar().showMessage(f"Analysis complete: {summary}")
                     if self.timer.isActive():
                         self.timer.start(self._interval_ms())
                 return
             elif kind == "error":
                 self.analysis_poll_timer.stop()
-                self.analysis_progress.setValue(0)
-                self.analysis_status.setText(f"Analysis error: {payload}")
+                self.analysis_panel.error(str(payload))
                 self.statusBar().showMessage(f"Analysis error: {payload}")
                 return
 
@@ -608,8 +592,7 @@ class MainWindow(QMainWindow):
         self.download_btn.setEnabled(False)
         self.download_progress.setValue(0)
         self.download_status.setText("Audio: not downloaded")
-        self.analysis_progress.setValue(0)
-        self.analysis_status.setText("Analysis: waiting")
+        self.analysis_panel.reset()
         self._set_thumbnail(None)
         self.title_label.setText(song.title)
         self.artist_label.setText(song.artist)
