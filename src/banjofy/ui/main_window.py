@@ -24,7 +24,7 @@ from banjofy.ui.analysis_panel import AnalysisPanelController
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.5.1 - Analysis Panel Split"
+APP_VERSION = "Banjofy 0.5.1A - Analysis Panel Fix"
 
 
 class MainWindow(QMainWindow):
@@ -78,7 +78,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 005.1 ready - analysis display moved into its own module.")
+        self.statusBar().showMessage("Build 005.1A ready - analysis panel startup order fixed.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -159,13 +159,6 @@ class MainWindow(QMainWindow):
         self.analysis_status.setObjectName("HintLabel")
         self.analysis_status.setVisible(False)
 
-        self.analysis_panel = AnalysisPanelController(
-            self.bpm_label,
-            self.key_label,
-            self.analysis_progress,
-            self.analysis_status,
-        )
-
         search_layout.addLayout(workflow_layout)
         top.addWidget(search_panel, 3)
 
@@ -195,6 +188,13 @@ class MainWindow(QMainWindow):
         self.duration_label = QLabel("Duration: —")
         for w in [self.bpm_label, self.key_label, self.duration_label]:
             meta_layout.addWidget(w)
+
+        self.analysis_panel = AnalysisPanelController(
+            self.bpm_label,
+            self.key_label,
+            self.analysis_progress,
+            self.analysis_status,
+        )
 
         top.addWidget(meta_panel, 1)
 
