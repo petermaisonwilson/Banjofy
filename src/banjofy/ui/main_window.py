@@ -16,11 +16,12 @@ from PySide6.QtWidgets import (
 from banjofy.audio.analyser import AnalysisResult, analyse_audio
 from banjofy.banjo.chords import transpose_chord
 from banjofy.player.demo_data import DEMO_SONGS, DemoSong
+from banjofy.player.playback_engine import PlaybackClock
 from banjofy.ui.widgets import BeatCell, ChordPanel
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.4.7F - Timing + Capo Fix"
+APP_VERSION = "Banjofy 0.4.8 - Playback Engine Split"
 
 
 class MainWindow(QMainWindow):
@@ -74,7 +75,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 004.7F ready - stable timing sync, capo fix, and filled extended bars.")
+        self.statusBar().showMessage("Build 004.8 ready - playback timing moved into its own engine module.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -770,16 +771,17 @@ class MainWindow(QMainWindow):
             self.timer.start(self._interval_ms())
             self.statusBar().showMessage("Playing demo timing grid - no downloaded audio selected")
 
+    def _playback_clock(self) -> PlaybackClock:
+        return PlaybackClock(bpm=self._current_bpm(), sync_offset_beats=self.sync_offset_beats)
+
     def _audio_position_for_current_beat(self) -> int:
-        ms_per_beat = int(60000 / self._current_bpm())
-        audio_index = self.position - self.sync_offset_beats
-        return max(0, audio_index * ms_per_beat)
+        return self._playback_clock().audio_position_for_display_beat(self.position)
 
     def _position_from_audio_ms(self, audio_ms: int) -> int:
-        ms_per_beat = int(60000 / self._current_bpm())
-        base_pos = int(audio_ms / max(1, ms_per_beat))
-        display_pos = base_pos + self.sync_offset_beats
-        return max(0, min(display_pos, len(self.song.beat_chords) - 1))
+        return self._playback_clock().display_beat_from_audio_ms(
+            audio_ms,
+            max_position=len(self.song.beat_chords) - 1,
+        )
 
     def _adjust_sync(self, delta: int) -> None:
         self.sync_offset_beats = max(-8, min(8, self.sync_offset_beats + delta))
