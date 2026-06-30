@@ -20,7 +20,7 @@ from banjofy.ui.widgets import BeatCell, ChordPanel
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.4.7E - Layout + Loop Fix"
+APP_VERSION = "Banjofy 0.4.7F - Timing + Capo Fix"
 
 
 class MainWindow(QMainWindow):
@@ -74,7 +74,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 004.7E ready - vertical search workflow, loop fix, and longer grid fallback.")
+        self.statusBar().showMessage("Build 004.7F ready - stable timing sync, capo fix, and filled extended bars.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -223,6 +223,8 @@ class MainWindow(QMainWindow):
         settings_layout.addWidget(QLabel("Capo"))
         self.capo = QSpinBox()
         self.capo.setRange(0, 12)
+        self.capo.setMinimumWidth(78)
+        self.capo.setMinimumHeight(34)
         self.capo.valueChanged.connect(self._update_all)
         settings_layout.addWidget(self.capo)
         settings_layout.addWidget(QLabel("Show"))
@@ -268,7 +270,7 @@ class MainWindow(QMainWindow):
         self.clear_loop_btn.clicked.connect(self._clear_loop)
         for w in [self.loop_status, self.select_start_btn, self.select_end_btn, self.clear_loop_btn]:
             if hasattr(w, "setMaximumWidth"):
-                w.setMaximumWidth(88)
+                w.setMaximumWidth(104)
             loop_layout.addWidget(w)
         controls_layout.addWidget(loop_box, 2)
 
@@ -486,7 +488,7 @@ class MainWindow(QMainWindow):
                     self._build_analysis_grid(result)
                     self.analysis_progress.setValue(100)
                     chord_count = len([c for c in (result.chords_by_bar or []) if c])
-                    beat_sync = f"beat-sync on / offset {self.sync_offset_beats:+d}" if self.beat_times_ms else "average BPM timing"
+                    beat_sync = f"stable timing / sync {self.sync_offset_beats:+d}"
                     summary_bits = []
                     if self.detected_bpm:
                         summary_bits.append(f"{self.detected_bpm} BPM")
@@ -519,10 +521,18 @@ class MainWindow(QMainWindow):
             chords_by_bar = list(result.chords_by_bar[:bars])
             if len(chords_by_bar) < bars:
                 chords_by_bar.extend([""] * (bars - len(chords_by_bar)))
+
+            last_chord = tonic
+            for i, chord in enumerate(chords_by_bar):
+                if chord:
+                    last_chord = chord
+                else:
+                    chords_by_bar[i] = last_chord
+
             if not any(chords_by_bar):
                 chords_by_bar[0] = tonic
         else:
-            chords_by_bar = [tonic] + [""] * (bars - 1)
+            chords_by_bar = [tonic for _ in range(bars)]
 
         self.beat_times_ms = list(result.beat_times_ms or [])
         self.sync_offset_beats = 0
@@ -680,7 +690,7 @@ class MainWindow(QMainWindow):
     def _display_chord(self, chord: str) -> str:
         if not chord:
             return ""
-        return transpose_chord(chord, self.capo.value()) if self.show_mode.currentText() == "Concert Chords" else chord
+        return transpose_chord(chord, self.capo.value()) if self.capo.value() else chord
 
     def _current_raw_chord(self) -> str:
         beats = self.song.beat_chords
@@ -754,39 +764,27 @@ class MainWindow(QMainWindow):
             self.media_player.setPlaybackRate(self.speed.value() / 100)
             self.media_player.setPosition(self._audio_position_for_current_beat())
             self.media_player.play()
-            if self.beat_times_ms:
-                self.timer.start(40)
-                self.statusBar().showMessage(f"Playing with detected beat-sync timing, offset {self.sync_offset_beats:+d}")
-            else:
-                self.timer.start(self._interval_ms())
-                self.statusBar().showMessage(f"Playing downloaded audio with average BPM timing at {self._current_bpm()} BPM")
+            self.timer.start(40)
+            self.statusBar().showMessage(f"Playing with stable BPM audio-clock timing, sync {self.sync_offset_beats:+d}")
         else:
             self.timer.start(self._interval_ms())
             self.statusBar().showMessage("Playing demo timing grid - no downloaded audio selected")
 
     def _audio_position_for_current_beat(self) -> int:
-        if self.beat_times_ms:
-            audio_index = self.position - self.sync_offset_beats
-            audio_index = max(0, min(audio_index, len(self.beat_times_ms) - 1))
-            return self.beat_times_ms[audio_index]
-        return max(0, self.position * int(60000 / self._current_bpm()))
+        ms_per_beat = int(60000 / self._current_bpm())
+        audio_index = self.position - self.sync_offset_beats
+        return max(0, audio_index * ms_per_beat)
 
     def _position_from_audio_ms(self, audio_ms: int) -> int:
-        if not self.beat_times_ms:
-            return self.position
-        pos = self.position - self.sync_offset_beats
-        pos = max(0, min(pos, len(self.beat_times_ms) - 1))
-        while pos + 1 < len(self.beat_times_ms) and self.beat_times_ms[pos + 1] <= audio_ms:
-            pos += 1
-        while pos > 0 and self.beat_times_ms[pos] > audio_ms:
-            pos -= 1
-        display_pos = pos + self.sync_offset_beats
+        ms_per_beat = int(60000 / self._current_bpm())
+        base_pos = int(audio_ms / max(1, ms_per_beat))
+        display_pos = base_pos + self.sync_offset_beats
         return max(0, min(display_pos, len(self.song.beat_chords) - 1))
 
     def _adjust_sync(self, delta: int) -> None:
         self.sync_offset_beats = max(-8, min(8, self.sync_offset_beats + delta))
         self._update_sync_label()
-        if self.beat_times_ms and self.audio_ready and self.is_playing:
+        if self.audio_ready:
             self._sync_position_to_audio()
         self.statusBar().showMessage(
             f"Sync offset {self.sync_offset_beats:+d}. Use + if cursor is behind, - if cursor is ahead."
@@ -795,7 +793,7 @@ class MainWindow(QMainWindow):
     def _reset_sync(self) -> None:
         self.sync_offset_beats = 0
         self._update_sync_label()
-        if self.beat_times_ms and self.audio_ready and self.is_playing:
+        if self.audio_ready:
             self._sync_position_to_audio()
         self.statusBar().showMessage("Sync offset reset to 0")
 
@@ -822,20 +820,21 @@ class MainWindow(QMainWindow):
             self._hide_countdown()
             self._begin_playback_after_count_in()
             return
-        if self.beat_times_ms and self.audio_ready and self.media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+        if self.audio_ready and self.media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
             self._sync_position_to_audio()
             return
         self._advance_one()
 
     def _sync_position_to_audio(self) -> None:
+        new_pos = self._position_from_audio_ms(self.media_player.position())
+
         if self.loop_start is not None and self.loop_end is not None:
-            end_index = self.loop_end - self.sync_offset_beats
-            if 0 <= end_index < len(self.beat_times_ms) and self.media_player.position() >= self.beat_times_ms[end_index]:
+            if new_pos > self.loop_end:
                 self.position = self.loop_start
                 self.media_player.setPosition(self._audio_position_for_current_beat())
                 self._update_all()
                 return
-        new_pos = self._position_from_audio_ms(self.media_player.position())
+
         if new_pos != self.position:
             self.position = new_pos
             self._update_all()
