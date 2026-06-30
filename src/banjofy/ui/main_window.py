@@ -25,7 +25,7 @@ from banjofy.ui.song_info import SongInfoController
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.5.3C - Duration Grid + Beat Chords"
+APP_VERSION = "Banjofy 0.5.3D - Hard Grid Length Fix"
 
 
 class MainWindow(QMainWindow):
@@ -79,7 +79,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 005.3C ready - duration grid, cursor reset, and beat-level chord display.")
+        self.statusBar().showMessage("Build 005.3D ready - grid length now forced from YouTube/media duration.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -505,8 +505,13 @@ class MainWindow(QMainWindow):
         analysis_bars = int(result.estimated_bars or 0)
 
         bars = max(4, duration_bars or 0, analysis_bars or 0)
-        if bars < 20 and duration_bars:
-            bars = duration_bars
+
+        # If we are still stuck at the old 16-bar demo length, force a practical
+        # working grid. This should only happen when YouTube/media duration is
+        # unavailable or malformed.
+        if bars <= 16:
+            bars = max(duration_bars or 0, analysis_bars or 0, 64)
+
         bars = min(320, bars)
 
         tonic = self._tonic_chord(result.key)
@@ -590,31 +595,73 @@ class MainWindow(QMainWindow):
         self._build_grid()
         self._update_loop_status()
         self._update_all()
+        self.statusBar().showMessage(f"Grid generated: {len(self.song.beat_chords) // 4} bars / {len(self.song.beat_chords)} beats")
 
     def _estimated_bars_from_display_duration(self, bpm: float | None) -> int:
-        """Estimate grid bars from the visible duration label.
+        """Estimate grid bars from every duration source we have.
 
-        Accepts formats such as:
-        - Duration: 2:23
-        - 2:23
-        - 00:02:23
+        005.3D fixes the repeated 16-bar problem by not relying on one label
+        format. It checks the displayed duration, the selected YouTube result,
+        and the loaded media duration.
         """
+        def seconds_from_text(value: str | None) -> int:
+            if not value:
+                return 0
+            txt = str(value).replace("Duration:", "").strip()
+            if not txt or txt in {"—", "-", "None", "Unknown"}:
+                return 0
+
+            # Common formats: 2:23, 03:45, 1:02:15
+            token = txt.split()[0]
+            if ":" in token:
+                try:
+                    parts = [int(p) for p in token.split(":") if p != ""]
+                    if len(parts) == 2:
+                        return parts[0] * 60 + parts[1]
+                    if len(parts) == 3:
+                        return parts[0] * 3600 + parts[1] * 60 + parts[2]
+                except Exception:
+                    pass
+
+            # Sometimes yt-dlp/display strings include words.
+            lower = txt.lower().replace(",", " ")
+            try:
+                words = lower.split()
+                minutes = 0
+                seconds = 0
+                for i, word in enumerate(words):
+                    if word.startswith("min") and i > 0:
+                        minutes = int(words[i - 1])
+                    if word.startswith("sec") and i > 0:
+                        seconds = int(words[i - 1])
+                if minutes or seconds:
+                    return minutes * 60 + seconds
+            except Exception:
+                pass
+
+            # Raw seconds as a string.
+            try:
+                return int(float(txt))
+            except Exception:
+                return 0
+
         try:
-            duration_text = self.duration_label.text().replace("Duration:", "").strip()
-            if not duration_text or not bpm:
+            if not bpm:
                 return 0
 
-            # Keep only the first duration-looking token.
-            duration_text = duration_text.split()[0]
-            parts = [p for p in duration_text.split(":") if p != ""]
+            candidates = [
+                seconds_from_text(self.duration_label.text()),
+                seconds_from_text(getattr(self.selected_youtube_result, "duration", "")),
+            ]
 
-            if len(parts) == 2:
-                seconds = int(parts[0]) * 60 + int(parts[1])
-            elif len(parts) == 3:
-                seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
-            else:
-                return 0
+            try:
+                media_ms = int(self.media_player.duration())
+                if media_ms > 0:
+                    candidates.append(int(media_ms / 1000))
+            except Exception:
+                pass
 
+            seconds = max(candidates) if candidates else 0
             if seconds <= 0:
                 return 0
 
