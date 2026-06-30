@@ -21,10 +21,11 @@ from banjofy.ui.widgets import BeatCell, ChordPanel
 from banjofy.ui.chord_grid import ChordGridController
 from banjofy.ui.youtube_panel import make_youtube_result_item, set_thumbnail
 from banjofy.ui.analysis_panel import AnalysisPanelController
+from banjofy.ui.song_info import SongInfoController
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.5.1A - Analysis Panel Fix"
+APP_VERSION = "Banjofy 0.5.2 - Song Progress"
 
 
 class MainWindow(QMainWindow):
@@ -78,7 +79,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 005.1A ready - analysis panel startup order fixed.")
+        self.statusBar().showMessage("Build 005.2 ready - song progress indicator added.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -220,6 +221,12 @@ class MainWindow(QMainWindow):
         self.countdown_label.setObjectName("CountdownLabel")
         self.countdown_label.setVisible(False)
         centre_layout.addWidget(self.countdown_label)
+
+        self.song_progress = QLabel("Bar 1/1   0%")
+        self.song_progress.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.song_progress.setObjectName("HintLabel")
+        centre_layout.addWidget(self.song_progress)
+
         top.addWidget(centre, 3)
 
         settings = self._panel()
@@ -666,6 +673,11 @@ class MainWindow(QMainWindow):
             self.loop_start,
             self.loop_end,
             self._display_chord,
+        )
+        SongInfoController.update_progress(
+            self.song_progress,
+            self.position,
+            len(self.song.beat_chords),
         )
 
     def _current_bpm(self) -> int:
