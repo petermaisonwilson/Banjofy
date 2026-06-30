@@ -25,7 +25,7 @@ from banjofy.ui.song_info import SongInfoController
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.5.3A - Beat Map Stabilised"
+APP_VERSION = "Banjofy 0.5.3B - Full Song Beat Grid"
 
 
 class MainWindow(QMainWindow):
@@ -79,7 +79,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 005.3A ready - beat map stabilised, full grid restored, key analysis safer.")
+        self.statusBar().showMessage("Build 005.3B ready - full-song grid fallback and beat-level chord explanation.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -324,7 +324,7 @@ class MainWindow(QMainWindow):
         grid_panel = self._panel()
         grid_layout = QVBoxLayout(grid_panel)
         grid_layout.setContentsMargins(6, 4, 6, 4)
-        grid_layout.addWidget(QLabel("Grid - current row plus next row should remain visible. Use Sync + / - to correct one-beat offset."))
+        grid_layout.addWidget(QLabel("Grid - beat-level chords can change on any beat. Blank cells mean continue the previous chord."))
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)

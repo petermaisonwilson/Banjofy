@@ -36,18 +36,20 @@ def _convert_to_wav_with_bundled_ffmpeg(source: Path, progress: ProgressCallback
         raise RuntimeError("Bundled ffmpeg executable could not be located")
 
     if progress:
-        progress("converting audio for analysis...", 15)
+        progress("converting full audio for analysis...", 15)
 
     temp_dir = Path(tempfile.gettempdir()) / "Banjofy" / "analysis"
     temp_dir.mkdir(parents=True, exist_ok=True)
     wav_path = temp_dir / f"{source.stem}_analysis.wav"
 
+    # Build 005.3B: remove the short early analysis cut-off. This should stop
+    # the grid from being limited to the first few bars of the song.
     cmd = [
         str(ffmpeg), "-y", "-hide_banner", "-loglevel", "error",
-        "-i", str(source), "-t", "360", "-ac", "1", "-ar", "22050",
+        "-i", str(source), "-ac", "1", "-ar", "22050",
         "-vn", "-f", "wav", str(wav_path),
     ]
-    completed = subprocess.run(cmd, capture_output=True, text=True, timeout=160, check=False)
+    completed = subprocess.run(cmd, capture_output=True, text=True, timeout=220, check=False)
 
     if completed.returncode != 0 or not wav_path.exists() or wav_path.stat().st_size < 1000:
         details = (completed.stderr or completed.stdout or "unknown ffmpeg error").strip()
@@ -110,7 +112,8 @@ def _template_for_chord(root: int, quality: str):
         template[(root + interval) % 12] = 1.0
     template[root % 12] += 0.35
     template[(root + 7) % 12] += 0.15
-    return template / template.sum()
+    total = template.sum()
+    return template / total if total else template
 
 
 def _chord_templates():
@@ -122,7 +125,7 @@ def _chord_templates():
     return templates
 
 
-def _estimate_beat_chords(y, sr: int, beat_times: list[float], max_beats: int = 1400) -> list[str]:
+def _estimate_beat_chords(y, sr: int, beat_times: list[float], max_beats: int = 1800) -> list[str]:
     import numpy as np
     import librosa
 
@@ -159,6 +162,7 @@ def _estimate_beat_chords(y, sr: int, beat_times: list[float], max_beats: int = 
                 best_name = name
         chords.append(best_name)
 
+    # Still reduce clutter: only show a chord when it changes.
     reduced: list[str] = []
     previous = ""
     for chord in chords:
@@ -169,6 +173,14 @@ def _estimate_beat_chords(y, sr: int, beat_times: list[float], max_beats: int = 
             if chord:
                 previous = chord
     return reduced
+
+
+def _fallback_beat_times(duration_seconds: float, bpm: float) -> list[int]:
+    if duration_seconds <= 0 or bpm <= 0:
+        return []
+    ms_per_beat = int(60000 / bpm)
+    total_beats = int((duration_seconds * bpm) / 60)
+    return [i * ms_per_beat for i in range(max(0, total_beats))]
 
 
 def analyse_audio(path: Path, progress: ProgressCallback | None = None) -> AnalysisResult:
@@ -186,14 +198,17 @@ def analyse_audio(path: Path, progress: ProgressCallback | None = None) -> Analy
         raise RuntimeError("Audio analysis package librosa is not installed in this build") from exc
 
     if progress:
-        progress("loading converted audio...", 30)
-    y, sr = librosa.load(str(wav_path), sr=22050, mono=True, duration=360)
+        progress("loading full audio...", 28)
 
+    y, sr = librosa.load(str(wav_path), sr=22050, mono=True)
     if y is None or len(y) < sr:
         raise RuntimeError("Audio was too short for analysis")
 
+    duration_seconds = float(librosa.get_duration(y=y, sr=sr))
+
     if progress:
-        progress("building beat map...", 48)
+        progress("building beat map...", 45)
+
     tempo, beats = librosa.beat.beat_track(y=y, sr=sr, units="time")
 
     try:
@@ -213,35 +228,46 @@ def analyse_audio(path: Path, progress: ProgressCallback | None = None) -> Analy
     beat_times = [float(t) for t in list(beats) if float(t) >= 0]
     beat_times_ms = [int(round(t * 1000)) for t in beat_times]
 
+    fallback_ms = _fallback_beat_times(duration_seconds, bpm)
+    # If beat tracking is clearly short, extend with stable BPM fallback so the
+    # grid covers the full song. This is not perfect timing yet, but it prevents
+    # the 16-bar stop.
+    if len(fallback_ms) > len(beat_times_ms) + 8:
+        beat_times_ms.extend(fallback_ms[len(beat_times_ms):])
+        beat_times.extend([ms / 1000 for ms in fallback_ms[len(beat_times):]])
+
     if progress:
-        progress("detecting key...", 65)
+        progress("detecting key...", 62)
     key, key_confidence = _safe_key(y, sr)
 
     if progress:
-        progress("detecting chords on each beat...", 82)
+        progress("detecting beat-level chords...", 80)
     try:
         chords_by_beat = _estimate_beat_chords(y, sr, beat_times)
     except Exception:
         chords_by_beat = []
 
+    expected_beats = len(beat_times_ms)
     if chords_by_beat:
-        beat_times_ms = beat_times_ms[:len(chords_by_beat)]
-        beat_count = len(chords_by_beat)
+        if len(chords_by_beat) < expected_beats:
+            chords_by_beat.extend([""] * (expected_beats - len(chords_by_beat)))
+        elif len(chords_by_beat) > expected_beats:
+            chords_by_beat = chords_by_beat[:expected_beats]
     else:
-        beat_count = len(beat_times_ms)
+        chords_by_beat = [""] * expected_beats
 
+    beat_count = len(chords_by_beat)
     estimated_bars = max(1, int(math.ceil(beat_count / 4))) if beat_count else 0
 
-    chords_by_bar = []
-    if chords_by_beat:
-        prev = ""
-        for start in range(0, len(chords_by_beat), 4):
-            chord = next((c for c in chords_by_beat[start:start + 4] if c), "")
-            if chord and chord != prev:
-                chords_by_bar.append(chord)
-                prev = chord
-            else:
-                chords_by_bar.append("")
+    chords_by_bar: list[str] = []
+    prev = ""
+    for start in range(0, len(chords_by_beat), 4):
+        chord = next((c for c in chords_by_beat[start:start + 4] if c), "")
+        if chord and chord != prev:
+            chords_by_bar.append(chord)
+            prev = chord
+        else:
+            chords_by_bar.append("")
 
     if progress:
         progress("analysis complete", 100)
@@ -250,13 +276,13 @@ def analyse_audio(path: Path, progress: ProgressCallback | None = None) -> Analy
         bpm=bpm,
         key=key,
         key_confidence=key_confidence,
-        method="005.3A safe beat map + beat-level chords",
+        method="005.3B full-song beat map + beat-level chords",
         confidence=min(1.0, max(0.1, beat_count / 120)) if beat_count else 0.2,
         beat_count=beat_count,
         estimated_bars=estimated_bars,
         time_signature="4/4",
         chords_by_bar=chords_by_bar,
-        beat_times_ms=beat_times_ms,
+        beat_times_ms=beat_times_ms[:beat_count],
         chords_by_beat=chords_by_beat,
     )
 
