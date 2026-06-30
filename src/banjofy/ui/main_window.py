@@ -25,7 +25,7 @@ from banjofy.ui.song_info import SongInfoController
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.5.3B - Full Song Beat Grid"
+APP_VERSION = "Banjofy 0.5.3C - Duration Grid + Beat Chords"
 
 
 class MainWindow(QMainWindow):
@@ -79,7 +79,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 005.3B ready - full-song grid fallback and beat-level chord explanation.")
+        self.statusBar().showMessage("Build 005.3C ready - duration grid, cursor reset, and beat-level chord display.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -324,7 +324,7 @@ class MainWindow(QMainWindow):
         grid_panel = self._panel()
         grid_layout = QVBoxLayout(grid_panel)
         grid_layout.setContentsMargins(6, 4, 6, 4)
-        grid_layout.addWidget(QLabel("Grid - beat-level chords can change on any beat. Blank cells mean continue the previous chord."))
+        grid_layout.addWidget(QLabel("Grid - beat-level chords can now change inside a bar; carried chords are shown on each beat."))
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -345,6 +345,8 @@ class MainWindow(QMainWindow):
             return
         self._stop()
         self._clear_audio_file()
+        self.position = 0
+        self._update_all()
         self.search_button.setEnabled(False)
         self.result_list.clear()
         self.youtube_results = []
@@ -495,50 +497,93 @@ class MainWindow(QMainWindow):
                 return
 
     def _build_analysis_grid(self, result: AnalysisResult) -> None:
-        duration_bars = self._estimated_bars_from_display_duration(result.bpm)
-        bars = max(4, result.estimated_bars or 16, duration_bars or 0)
-        bars = min(260, bars)
+        # Build 005.3C: force grid length from visible song duration as the
+        # source of truth. This prevents the grid being limited by partial beat
+        # detection or old 16-bar demo data.
+        bpm = int(round(result.bpm or self.song.bpm))
+        duration_bars = self._estimated_bars_from_display_duration(bpm)
+        analysis_bars = int(result.estimated_bars or 0)
+
+        bars = max(4, duration_bars or 0, analysis_bars or 0)
+        if bars < 20 and duration_bars:
+            bars = duration_bars
+        bars = min(320, bars)
+
         tonic = self._tonic_chord(result.key)
 
         beat_chords_override = None
+        total_beats = bars * 4
+
         if result.chords_by_beat:
-            beat_chords_override = list(result.chords_by_beat)
-            expected_beats = bars * 4
-            if len(beat_chords_override) < expected_beats:
-                beat_chords_override.extend([""] * (expected_beats - len(beat_chords_override)))
+            beat_chords_override = list(result.chords_by_beat[:total_beats])
+            if len(beat_chords_override) < total_beats:
+                beat_chords_override.extend([""] * (total_beats - len(beat_chords_override)))
+
+            # Make beat-level chords visible. A blank beat means "same as the
+            # previous beat", so we carry it forward. If a chord changes on beat
+            # 2, 3 or 4, that change will now show inside the bar.
+            carried = tonic
+            for i, chord in enumerate(beat_chords_override):
+                if chord:
+                    carried = chord
+                else:
+                    beat_chords_override[i] = carried
 
             chords_by_bar = []
-            for start in range(0, len(beat_chords_override), 4):
+            for start in range(0, total_beats, 4):
                 window = beat_chords_override[start:start + 4]
-                chord = next((c for c in window if c), "")
+                chord = window[0] if window else ""
                 chords_by_bar.append(chord)
         elif result.chords_by_bar:
             chords_by_bar = list(result.chords_by_bar[:bars])
             if len(chords_by_bar) < bars:
                 chords_by_bar.extend([""] * (bars - len(chords_by_bar)))
-            last_chord = tonic
-            for i, chord in enumerate(chords_by_bar):
-                if chord:
-                    last_chord = chord
-                else:
-                    chords_by_bar[i] = last_chord
         else:
-            chords_by_bar = [tonic for _ in range(bars)]
+            chords_by_bar = [""] * bars
+
+        # Fill bar-level summary so the grid can carry on visually even where
+        # beat-level detection has no chord for the later part of the song.
+        last_chord = tonic
+        for i, chord in enumerate(chords_by_bar):
+            if chord:
+                last_chord = chord
+            else:
+                chords_by_bar[i] = last_chord
 
         self.beat_times_ms = list(result.beat_times_ms or [])
         self.sync_offset_beats = 0
         self._update_sync_label()
-        target_beats = len(beat_chords_override) if beat_chords_override is not None else (len(chords_by_bar) * 4)
+
+        # If beat timestamps are short, extend them using BPM so the cursor can
+        # travel through the full generated grid.
         if self.beat_times_ms:
-            self.beat_times_ms = self.beat_times_ms[:target_beats]
+            if len(self.beat_times_ms) < total_beats:
+                ms_per_beat = int(60000 / max(1, bpm))
+                start_ms = self.beat_times_ms[-1] + ms_per_beat if self.beat_times_ms else 0
+                missing = total_beats - len(self.beat_times_ms)
+                self.beat_times_ms.extend([start_ms + (i * ms_per_beat) for i in range(missing)])
+            else:
+                self.beat_times_ms = self.beat_times_ms[:total_beats]
 
         title = self.title_label.text() or "Analysed YouTube Song"
         artist = self.artist_label.text() or "YouTube"
         key = result.key or "Unknown"
-        bpm = int(round(result.bpm or self.song.bpm))
-        self.song = DemoSong(title=title, artist=artist, bpm=bpm, key=key, duration=self.duration_label.text().replace("Duration: ", ""), chords_by_bar=chords_by_bar)
+        self.song = DemoSong(
+            title=title,
+            artist=artist,
+            bpm=bpm,
+            key=key,
+            duration=self.duration_label.text().replace("Duration: ", ""),
+            chords_by_bar=chords_by_bar,
+        )
+
         if beat_chords_override is not None:
-            self.song.beat_chords = beat_chords_override
+            # Keep beat-level chord changes, but make sure there are exactly
+            # enough beat cells for the full duration-derived grid.
+            if len(beat_chords_override) < total_beats:
+                beat_chords_override.extend([""] * (total_beats - len(beat_chords_override)))
+            self.song.beat_chords = beat_chords_override[:total_beats]
+
         self.position = 0
         self.loop_start = None
         self.loop_end = None
@@ -547,20 +592,34 @@ class MainWindow(QMainWindow):
         self._update_all()
 
     def _estimated_bars_from_display_duration(self, bpm: float | None) -> int:
-        """Fallback song length estimate when beat detection stops too early."""
+        """Estimate grid bars from the visible duration label.
+
+        Accepts formats such as:
+        - Duration: 2:23
+        - 2:23
+        - 00:02:23
+        """
         try:
-            duration_text = self.duration_label.text().replace("Duration: ", "").strip()
-            parts = duration_text.split(":")
+            duration_text = self.duration_label.text().replace("Duration:", "").strip()
+            if not duration_text or not bpm:
+                return 0
+
+            # Keep only the first duration-looking token.
+            duration_text = duration_text.split()[0]
+            parts = [p for p in duration_text.split(":") if p != ""]
+
             if len(parts) == 2:
                 seconds = int(parts[0]) * 60 + int(parts[1])
             elif len(parts) == 3:
                 seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
             else:
                 return 0
-            if seconds <= 0 or not bpm:
+
+            if seconds <= 0:
                 return 0
+
             beats = int((seconds * float(bpm)) / 60)
-            return max(0, int(beats / 4) + 2)
+            return max(1, int(beats / 4) + 2)
         except Exception:
             return 0
 
@@ -629,6 +688,8 @@ class MainWindow(QMainWindow):
             self._stop()
             self.selected_youtube_result = result
             self._clear_audio_file()
+            self.position = 0
+            self._update_all()
             self.download_btn.setEnabled(True)
             self.download_progress.setValue(0)
             self.analysis_progress.setValue(0)

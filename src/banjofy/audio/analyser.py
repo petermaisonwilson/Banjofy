@@ -162,17 +162,9 @@ def _estimate_beat_chords(y, sr: int, beat_times: list[float], max_beats: int = 
                 best_name = name
         chords.append(best_name)
 
-    # Still reduce clutter: only show a chord when it changes.
-    reduced: list[str] = []
-    previous = ""
-    for chord in chords:
-        if chord == previous:
-            reduced.append("")
-        else:
-            reduced.append(chord)
-            if chord:
-                previous = chord
-    return reduced
+    # Build 005.3C: return a chord for every beat. The UI can still decide
+    # how much to simplify later, but this proves beat-level changes are present.
+    return chords
 
 
 def _fallback_beat_times(duration_seconds: float, bpm: float) -> list[int]:
@@ -276,7 +268,7 @@ def analyse_audio(path: Path, progress: ProgressCallback | None = None) -> Analy
         bpm=bpm,
         key=key,
         key_confidence=key_confidence,
-        method="005.3B full-song beat map + beat-level chords",
+        method="005.3C full-song beat map + visible beat-level chords",
         confidence=min(1.0, max(0.1, beat_count / 120)) if beat_count else 0.2,
         beat_count=beat_count,
         estimated_bars=estimated_bars,
