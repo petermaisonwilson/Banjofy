@@ -18,10 +18,11 @@ from banjofy.banjo.chords import transpose_chord
 from banjofy.player.demo_data import DEMO_SONGS, DemoSong
 from banjofy.player.playback_engine import PlaybackClock
 from banjofy.ui.widgets import BeatCell, ChordPanel
+from banjofy.ui.chord_grid import ChordGridController
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.4.8 - Playback Engine Split"
+APP_VERSION = "Banjofy 0.4.9 - Chord Grid Split"
 
 
 class MainWindow(QMainWindow):
@@ -75,7 +76,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 004.8 ready - playback timing moved into its own engine module.")
+        self.statusBar().showMessage("Build 004.9 ready - chord grid moved into its own module.")
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
@@ -316,6 +317,7 @@ class MainWindow(QMainWindow):
         self.grid.setSpacing(4)
         self.grid.setContentsMargins(2, 2, 2, 2)
         self.scroll.setWidget(self.grid_host)
+        self.chord_grid = ChordGridController(self.grid, self.scroll, self._cell_clicked)
         grid_layout.addWidget(self.scroll)
         outer.addWidget(grid_panel, 1)
         return root
@@ -659,34 +661,7 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Loaded demo: {DEMO_SONGS[row].title}")
 
     def _build_grid(self) -> None:
-        while self.grid.count():
-            item = self.grid.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-        self.cells = []
-        beats = self.song.beat_chords
-        bars_per_row = 3
-        beats_per_row = bars_per_row * 4
-        for bar_start in range(0, len(beats), beats_per_row):
-            visual_row = (bar_start // beats_per_row) * 2
-            for bar_offset in range(bars_per_row):
-                bar_num = (bar_start // 4) + bar_offset + 1
-                if (bar_num - 1) * 4 >= len(beats):
-                    continue
-                hdr = QLabel(f"Bar {bar_num}")
-                hdr.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                hdr.setObjectName("BarHeader")
-                self.grid.addWidget(hdr, visual_row, bar_offset * 4, 1, 4)
-            for i in range(beats_per_row):
-                idx = bar_start + i
-                if idx >= len(beats):
-                    break
-                cell = BeatCell(idx, self._display_chord(beats[idx]) if beats[idx] else "")
-                cell.clicked.connect(self._cell_clicked)
-                self.cells.append(cell)
-                self.grid.addWidget(cell, visual_row + 1, i)
-        for col in range(beats_per_row):
-            self.grid.setColumnStretch(col, 1)
+        self.cells = self.chord_grid.build(self.song.beat_chords, self._display_chord)
 
     def _display_chord(self, chord: str) -> str:
         if not chord:
@@ -713,31 +688,13 @@ class MainWindow(QMainWindow):
         nxt = self._next_raw_chord()
         self.current_panel.set_chord(self._display_chord(current))
         self.next_panel.set_chord(self._display_chord(nxt) if nxt else "—")
-        for idx, cell in enumerate(self.cells):
-            raw = self.song.beat_chords[idx]
-            cell.set_chord(self._display_chord(raw) if raw else "")
-            cell.set_active(idx == self.position)
-            cell.set_loop(self.loop_start is not None and self.loop_end is not None and self.loop_start <= idx <= self.loop_end)
-        self._scroll_to_position()
-
-    def _scroll_to_position(self) -> None:
-        """Place the active row near the top of the grid viewport.
-
-        This makes the row being played fully visible and leaves room for the
-        next row underneath it.
-        """
-        if not self.cells or self.position >= len(self.cells):
-            return
-
-        beats_per_row = 12
-        current_row_start = (self.position // beats_per_row) * beats_per_row
-        current_cell = self.cells[current_row_start]
-
-        # Use scrollbar positioning rather than ensureWidgetVisible alone,
-        # because ensureWidgetVisible can leave the active row tucked under the
-        # fixed top area on some screen sizes.
-        target_y = max(0, current_cell.y() - 2)
-        self.scroll.verticalScrollBar().setValue(target_y)
+        self.chord_grid.update(
+            self.song.beat_chords,
+            self.position,
+            self.loop_start,
+            self.loop_end,
+            self._display_chord,
+        )
 
     def _current_bpm(self) -> int:
         return self.detected_bpm or self.song.bpm
