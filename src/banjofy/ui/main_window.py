@@ -26,7 +26,7 @@ from banjofy.library import SongLibrary, LibrarySong
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.6.0E - Practice Studio Video Panel"
+APP_VERSION = "Banjofy 0.6.0Ea - Practice Video Panel Fix"
 
 
 class MainWindow(QMainWindow):
@@ -81,7 +81,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 006.0E ready - Practice Studio search area replaced by video panel.")
+        self.statusBar().showMessage("Build 006.0Ea ready - Practice Studio video panel fixed and legacy controls safely hidden.")
 
     def _build_screen_shell(self) -> QWidget:
         """Build 006.0B: Finder becomes the active search/download screen."""
@@ -284,6 +284,82 @@ class MainWindow(QMainWindow):
         top.setSpacing(4)
         outer.addLayout(top, 0)
 
+        search_panel = self._panel()
+        search_layout = QVBoxLayout(search_panel)
+        search_layout.setContentsMargins(6, 4, 6, 4)
+        search_row = QHBoxLayout()
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("Search YouTube, e.g. Country Roads banjo")
+        self.search.returnPressed.connect(self._start_youtube_search)
+        self.search_button = QPushButton("Search")
+        self.search_button.clicked.connect(self._start_youtube_search)
+        search_row.addWidget(self.search)
+        search_row.addWidget(self.search_button)
+        search_layout.addLayout(search_row)
+
+        self.result_list = QListWidget()
+        self.result_list.setMaximumHeight(128)
+        self.result_list.setIconSize(QSize(96, 54))
+        self.result_list.currentRowChanged.connect(self._select_result)
+        for song in DEMO_SONGS:
+            self.result_list.addItem(QListWidgetItem(f"DEMO · {song.title}\n{song.artist} · {song.duration} · {song.bpm} BPM"))
+        search_layout.addWidget(self.result_list)
+
+        workflow_layout = QVBoxLayout()
+        workflow_layout.setSpacing(2)
+
+        self.search_hint = QLabel("Search\nSelect\nDownload\nPlay")
+        self.search_hint.setObjectName("HintLabel")
+        workflow_layout.addWidget(self.search_hint)
+
+        download_row = QHBoxLayout()
+        download_row.setSpacing(6)
+        self.download_btn = QPushButton("Download")
+        self.download_btn.clicked.connect(self._start_audio_download)
+        self.download_btn.setEnabled(False)
+        self.download_btn.setMinimumWidth(92)
+        self.download_btn.setMaximumWidth(120)
+        download_row.addWidget(self.download_btn)
+
+        download_col = QVBoxLayout()
+        download_col.setSpacing(1)
+        download_label = QLabel("Download")
+        download_label.setObjectName("HintLabel")
+        self.download_progress = QProgressBar()
+        self.download_progress.setRange(0, 100)
+        self.download_progress.setTextVisible(True)
+        self.download_progress.setMaximumHeight(18)
+        download_col.addWidget(download_label)
+        download_col.addWidget(self.download_progress)
+        download_row.addLayout(download_col)
+
+        analysis_col = QVBoxLayout()
+        analysis_col.setSpacing(1)
+        analysis_label = QLabel("Audio Analysis")
+        analysis_label.setObjectName("HintLabel")
+        self.analysis_progress = QProgressBar()
+        self.analysis_progress.setRange(0, 100)
+        self.analysis_progress.setTextVisible(True)
+        self.analysis_progress.setMaximumHeight(18)
+        analysis_col.addWidget(analysis_label)
+        analysis_col.addWidget(self.analysis_progress)
+        download_row.addLayout(analysis_col)
+
+        workflow_layout.addLayout(download_row)
+
+        self.download_status = QLabel("")
+        self.download_status.setObjectName("HintLabel")
+        self.download_status.setVisible(False)
+        self.analysis_status = QLabel("")
+        self.analysis_status.setObjectName("HintLabel")
+        self.analysis_status.setVisible(False)
+
+        search_layout.addLayout(workflow_layout)
+        # Keep this legacy Practice search/download panel constructed for code
+        # compatibility, but hide it. Library is now the visible owner of search,
+        # download and analysis controls.
+        search_panel.setVisible(False)
+
         video_panel = self._panel()
         video_layout = QVBoxLayout(video_panel)
         video_layout.setContentsMargins(6, 4, 6, 4)
@@ -295,7 +371,7 @@ class MainWindow(QMainWindow):
         self.practice_video_box = QLabel("Select and analyse a song in Library")
         self.practice_video_box.setObjectName("ThumbnailBox")
         self.practice_video_box.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.practice_video_box.setMinimumSize(300, 170)
+        self.practice_video_box.setMinimumSize(320, 180)
         video_layout.addWidget(self.practice_video_box, 1)
 
         self.practice_video_label = QLabel("Video appears here for the selected song")
@@ -308,11 +384,6 @@ class MainWindow(QMainWindow):
         self.open_video_btn.setEnabled(False)
         self.open_video_btn.setMinimumHeight(34)
         video_layout.addWidget(self.open_video_btn)
-
-        video_note = QLabel("Embedded/synchronised video comes later; this panel reserves the Practice Studio space.")
-        video_note.setWordWrap(True)
-        video_note.setObjectName("HintLabel")
-        video_layout.addWidget(video_note)
 
         top.addWidget(video_panel, 3)
 
