@@ -10,7 +10,7 @@ from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
     QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
     QListWidget, QListWidgetItem, QMainWindow, QPushButton, QProgressBar,
-    QScrollArea, QSlider, QSpinBox, QStatusBar, QVBoxLayout, QWidget,
+    QScrollArea, QSlider, QSpinBox, QStatusBar, QVBoxLayout, QWidget, QTabWidget,
 )
 
 from banjofy.audio.analyser import AnalysisResult, analyse_audio
@@ -25,7 +25,7 @@ from banjofy.ui.song_info import SongInfoController
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.5.3D - Hard Grid Length Fix"
+APP_VERSION = "Banjofy 0.6.0A - Two Screen Layout"
 
 
 class MainWindow(QMainWindow):
@@ -75,17 +75,87 @@ class MainWindow(QMainWindow):
         self.media_player.mediaStatusChanged.connect(self._media_status_changed)
 
         self._apply_style()
-        self.setCentralWidget(self._build_ui())
+        self.setCentralWidget(self._build_screen_shell())
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 005.3D ready - grid length now forced from YouTube/media duration.")
+        self.statusBar().showMessage("Build 006.0A ready - Finder and Practice screens introduced.")
+
+    def _build_screen_shell(self) -> QWidget:
+        """Build 006.0A: split the app into Finder and Practice screens."""
+        self.tabs = QTabWidget()
+        self.tabs.setObjectName("MainTabs")
+        self.tabs.addTab(self._build_finder_screen(), "Find / Analyse Song")
+        self.tabs.addTab(self._build_ui(), "Practice / Playback")
+        return self.tabs
+
+    def _build_finder_screen(self) -> QWidget:
+        finder = QWidget()
+        layout = QVBoxLayout(finder)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(10)
+
+        header = QLabel("Find / Analyse Song")
+        header.setStyleSheet("font-size: 24px; font-weight: bold; color: #f3d99a;")
+        layout.addWidget(header)
+
+        intro = QLabel(
+            "This new screen is the home for YouTube search, download, analysis and the future saved-song library. "
+            "In 006.0A the existing working search controls remain on the Practice screen while we safely introduce the two-screen workflow."
+        )
+        intro.setWordWrap(True)
+        intro.setObjectName("HintLabel")
+        layout.addWidget(intro)
+
+        finder_row = QHBoxLayout()
+        finder_row.setSpacing(10)
+
+        left = self._panel()
+        left_layout = QVBoxLayout(left)
+        left_layout.setContentsMargins(10, 8, 10, 8)
+        left_title = QLabel("Search / Results")
+        left_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #f3d99a;")
+        left_layout.addWidget(left_title)
+        left_layout.addWidget(QLabel("006.0B will move the YouTube search box and large result list here."))
+        left_layout.addWidget(QLabel("006.0C will add saved songs / local library here."))
+        left_layout.addStretch()
+        finder_row.addWidget(left, 2)
+
+        right = self._panel()
+        right_layout = QVBoxLayout(right)
+        right_layout.setContentsMargins(10, 8, 10, 8)
+        right_title = QLabel("Download / Analysis")
+        right_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #f3d99a;")
+        right_layout.addWidget(right_title)
+        right_layout.addWidget(QLabel("006.0B will move download and analysis progress here."))
+        right_layout.addWidget(QLabel("006.1 will connect this screen to the new Engine V2 song model."))
+        right_layout.addStretch()
+        finder_row.addWidget(right, 1)
+
+        layout.addLayout(finder_row, 1)
+
+        go_practice = QPushButton("Go to Practice Screen")
+        go_practice.clicked.connect(lambda: self.tabs.setCurrentIndex(1))
+        go_practice.setMinimumHeight(40)
+        layout.addWidget(go_practice)
+
+        return finder
 
     def _build_ui(self) -> QWidget:
         root = QWidget()
         outer = QVBoxLayout(root)
         outer.setContentsMargins(8, 8, 8, 8)
         outer.setSpacing(4)
+        nav_row = QHBoxLayout()
+        nav_row.setSpacing(6)
+        finder_btn = QPushButton("Find / Analyse")
+        finder_btn.setMaximumWidth(130)
+        finder_btn.clicked.connect(lambda: self.tabs.setCurrentIndex(0))
+        nav_row.addWidget(finder_btn)
+        nav_row.addWidget(QLabel("Practice / Playback"))
+        nav_row.addStretch()
+        outer.addLayout(nav_row, 0)
+
         top = QHBoxLayout()
         top.setSpacing(4)
         outer.addLayout(top, 0)
@@ -324,7 +394,7 @@ class MainWindow(QMainWindow):
         grid_panel = self._panel()
         grid_layout = QVBoxLayout(grid_panel)
         grid_layout.setContentsMargins(6, 4, 6, 4)
-        grid_layout.addWidget(QLabel("Grid - beat-level chords can now change inside a bar; carried chords are shown on each beat."))
+        grid_layout.addWidget(QLabel("Grid - current row plus next row should remain visible. Use Sync + / - to correct one-beat offset."))
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -345,8 +415,6 @@ class MainWindow(QMainWindow):
             return
         self._stop()
         self._clear_audio_file()
-        self.position = 0
-        self._update_all()
         self.search_button.setEnabled(False)
         self.result_list.clear()
         self.youtube_results = []
@@ -497,176 +565,64 @@ class MainWindow(QMainWindow):
                 return
 
     def _build_analysis_grid(self, result: AnalysisResult) -> None:
-        # Build 005.3C: force grid length from visible song duration as the
-        # source of truth. This prevents the grid being limited by partial beat
-        # detection or old 16-bar demo data.
-        bpm = int(round(result.bpm or self.song.bpm))
-        duration_bars = self._estimated_bars_from_display_duration(bpm)
-        analysis_bars = int(result.estimated_bars or 0)
-
-        bars = max(4, duration_bars or 0, analysis_bars or 0)
-
-        # If we are still stuck at the old 16-bar demo length, force a practical
-        # working grid. This should only happen when YouTube/media duration is
-        # unavailable or malformed.
-        if bars <= 16:
-            bars = max(duration_bars or 0, analysis_bars or 0, 64)
-
-        bars = min(320, bars)
-
+        bars = max(4, min(240, result.estimated_bars or 16))
+        duration_bars = self._estimated_bars_from_display_duration(result.bpm)
+        if duration_bars:
+            bars = max(bars, duration_bars)
         tonic = self._tonic_chord(result.key)
-
-        beat_chords_override = None
-        total_beats = bars * 4
-
-        if result.chords_by_beat:
-            beat_chords_override = list(result.chords_by_beat[:total_beats])
-            if len(beat_chords_override) < total_beats:
-                beat_chords_override.extend([""] * (total_beats - len(beat_chords_override)))
-
-            # Make beat-level chords visible. A blank beat means "same as the
-            # previous beat", so we carry it forward. If a chord changes on beat
-            # 2, 3 or 4, that change will now show inside the bar.
-            carried = tonic
-            for i, chord in enumerate(beat_chords_override):
-                if chord:
-                    carried = chord
-                else:
-                    beat_chords_override[i] = carried
-
-            chords_by_bar = []
-            for start in range(0, total_beats, 4):
-                window = beat_chords_override[start:start + 4]
-                chord = window[0] if window else ""
-                chords_by_bar.append(chord)
-        elif result.chords_by_bar:
+        if result.chords_by_bar:
             chords_by_bar = list(result.chords_by_bar[:bars])
             if len(chords_by_bar) < bars:
                 chords_by_bar.extend([""] * (bars - len(chords_by_bar)))
-        else:
-            chords_by_bar = [""] * bars
 
-        # Fill bar-level summary so the grid can carry on visually even where
-        # beat-level detection has no chord for the later part of the song.
-        last_chord = tonic
-        for i, chord in enumerate(chords_by_bar):
-            if chord:
-                last_chord = chord
-            else:
-                chords_by_bar[i] = last_chord
+            last_chord = tonic
+            for i, chord in enumerate(chords_by_bar):
+                if chord:
+                    last_chord = chord
+                else:
+                    chords_by_bar[i] = last_chord
+
+            if not any(chords_by_bar):
+                chords_by_bar[0] = tonic
+        else:
+            chords_by_bar = [tonic for _ in range(bars)]
 
         self.beat_times_ms = list(result.beat_times_ms or [])
         self.sync_offset_beats = 0
         self._update_sync_label()
-
-        # If beat timestamps are short, extend them using BPM so the cursor can
-        # travel through the full generated grid.
+        target_beats = len(chords_by_bar) * 4
         if self.beat_times_ms:
-            if len(self.beat_times_ms) < total_beats:
-                ms_per_beat = int(60000 / max(1, bpm))
-                start_ms = self.beat_times_ms[-1] + ms_per_beat if self.beat_times_ms else 0
-                missing = total_beats - len(self.beat_times_ms)
-                self.beat_times_ms.extend([start_ms + (i * ms_per_beat) for i in range(missing)])
-            else:
-                self.beat_times_ms = self.beat_times_ms[:total_beats]
+            self.beat_times_ms = self.beat_times_ms[:target_beats]
+            if len(self.beat_times_ms) < target_beats:
+                self.beat_times_ms = []
 
         title = self.title_label.text() or "Analysed YouTube Song"
         artist = self.artist_label.text() or "YouTube"
         key = result.key or "Unknown"
-        self.song = DemoSong(
-            title=title,
-            artist=artist,
-            bpm=bpm,
-            key=key,
-            duration=self.duration_label.text().replace("Duration: ", ""),
-            chords_by_bar=chords_by_bar,
-        )
-
-        if beat_chords_override is not None:
-            # Keep beat-level chord changes, but make sure there are exactly
-            # enough beat cells for the full duration-derived grid.
-            if len(beat_chords_override) < total_beats:
-                beat_chords_override.extend([""] * (total_beats - len(beat_chords_override)))
-            self.song.beat_chords = beat_chords_override[:total_beats]
-
+        bpm = int(round(result.bpm or self.song.bpm))
+        self.song = DemoSong(title=title, artist=artist, bpm=bpm, key=key, duration=self.duration_label.text().replace("Duration: ", ""), chords_by_bar=chords_by_bar)
         self.position = 0
         self.loop_start = None
         self.loop_end = None
         self._build_grid()
         self._update_loop_status()
         self._update_all()
-        self.statusBar().showMessage(f"Grid generated: {len(self.song.beat_chords) // 4} bars / {len(self.song.beat_chords)} beats")
 
     def _estimated_bars_from_display_duration(self, bpm: float | None) -> int:
-        """Estimate grid bars from every duration source we have.
-
-        005.3D fixes the repeated 16-bar problem by not relying on one label
-        format. It checks the displayed duration, the selected YouTube result,
-        and the loaded media duration.
-        """
-        def seconds_from_text(value: str | None) -> int:
-            if not value:
-                return 0
-            txt = str(value).replace("Duration:", "").strip()
-            if not txt or txt in {"—", "-", "None", "Unknown"}:
-                return 0
-
-            # Common formats: 2:23, 03:45, 1:02:15
-            token = txt.split()[0]
-            if ":" in token:
-                try:
-                    parts = [int(p) for p in token.split(":") if p != ""]
-                    if len(parts) == 2:
-                        return parts[0] * 60 + parts[1]
-                    if len(parts) == 3:
-                        return parts[0] * 3600 + parts[1] * 60 + parts[2]
-                except Exception:
-                    pass
-
-            # Sometimes yt-dlp/display strings include words.
-            lower = txt.lower().replace(",", " ")
-            try:
-                words = lower.split()
-                minutes = 0
-                seconds = 0
-                for i, word in enumerate(words):
-                    if word.startswith("min") and i > 0:
-                        minutes = int(words[i - 1])
-                    if word.startswith("sec") and i > 0:
-                        seconds = int(words[i - 1])
-                if minutes or seconds:
-                    return minutes * 60 + seconds
-            except Exception:
-                pass
-
-            # Raw seconds as a string.
-            try:
-                return int(float(txt))
-            except Exception:
-                return 0
-
+        """Fallback song length estimate when beat detection stops too early."""
         try:
-            if not bpm:
+            duration_text = self.duration_label.text().replace("Duration: ", "").strip()
+            parts = duration_text.split(":")
+            if len(parts) == 2:
+                seconds = int(parts[0]) * 60 + int(parts[1])
+            elif len(parts) == 3:
+                seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+            else:
                 return 0
-
-            candidates = [
-                seconds_from_text(self.duration_label.text()),
-                seconds_from_text(getattr(self.selected_youtube_result, "duration", "")),
-            ]
-
-            try:
-                media_ms = int(self.media_player.duration())
-                if media_ms > 0:
-                    candidates.append(int(media_ms / 1000))
-            except Exception:
-                pass
-
-            seconds = max(candidates) if candidates else 0
-            if seconds <= 0:
+            if seconds <= 0 or not bpm:
                 return 0
-
             beats = int((seconds * float(bpm)) / 60)
-            return max(1, int(beats / 4) + 2)
+            return max(0, int(beats / 4) + 2)
         except Exception:
             return 0
 
@@ -735,8 +691,6 @@ class MainWindow(QMainWindow):
             self._stop()
             self.selected_youtube_result = result
             self._clear_audio_file()
-            self.position = 0
-            self._update_all()
             self.download_btn.setEnabled(True)
             self.download_progress.setValue(0)
             self.analysis_progress.setValue(0)
@@ -823,7 +777,7 @@ class MainWindow(QMainWindow):
             self.media_player.setPosition(self._audio_position_for_current_beat())
             self.media_player.play()
             self.timer.start(40)
-            self.statusBar().showMessage(f"Playing with beat-map timing where available, sync {self.sync_offset_beats:+d}")
+            self.statusBar().showMessage(f"Playing with stable BPM audio-clock timing, sync {self.sync_offset_beats:+d}")
         else:
             self.timer.start(self._interval_ms())
             self.statusBar().showMessage("Playing demo timing grid - no downloaded audio selected")
@@ -832,26 +786,13 @@ class MainWindow(QMainWindow):
         return PlaybackClock(bpm=self._current_bpm(), sync_offset_beats=self.sync_offset_beats)
 
     def _audio_position_for_current_beat(self) -> int:
-        audio_index = self.position - self.sync_offset_beats
-        if self.beat_times_ms and 0 <= audio_index < len(self.beat_times_ms):
-            return self.beat_times_ms[audio_index]
-        ms_per_beat = int(60000 / self._current_bpm())
-        return max(0, audio_index * ms_per_beat)
+        return self._playback_clock().audio_position_for_display_beat(self.position)
 
     def _position_from_audio_ms(self, audio_ms: int) -> int:
-        if self.beat_times_ms:
-            idx = 0
-            for i, beat_ms in enumerate(self.beat_times_ms):
-                if beat_ms <= audio_ms:
-                    idx = i
-                else:
-                    break
-            display_pos = idx + self.sync_offset_beats
-            return max(0, min(display_pos, len(self.song.beat_chords) - 1))
-        ms_per_beat = int(60000 / self._current_bpm())
-        base_pos = int(audio_ms / max(1, ms_per_beat))
-        display_pos = base_pos + self.sync_offset_beats
-        return max(0, min(display_pos, len(self.song.beat_chords) - 1))
+        return self._playback_clock().display_beat_from_audio_ms(
+            audio_ms,
+            max_position=len(self.song.beat_chords) - 1,
+        )
 
     def _adjust_sync(self, delta: int) -> None:
         self.sync_offset_beats = max(-8, min(8, self.sync_offset_beats + delta))
@@ -1035,5 +976,8 @@ class MainWindow(QMainWindow):
             QPushButton { background: #2f2f2f; color: #f3e6cc; border: 1px solid #444444; border-radius: 6px; padding: 6px 7px; min-width: 48px; }
             QPushButton:hover { background: #3b3b3b; }
             QPushButton:disabled { color: #777777; }
+            QTabWidget::pane { border: 1px solid #333333; border-radius: 8px; }
+            QTabBar::tab { background: #252525; color: #f3e6cc; padding: 8px 14px; border: 1px solid #444444; border-top-left-radius: 6px; border-top-right-radius: 6px; }
+            QTabBar::tab:selected { background: #4b3920; color: #ffffff; }
             QScrollArea { border: none; }
         """)
