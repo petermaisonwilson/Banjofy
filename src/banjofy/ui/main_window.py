@@ -5,7 +5,7 @@ import threading
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, QSize, QUrl
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtGui import QIcon, QPixmap, QDesktopServices
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
     QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
@@ -26,7 +26,7 @@ from banjofy.library import SongLibrary, LibrarySong
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.6.0D - Saved Song Library Foundation"
+APP_VERSION = "Banjofy 0.6.0E - Practice Studio Video Panel"
 
 
 class MainWindow(QMainWindow):
@@ -81,7 +81,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 006.0D ready - local saved song library foundation added.")
+        self.statusBar().showMessage("Build 006.0E ready - Practice Studio search area replaced by video panel.")
 
     def _build_screen_shell(self) -> QWidget:
         """Build 006.0B: Finder becomes the active search/download screen."""
@@ -284,78 +284,37 @@ class MainWindow(QMainWindow):
         top.setSpacing(4)
         outer.addLayout(top, 0)
 
-        search_panel = self._panel()
-        search_layout = QVBoxLayout(search_panel)
-        search_layout.setContentsMargins(6, 4, 6, 4)
-        search_row = QHBoxLayout()
-        self.search = QLineEdit()
-        self.search.setPlaceholderText("Search YouTube, e.g. Country Roads banjo")
-        self.search.returnPressed.connect(self._start_youtube_search)
-        self.search_button = QPushButton("Search")
-        self.search_button.clicked.connect(self._start_youtube_search)
-        search_row.addWidget(self.search)
-        search_row.addWidget(self.search_button)
-        search_layout.addLayout(search_row)
+        video_panel = self._panel()
+        video_layout = QVBoxLayout(video_panel)
+        video_layout.setContentsMargins(6, 4, 6, 4)
 
-        self.result_list = QListWidget()
-        self.result_list.setMaximumHeight(128)
-        self.result_list.setIconSize(QSize(96, 54))
-        self.result_list.currentRowChanged.connect(self._select_result)
-        for song in DEMO_SONGS:
-            self.result_list.addItem(QListWidgetItem(f"DEMO · {song.title}\n{song.artist} · {song.duration} · {song.bpm} BPM"))
-        search_layout.addWidget(self.result_list)
+        video_title = QLabel("YouTube Video")
+        video_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #f3d99a;")
+        video_layout.addWidget(video_title)
 
-        workflow_layout = QVBoxLayout()
-        workflow_layout.setSpacing(2)
+        self.practice_video_box = QLabel("Select and analyse a song in Library")
+        self.practice_video_box.setObjectName("ThumbnailBox")
+        self.practice_video_box.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.practice_video_box.setMinimumSize(300, 170)
+        video_layout.addWidget(self.practice_video_box, 1)
 
-        self.search_hint = QLabel("Search\nSelect\nDownload\nPlay")
-        self.search_hint.setObjectName("HintLabel")
-        workflow_layout.addWidget(self.search_hint)
+        self.practice_video_label = QLabel("Video appears here for the selected song")
+        self.practice_video_label.setWordWrap(True)
+        self.practice_video_label.setObjectName("HintLabel")
+        video_layout.addWidget(self.practice_video_label)
 
-        download_row = QHBoxLayout()
-        download_row.setSpacing(6)
-        self.download_btn = QPushButton("Download")
-        self.download_btn.clicked.connect(self._start_audio_download)
-        self.download_btn.setEnabled(False)
-        self.download_btn.setMinimumWidth(92)
-        self.download_btn.setMaximumWidth(120)
-        download_row.addWidget(self.download_btn)
+        self.open_video_btn = QPushButton("Open YouTube Video")
+        self.open_video_btn.clicked.connect(self._open_selected_youtube_video)
+        self.open_video_btn.setEnabled(False)
+        self.open_video_btn.setMinimumHeight(34)
+        video_layout.addWidget(self.open_video_btn)
 
-        download_col = QVBoxLayout()
-        download_col.setSpacing(1)
-        download_label = QLabel("Download")
-        download_label.setObjectName("HintLabel")
-        self.download_progress = QProgressBar()
-        self.download_progress.setRange(0, 100)
-        self.download_progress.setTextVisible(True)
-        self.download_progress.setMaximumHeight(18)
-        download_col.addWidget(download_label)
-        download_col.addWidget(self.download_progress)
-        download_row.addLayout(download_col)
+        video_note = QLabel("Embedded/synchronised video comes later; this panel reserves the Practice Studio space.")
+        video_note.setWordWrap(True)
+        video_note.setObjectName("HintLabel")
+        video_layout.addWidget(video_note)
 
-        analysis_col = QVBoxLayout()
-        analysis_col.setSpacing(1)
-        analysis_label = QLabel("Audio Analysis")
-        analysis_label.setObjectName("HintLabel")
-        self.analysis_progress = QProgressBar()
-        self.analysis_progress.setRange(0, 100)
-        self.analysis_progress.setTextVisible(True)
-        self.analysis_progress.setMaximumHeight(18)
-        analysis_col.addWidget(analysis_label)
-        analysis_col.addWidget(self.analysis_progress)
-        download_row.addLayout(analysis_col)
-
-        workflow_layout.addLayout(download_row)
-
-        self.download_status = QLabel("")
-        self.download_status.setObjectName("HintLabel")
-        self.download_status.setVisible(False)
-        self.analysis_status = QLabel("")
-        self.analysis_status.setObjectName("HintLabel")
-        self.analysis_status.setVisible(False)
-
-        search_layout.addLayout(workflow_layout)
-        top.addWidget(search_panel, 3)
+        top.addWidget(video_panel, 3)
 
         meta_panel = self._panel()
         meta_layout = QVBoxLayout(meta_panel)
@@ -531,6 +490,41 @@ class MainWindow(QMainWindow):
         grid_layout.addWidget(self.scroll)
         outer.addWidget(grid_panel, 1)
         return root
+
+    def _update_practice_video_panel(self) -> None:
+        if not hasattr(self, "practice_video_box"):
+            return
+
+        result = self.selected_youtube_result
+        if result and getattr(result, "thumbnail_data", None):
+            pix = QPixmap()
+            if pix.loadFromData(result.thumbnail_data):
+                self.practice_video_box.setPixmap(
+                    pix.scaled(
+                        self.practice_video_box.width(),
+                        self.practice_video_box.height(),
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
+                )
+                self.practice_video_box.setText("")
+            else:
+                self.practice_video_box.setPixmap(QPixmap())
+                self.practice_video_box.setText("Video thumbnail unavailable")
+        else:
+            self.practice_video_box.setPixmap(QPixmap())
+            self.practice_video_box.setText("No video selected")
+
+        title = self.title_label.text().strip() if hasattr(self, "title_label") else ""
+        self.practice_video_label.setText(title or "Video appears here for the selected song")
+        self.open_video_btn.setEnabled(bool(result and getattr(result, "url", "")))
+
+    def _open_selected_youtube_video(self) -> None:
+        result = self.selected_youtube_result
+        if result and getattr(result, "url", ""):
+            QDesktopServices.openUrl(QUrl(result.url))
+        else:
+            self.statusBar().showMessage("No YouTube video selected")
 
     def _refresh_library_list(self) -> None:
         if not hasattr(self, "library_list"):
@@ -771,6 +765,8 @@ class MainWindow(QMainWindow):
         self._build_grid()
         self._update_loop_status()
         self._update_all()
+        self._update_practice_video_panel()
+        self._update_practice_video_panel()
 
     def _estimated_bars_from_display_duration(self, bpm: float | None) -> int:
         """Fallback song length estimate when beat detection stops too early."""
@@ -867,6 +863,7 @@ class MainWindow(QMainWindow):
             self.duration_label.setText(f"Duration: {result.duration}")
             self.bpm_label.setText(f"BPM: {self.song.bpm} (demo until analysed)")
             self.key_label.setText("Key: waiting for analysis")
+            self._update_practice_video_panel()
             self.statusBar().showMessage("YouTube result selected. Click Download Audio.")
             return
         if 0 <= row < len(DEMO_SONGS):
