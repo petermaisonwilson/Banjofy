@@ -22,10 +22,11 @@ from banjofy.ui.chord_grid import ChordGridController
 from banjofy.ui.youtube_panel import make_youtube_result_item, set_thumbnail
 from banjofy.ui.analysis_panel import AnalysisPanelController
 from banjofy.ui.song_info import SongInfoController
+from banjofy.library import SongLibrary, LibrarySong
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.6.0C - Library + Practice Studio"
+APP_VERSION = "Banjofy 0.6.0D - Saved Song Library Foundation"
 
 
 class MainWindow(QMainWindow):
@@ -48,6 +49,7 @@ class MainWindow(QMainWindow):
         self.selected_youtube_result: YouTubeResult | None = None
         self.downloaded_audio_path: Path | None = None
         self.audio_ready = False
+        self.library = SongLibrary()
         self.detected_bpm: int | None = None
         self.detected_key: str | None = None
         self.detected_key_confidence = 0.0
@@ -79,7 +81,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 006.0C ready - Library and Practice Studio naming plus YouTube reliability guidance.")
+        self.statusBar().showMessage("Build 006.0D ready - local saved song library foundation added.")
 
     def _build_screen_shell(self) -> QWidget:
         """Build 006.0B: Finder becomes the active search/download screen."""
@@ -148,9 +150,20 @@ class MainWindow(QMainWindow):
         self.result_list.currentRowChanged.connect(self._select_result)
         left_layout.addWidget(self.result_list, 1)
 
-        library_note = QLabel("Saved Song Library will appear here in the next engine stage.")
-        library_note.setObjectName("HintLabel")
-        left_layout.addWidget(library_note)
+        library_title = QLabel("Saved Song Library")
+        library_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #f3d99a;")
+        left_layout.addWidget(library_title)
+
+        self.library_list = QListWidget()
+        self.library_list.setMaximumHeight(150)
+        left_layout.addWidget(self.library_list)
+
+        library_buttons = QHBoxLayout()
+        self.refresh_library_btn = QPushButton("Refresh Library")
+        self.refresh_library_btn.clicked.connect(self._refresh_library_list)
+        library_buttons.addWidget(self.refresh_library_btn)
+        library_buttons.addStretch()
+        left_layout.addLayout(library_buttons)
 
         main_row.addWidget(left, 3)
 
@@ -236,6 +249,11 @@ class MainWindow(QMainWindow):
 
         right_layout.addStretch()
 
+        self.save_library_btn = QPushButton("Save to Library")
+        self.save_library_btn.clicked.connect(self._save_current_song_to_library)
+        self.save_library_btn.setMinimumHeight(36)
+        right_layout.addWidget(self.save_library_btn)
+
         send_practice = QPushButton("Send to Practice Studio")
         send_practice.clicked.connect(lambda: self.tabs.setCurrentIndex(1))
         send_practice.setMinimumHeight(40)
@@ -244,6 +262,7 @@ class MainWindow(QMainWindow):
         main_row.addWidget(right, 1)
 
         layout.addLayout(main_row, 1)
+        self._refresh_library_list()
         return finder
 
     def _build_ui(self) -> QWidget:
@@ -513,6 +532,37 @@ class MainWindow(QMainWindow):
         outer.addWidget(grid_panel, 1)
         return root
 
+    def _refresh_library_list(self) -> None:
+        if not hasattr(self, "library_list"):
+            return
+        self.library_list.clear()
+        songs = self.library.load()
+        if not songs:
+            self.library_list.addItem(QListWidgetItem("No saved songs yet"))
+            return
+        for song in songs:
+            self.library_list.addItem(QListWidgetItem(f"{song.title}\n{song.artist} · {song.duration} · {song.bpm} · {song.key}"))
+
+    def _save_current_song_to_library(self) -> None:
+        title = self.title_label.text().strip() if hasattr(self, "title_label") else ""
+        artist = self.artist_label.text().strip() if hasattr(self, "artist_label") else ""
+        duration = self.duration_label.text().replace("Duration:", "").strip() if hasattr(self, "duration_label") else ""
+        if not title or title in {"—", "No song selected"}:
+            self.statusBar().showMessage("No song selected to save")
+            return
+
+        self.library.save_song(
+            LibrarySong(
+                title=title,
+                artist=artist or "Unknown artist",
+                duration=duration or "Unknown duration",
+                bpm=self.bpm_label.text().replace("BPM:", "").strip() if hasattr(self, "bpm_label") else "",
+                key=self.key_label.text().replace("Key:", "").strip() if hasattr(self, "key_label") else "",
+            )
+        )
+        self._refresh_library_list()
+        self.statusBar().showMessage(f"Saved to Library: {title}")
+
     def _start_youtube_search(self) -> None:
         query = self.search.text().strip()
         if not query:
@@ -666,6 +716,7 @@ class MainWindow(QMainWindow):
                     self.detected_bpm, self.detected_key, self.detected_key_confidence, summary = self.analysis_panel.apply_result(result)
                     self._build_analysis_grid(result)
                     self.statusBar().showMessage(f"Analysis complete: {summary}")
+                    self._save_current_song_to_library()
                     if hasattr(self, "tabs"):
                         self.tabs.setCurrentIndex(1)
                     if self.timer.isActive():
