@@ -25,7 +25,7 @@ from banjofy.ui.song_info import SongInfoController
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.6.0B - Functional Finder Screen"
+APP_VERSION = "Banjofy 0.6.0C - Library + Practice Studio"
 
 
 class MainWindow(QMainWindow):
@@ -79,7 +79,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 006.0B ready - Finder screen now handles search, results, download and analysis.")
+        self.statusBar().showMessage("Build 006.0C ready - Library and Practice Studio naming plus YouTube reliability guidance.")
 
     def _build_screen_shell(self) -> QWidget:
         """Build 006.0B: Finder becomes the active search/download screen."""
@@ -92,8 +92,8 @@ class MainWindow(QMainWindow):
         practice = self._build_ui()
         finder = self._build_finder_screen()
 
-        self.tabs.addTab(finder, "Find / Analyse Song")
-        self.tabs.addTab(practice, "Practice / Playback")
+        self.tabs.addTab(finder, "Library")
+        self.tabs.addTab(practice, "Practice Studio")
         self.tabs.setCurrentIndex(0)
         return self.tabs
 
@@ -104,17 +104,17 @@ class MainWindow(QMainWindow):
         layout.setSpacing(10)
 
         header_row = QHBoxLayout()
-        header = QLabel("Find / Analyse Song")
+        header = QLabel("Library")
         header.setStyleSheet("font-size: 24px; font-weight: bold; color: #f3d99a;")
         header_row.addWidget(header)
         header_row.addStretch()
-        practice_btn = QPushButton("Go to Practice / Playback")
+        practice_btn = QPushButton("Go to Practice Studio")
         practice_btn.clicked.connect(lambda: self.tabs.setCurrentIndex(1))
         practice_btn.setMinimumHeight(36)
         header_row.addWidget(practice_btn)
         layout.addLayout(header_row)
 
-        intro = QLabel("Search YouTube, select a result, download/analyse it, then switch to Practice.")
+        intro = QLabel("Search YouTube, analyse songs, and later reopen saved songs from your personal library.")
         intro.setWordWrap(True)
         intro.setObjectName("HintLabel")
         layout.addWidget(intro)
@@ -148,6 +148,10 @@ class MainWindow(QMainWindow):
         self.result_list.currentRowChanged.connect(self._select_result)
         left_layout.addWidget(self.result_list, 1)
 
+        library_note = QLabel("Saved Song Library will appear here in the next engine stage.")
+        library_note.setObjectName("HintLabel")
+        left_layout.addWidget(library_note)
+
         main_row.addWidget(left, 3)
 
         # Right: selected song, download and analysis progress.
@@ -159,6 +163,11 @@ class MainWindow(QMainWindow):
         selected_title = QLabel("Selected Song / Analysis")
         selected_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #f3d99a;")
         right_layout.addWidget(selected_title)
+
+        youtube_note = QLabel("YouTube reliability: if a download is blocked, sign into YouTube once in your normal browser, then try again.")
+        youtube_note.setWordWrap(True)
+        youtube_note.setObjectName("HintLabel")
+        right_layout.addWidget(youtube_note)
 
         self.thumbnail_label = QLabel("No image")
         self.thumbnail_label.setObjectName("ThumbnailBox")
@@ -227,7 +236,7 @@ class MainWindow(QMainWindow):
 
         right_layout.addStretch()
 
-        send_practice = QPushButton("Send / Return to Practice")
+        send_practice = QPushButton("Send to Practice Studio")
         send_practice.clicked.connect(lambda: self.tabs.setCurrentIndex(1))
         send_practice.setMinimumHeight(40)
         right_layout.addWidget(send_practice)
@@ -248,7 +257,7 @@ class MainWindow(QMainWindow):
         finder_btn.setMaximumWidth(130)
         finder_btn.clicked.connect(lambda: self.tabs.setCurrentIndex(0))
         nav_row.addWidget(finder_btn)
-        nav_row.addWidget(QLabel("Practice / Playback"))
+        nav_row.addWidget(QLabel("Practice Studio"))
         nav_row.addStretch()
         outer.addLayout(nav_row, 0)
 
@@ -615,8 +624,14 @@ class MainWindow(QMainWindow):
                 self.download_poll_timer.stop()
                 self.search_button.setEnabled(True)
                 self.download_btn.setEnabled(True)
-                self.download_status.setText(f"Audio error: {payload}")
-                self.statusBar().showMessage(f"Audio download error: {payload}")
+                error_text = str(payload)
+                if "Sign in to confirm" in error_text or "cookies" in error_text.lower() or "not a bot" in error_text:
+                    friendly = "Audio error: YouTube needs browser sign-in. Open YouTube in Edge/Chrome, sign in once, then try again."
+                    self.download_status.setText(friendly)
+                    self.statusBar().showMessage(friendly)
+                else:
+                    self.download_status.setText(f"Audio error: {payload}")
+                    self.statusBar().showMessage(f"Audio download error: {payload}")
                 return
 
     def _start_audio_analysis(self, path: Path) -> None:
