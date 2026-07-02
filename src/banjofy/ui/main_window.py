@@ -25,7 +25,7 @@ from banjofy.ui.song_info import SongInfoController
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.6.0A - Two Screen Layout"
+APP_VERSION = "Banjofy 0.6.0B - Functional Finder Screen"
 
 
 class MainWindow(QMainWindow):
@@ -79,14 +79,22 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 006.0A ready - Finder and Practice screens introduced.")
+        self.statusBar().showMessage("Build 006.0B ready - Finder screen now handles search, results, download and analysis.")
 
     def _build_screen_shell(self) -> QWidget:
-        """Build 006.0A: split the app into Finder and Practice screens."""
+        """Build 006.0B: Finder becomes the active search/download screen."""
         self.tabs = QTabWidget()
         self.tabs.setObjectName("MainTabs")
-        self.tabs.addTab(self._build_finder_screen(), "Find / Analyse Song")
-        self.tabs.addTab(self._build_ui(), "Practice / Playback")
+
+        # Build Practice first because it creates all the existing playback UI.
+        # Then build Finder second so Finder's search/result/download widgets
+        # become the active widgets used by the existing callbacks.
+        practice = self._build_ui()
+        finder = self._build_finder_screen()
+
+        self.tabs.addTab(finder, "Find / Analyse Song")
+        self.tabs.addTab(practice, "Practice / Playback")
+        self.tabs.setCurrentIndex(0)
         return self.tabs
 
     def _build_finder_screen(self) -> QWidget:
@@ -95,50 +103,138 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(10)
 
+        header_row = QHBoxLayout()
         header = QLabel("Find / Analyse Song")
         header.setStyleSheet("font-size: 24px; font-weight: bold; color: #f3d99a;")
-        layout.addWidget(header)
+        header_row.addWidget(header)
+        header_row.addStretch()
+        practice_btn = QPushButton("Go to Practice / Playback")
+        practice_btn.clicked.connect(lambda: self.tabs.setCurrentIndex(1))
+        practice_btn.setMinimumHeight(36)
+        header_row.addWidget(practice_btn)
+        layout.addLayout(header_row)
 
-        intro = QLabel(
-            "This new screen is the home for YouTube search, download, analysis and the future saved-song library. "
-            "In 006.0A the existing working search controls remain on the Practice screen while we safely introduce the two-screen workflow."
-        )
+        intro = QLabel("Search YouTube, select a result, download/analyse it, then switch to Practice.")
         intro.setWordWrap(True)
         intro.setObjectName("HintLabel")
         layout.addWidget(intro)
 
-        finder_row = QHBoxLayout()
-        finder_row.setSpacing(10)
+        main_row = QHBoxLayout()
+        main_row.setSpacing(10)
 
+        # Left: larger YouTube search and result list.
         left = self._panel()
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(10, 8, 10, 8)
-        left_title = QLabel("Search / Results")
-        left_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #f3d99a;")
-        left_layout.addWidget(left_title)
-        left_layout.addWidget(QLabel("006.0B will move the YouTube search box and large result list here."))
-        left_layout.addWidget(QLabel("006.0C will add saved songs / local library here."))
-        left_layout.addStretch()
-        finder_row.addWidget(left, 2)
+        left_layout.setSpacing(8)
 
+        search_title = QLabel("YouTube Search")
+        search_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #f3d99a;")
+        left_layout.addWidget(search_title)
+
+        search_row = QHBoxLayout()
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("Search YouTube, e.g. Wagon Wheel banjo")
+        self.search.returnPressed.connect(self._start_youtube_search)
+        self.search_button = QPushButton("Search")
+        self.search_button.clicked.connect(self._start_youtube_search)
+        self.search_button.setMinimumWidth(100)
+        search_row.addWidget(self.search, 1)
+        search_row.addWidget(self.search_button)
+        left_layout.addLayout(search_row)
+
+        self.result_list = QListWidget()
+        self.result_list.setIconSize(QSize(128, 72))
+        self.result_list.currentRowChanged.connect(self._select_result)
+        left_layout.addWidget(self.result_list, 1)
+
+        main_row.addWidget(left, 3)
+
+        # Right: selected song, download and analysis progress.
         right = self._panel()
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(10, 8, 10, 8)
-        right_title = QLabel("Download / Analysis")
-        right_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #f3d99a;")
-        right_layout.addWidget(right_title)
-        right_layout.addWidget(QLabel("006.0B will move download and analysis progress here."))
-        right_layout.addWidget(QLabel("006.1 will connect this screen to the new Engine V2 song model."))
+        right_layout.setSpacing(8)
+
+        selected_title = QLabel("Selected Song / Analysis")
+        selected_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #f3d99a;")
+        right_layout.addWidget(selected_title)
+
+        self.thumbnail_label = QLabel("No image")
+        self.thumbnail_label.setObjectName("ThumbnailBox")
+        self.thumbnail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.thumbnail_label.setFixedSize(192, 108)
+        right_layout.addWidget(self.thumbnail_label, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        self.title_label = QLabel("No song selected")
+        self.title_label.setWordWrap(True)
+        self.title_label.setStyleSheet("font-size: 15px; font-weight: bold; color: #f3d99a;")
+        right_layout.addWidget(self.title_label)
+
+        self.artist_label = QLabel("")
+        self.artist_label.setWordWrap(True)
+        self.artist_label.setObjectName("HintLabel")
+        right_layout.addWidget(self.artist_label)
+
+        self.source_label = QLabel("")
+        self.source_label.setVisible(False)
+
+        self.bpm_label = QLabel("BPM: —")
+        self.key_label = QLabel("Key: —")
+        self.duration_label = QLabel("Duration: —")
+        right_layout.addWidget(self.bpm_label)
+        right_layout.addWidget(self.key_label)
+        right_layout.addWidget(self.duration_label)
+
+        self.download_btn = QPushButton("Download Audio")
+        self.download_btn.clicked.connect(self._start_audio_download)
+        self.download_btn.setEnabled(False)
+        self.download_btn.setMinimumHeight(38)
+        right_layout.addWidget(self.download_btn)
+
+        dl_label = QLabel("Download")
+        dl_label.setObjectName("HintLabel")
+        right_layout.addWidget(dl_label)
+        self.download_progress = QProgressBar()
+        self.download_progress.setRange(0, 100)
+        self.download_progress.setTextVisible(True)
+        right_layout.addWidget(self.download_progress)
+
+        an_label = QLabel("Audio Analysis")
+        an_label.setObjectName("HintLabel")
+        right_layout.addWidget(an_label)
+        self.analysis_progress = QProgressBar()
+        self.analysis_progress.setRange(0, 100)
+        self.analysis_progress.setTextVisible(True)
+        right_layout.addWidget(self.analysis_progress)
+
+        self.download_status = QLabel("Audio: not downloaded")
+        self.download_status.setWordWrap(True)
+        self.download_status.setObjectName("HintLabel")
+        right_layout.addWidget(self.download_status)
+
+        self.analysis_status = QLabel("Analysis: waiting")
+        self.analysis_status.setWordWrap(True)
+        self.analysis_status.setObjectName("HintLabel")
+        right_layout.addWidget(self.analysis_status)
+
+        self.analysis_panel = AnalysisPanelController(
+            self.bpm_label,
+            self.key_label,
+            self.analysis_progress,
+            self.analysis_status,
+        )
+
         right_layout.addStretch()
-        finder_row.addWidget(right, 1)
 
-        layout.addLayout(finder_row, 1)
+        send_practice = QPushButton("Send / Return to Practice")
+        send_practice.clicked.connect(lambda: self.tabs.setCurrentIndex(1))
+        send_practice.setMinimumHeight(40)
+        right_layout.addWidget(send_practice)
 
-        go_practice = QPushButton("Go to Practice Screen")
-        go_practice.clicked.connect(lambda: self.tabs.setCurrentIndex(1))
-        go_practice.setMinimumHeight(40)
-        layout.addWidget(go_practice)
+        main_row.addWidget(right, 1)
 
+        layout.addLayout(main_row, 1)
         return finder
 
     def _build_ui(self) -> QWidget:
@@ -555,6 +651,8 @@ class MainWindow(QMainWindow):
                     self.detected_bpm, self.detected_key, self.detected_key_confidence, summary = self.analysis_panel.apply_result(result)
                     self._build_analysis_grid(result)
                     self.statusBar().showMessage(f"Analysis complete: {summary}")
+                    if hasattr(self, "tabs"):
+                        self.tabs.setCurrentIndex(1)
                     if self.timer.isActive():
                         self.timer.start(self._interval_ms())
                 return
