@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 import json
 
@@ -16,12 +16,6 @@ class LibrarySong:
 
 
 class SongLibrary:
-    """Tiny local library index.
-
-    Build 006.0D creates the first real saved-song library foundation.
-    It stores lightweight metadata only. Audio caching already happens elsewhere.
-    """
-
     def __init__(self) -> None:
         self.folder = Path.home() / "Banjofy"
         self.folder.mkdir(parents=True, exist_ok=True)
@@ -38,14 +32,7 @@ class SongLibrary:
 
     def save_song(self, song: LibrarySong) -> None:
         songs = self.load()
-        key = (song.title.strip().lower(), song.artist.strip().lower(), song.duration.strip().lower())
-        songs = [
-            existing for existing in songs
-            if (existing.title.strip().lower(), existing.artist.strip().lower(), existing.duration.strip().lower()) != key
-        ]
+        key = (song.title.lower(), song.artist.lower(), song.duration.lower())
+        songs = [s for s in songs if (s.title.lower(), s.artist.lower(), s.duration.lower()) != key]
         songs.insert(0, song)
-        songs = songs[:100]
-        self.index_file.write_text(
-            json.dumps([asdict(s) for s in songs], indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        self.index_file.write_text(json.dumps([asdict(s) for s in songs[:100]], indent=2), encoding="utf-8")

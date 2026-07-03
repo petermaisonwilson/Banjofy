@@ -23,12 +23,10 @@ from banjofy.ui.youtube_panel import make_youtube_result_item, set_thumbnail
 from banjofy.ui.analysis_panel import AnalysisPanelController
 from banjofy.ui.song_info import SongInfoController
 from banjofy.library import SongLibrary, LibrarySong
-from banjofy.models import Song, SongMetadata, BeatMap
-from banjofy.engine import song_model_from_demo_song, song_model_from_analysis
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.6.2 - Engine V2 Integration"
+APP_VERSION = "Banjofy 0.6.1 Foundation - Stable Baseline"
 
 
 class MainWindow(QMainWindow):
@@ -52,7 +50,6 @@ class MainWindow(QMainWindow):
         self.downloaded_audio_path: Path | None = None
         self.audio_ready = False
         self.library = SongLibrary()
-        self.current_song_v2: Song | None = None
         self.detected_bpm: int | None = None
         self.detected_key: str | None = None
         self.detected_key_confidence = 0.0
@@ -84,7 +81,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 006.2 ready - Engine V2 models now mirror the active song.")
+        self.statusBar().showMessage("Build 006.1 Foundation ready - stable baseline restored.")
 
     def _build_screen_shell(self) -> QWidget:
         """Build 006.0B: Finder becomes the active search/download screen."""
@@ -374,7 +371,7 @@ class MainWindow(QMainWindow):
         self.practice_video_box = QLabel("Select and analyse a song in Library")
         self.practice_video_box.setObjectName("ThumbnailBox")
         self.practice_video_box.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.practice_video_box.setFixedSize(151, 113)
+        self.practice_video_box.setMinimumSize(320, 180)
         video_layout.addWidget(self.practice_video_box, 1)
 
         self.practice_video_label = QLabel("Video appears here for the selected song")
@@ -385,30 +382,46 @@ class MainWindow(QMainWindow):
         self.open_video_btn = QPushButton("Open YouTube Video")
         self.open_video_btn.clicked.connect(self._open_selected_youtube_video)
         self.open_video_btn.setEnabled(False)
-        self.open_video_btn.setVisible(False)
+        self.open_video_btn.setMinimumHeight(34)
+        video_layout.addWidget(self.open_video_btn)
 
         top.addWidget(video_panel, 3)
 
-        analysis_panel = self._panel()
-        analysis_layout = QVBoxLayout(analysis_panel)
-        analysis_layout.setContentsMargins(6, 4, 6, 4)
-        analysis_title = QLabel("Analysis")
-        analysis_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #f3d99a;")
-        analysis_layout.addWidget(analysis_title)
+        meta_panel = self._panel()
+        meta_layout = QVBoxLayout(meta_panel)
+        meta_layout.setContentsMargins(6, 4, 6, 4)
+        self.thumbnail_label = QLabel("No image")
+        self.thumbnail_label.setObjectName("ThumbnailBox")
+        self.thumbnail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.thumbnail_label.setFixedSize(112, 63)
+        meta_layout.addWidget(self.thumbnail_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        self.practice_analysis_bpm = QLabel("BPM: —")
-        self.practice_analysis_key = QLabel("Key: —")
-        self.practice_analysis_duration = QLabel("Duration: —")
-        self.practice_analysis_mode = QLabel("Mode: Intermediate")
-        self.practice_analysis_capo = QLabel("Capo: 0")
-        self.practice_analysis_engine = QLabel("Engine V2: ready")
-        for w in [self.practice_analysis_bpm, self.practice_analysis_key, self.practice_analysis_duration, self.practice_analysis_mode, self.practice_analysis_capo, self.practice_analysis_engine]:
-            w.setObjectName("HintLabel")
-            analysis_layout.addWidget(w)
+        self.title_label = QLabel("—")
+        self.title_label.setWordWrap(True)
+        self.title_label.setMaximumHeight(48)
+        self.title_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #f3d99a;")
+        self.artist_label = QLabel("—")
+        self.artist_label.setWordWrap(True)
+        self.artist_label.setMaximumHeight(26)
+        self.source_label = QLabel("")
+        self.source_label.setVisible(False)
+        meta_layout.addWidget(self.title_label)
+        meta_layout.addWidget(self.artist_label)
 
-        analysis_layout.addStretch()
-        top.addWidget(analysis_panel, 1)
+        self.bpm_label = QLabel("BPM: —")
+        self.key_label = QLabel("Key: —")
+        self.duration_label = QLabel("Duration: —")
+        for w in [self.bpm_label, self.key_label, self.duration_label]:
+            meta_layout.addWidget(w)
 
+        self.analysis_panel = AnalysisPanelController(
+            self.bpm_label,
+            self.key_label,
+            self.analysis_progress,
+            self.analysis_status,
+        )
+
+        top.addWidget(meta_panel, 1)
 
         centre = self._panel()
         centre_layout = QVBoxLayout(centre)
@@ -549,39 +562,6 @@ class MainWindow(QMainWindow):
         outer.addWidget(grid_panel, 1)
         return root
 
-    def _update_practice_analysis_panel(self) -> None:
-        if not hasattr(self, "practice_analysis_bpm"):
-            return
-        self.practice_analysis_bpm.setText(self.bpm_label.text() if hasattr(self, "bpm_label") else "BPM: —")
-        self.practice_analysis_key.setText(self.key_label.text() if hasattr(self, "key_label") else "Key: —")
-        self.practice_analysis_duration.setText(self.duration_label.text() if hasattr(self, "duration_label") else "Duration: —")
-        self.practice_analysis_mode.setText(f"Mode: {self.mode.currentText()}" if hasattr(self, "mode") else "Mode: —")
-        self.practice_analysis_capo.setText(f"Capo: {self.capo.value()}" if hasattr(self, "capo") else "Capo: —")
-        if hasattr(self, "practice_analysis_engine"):
-            self.practice_analysis_engine.setText(self._engine_v2_summary())
-
-    def _sync_current_song_v2_from_active_song(self) -> None:
-        """Keep Engine V2 Song model in step with the current working song.
-
-        006.2 still lets the proven UI use the existing song object, but now
-        creates a proper Song/BeatMap/ChordEvent mirror behind it. This is the
-        bridge that lets 006.3 move playback onto BeatMap safely.
-        """
-        source_url = ""
-        if self.selected_youtube_result and getattr(self.selected_youtube_result, "url", ""):
-            source_url = self.selected_youtube_result.url
-
-        self.current_song_v2 = song_model_from_demo_song(self.song, source_url=source_url)
-
-    def _engine_v2_summary(self) -> str:
-        if not self.current_song_v2:
-            return "Engine V2: no song"
-        return (
-            f"Engine V2: {self.current_song_v2.beat_map.bar_count} bars / "
-            f"{self.current_song_v2.beat_map.beat_count} beats / "
-            f"{len(self.current_song_v2.chord_events)} chord events"
-        )
-
     def _update_practice_video_panel(self) -> None:
         if not hasattr(self, "practice_video_box"):
             return
@@ -608,7 +588,7 @@ class MainWindow(QMainWindow):
 
         title = self.title_label.text().strip() if hasattr(self, "title_label") else ""
         self.practice_video_label.setText(title or "Video appears here for the selected song")
-        self.open_video_btn.setEnabled(False)
+        self.open_video_btn.setEnabled(bool(result and getattr(result, "url", "")))
 
     def _open_selected_youtube_video(self) -> None:
         result = self.selected_youtube_result
@@ -954,10 +934,7 @@ class MainWindow(QMainWindow):
             self.duration_label.setText(f"Duration: {result.duration}")
             self.bpm_label.setText(f"BPM: {self.song.bpm} (demo until analysed)")
             self.key_label.setText("Key: waiting for analysis")
-            self._sync_current_song_v2_from_active_song()
             self._update_practice_video_panel()
-            self._sync_current_song_v2_from_active_song()
-        self._update_practice_analysis_panel()
             self.statusBar().showMessage("YouTube result selected. Click Download Audio.")
             return
         if 0 <= row < len(DEMO_SONGS):
@@ -1004,7 +981,6 @@ class MainWindow(QMainWindow):
             self.position,
             len(self.song.beat_chords),
         )
-        self._update_practice_analysis_panel()
 
     def _current_bpm(self) -> int:
         return self.detected_bpm or self.song.bpm

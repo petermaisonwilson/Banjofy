@@ -1,46 +1,31 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-@dataclass(frozen=True)
+
+@dataclass
 class DemoSong:
     title: str
     artist: str
     bpm: int
     key: str
     duration: str
-    chords_by_bar: list[str]
+    chords_by_bar: list[str] = field(default_factory=list)
 
-    @property
-    def beat_chords(self) -> list[str]:
-        out: list[str] = []
+    def __post_init__(self) -> None:
+        self.beat_chords: list[str] = []
         for chord in self.chords_by_bar:
-            out.extend([chord, "", "", ""])
-        return out
+            self.beat_chords.append(chord)
+            self.beat_chords.extend(["", "", ""])
+
 
 DEMO_SONGS = [
     DemoSong(
-        title="Country Road Style Demo",
-        artist="Banjofy Demo",
+        title="Demo Song",
+        artist="Banjofy",
         bpm=92,
         key="G",
-        duration="1:02",
-        chords_by_bar=["G", "Em", "C", "D", "G", "G", "C", "D", "G", "Em", "C", "D", "G", "D", "G", ""],
-    ),
-    DemoSong(
-        title="Simple Bluegrass Demo",
-        artist="Banjofy Demo",
-        bpm=108,
-        key="D",
-        duration="0:55",
-        chords_by_bar=["D", "G", "D", "A", "D", "G", "D", "A", "D", "D", "G", "A", "D", "G", "A", "D"],
-    ),
-    DemoSong(
-        title="Beginner Waltz? No - Still 4/4 Demo",
-        artist="Banjofy Demo",
-        bpm=78,
-        key="C",
-        duration="1:10",
-        chords_by_bar=["C", "C", "F", "G", "C", "Am", "F", "G", "C", "F", "C", "G", "C", "G", "C", ""],
-    ),
+        duration="1:04",
+        chords_by_bar=["G", "C", "G", "D", "G", "C", "G", "D", "Em", "C", "G", "D", "G", "D", "G", "G"],
+    )
 ]
