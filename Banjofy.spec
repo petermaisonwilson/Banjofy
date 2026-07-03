@@ -14,37 +14,7 @@ datas = []
 datas += collect_data_files('imageio_ffmpeg')
 datas += collect_data_files('librosa')
 
-hiddenimports = []
-hiddenimports += ['PySide6.QtMultimedia']
-hiddenimports += [
-    'banjofy',
-    'banjofy.app',
-    'banjofy.ui',
-    'banjofy.ui.main_window',
-    'banjofy.ui.widgets',
-    'banjofy.ui.chord_grid',
-    'banjofy.ui.youtube_panel',
-    'banjofy.ui.analysis_panel',
-    'banjofy.ui.song_info',
-    'banjofy.audio',
-    'banjofy.audio.analyser',
-    'banjofy.banjo',
-    'banjofy.banjo.chords',
-    'banjofy.player',
-    'banjofy.player.demo_data',
-    'banjofy.player.playback_engine',
-    'banjofy.youtube',
-    'banjofy.youtube.search',
-    'banjofy.youtube.downloader',
-    'banjofy.library',
-    'banjofy.models',
-    'banjofy.models.song',
-    'banjofy.models.beat',
-    'banjofy.models.beat_map',
-    'banjofy.models.chord_event',
-    'banjofy.engine',
-    'banjofy.engine.song_adapter',
-]
+hiddenimports = ['PySide6.QtMultimedia']
 hiddenimports += collect_submodules('imageio_ffmpeg')
 hiddenimports += collect_submodules('librosa')
 try:
