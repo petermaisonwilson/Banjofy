@@ -24,10 +24,11 @@ from banjofy.ui.analysis_panel import AnalysisPanelController
 from banjofy.ui.song_info import SongInfoController
 from banjofy.library import SongLibrary, LibrarySong
 from banjofy.models import Song, SongMetadata, BeatMap
+from banjofy.engine import song_model_from_demo_song, song_model_from_analysis
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 0.6.1A - Practice Compact + Engine V2 Models"
+APP_VERSION = "Banjofy 0.6.2 - Engine V2 Integration"
 
 
 class MainWindow(QMainWindow):
@@ -83,7 +84,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Build 006.1A ready - compact Practice Studio and Engine V2 model foundation added.")
+        self.statusBar().showMessage("Build 006.2 ready - Engine V2 models now mirror the active song.")
 
     def _build_screen_shell(self) -> QWidget:
         """Build 006.0B: Finder becomes the active search/download screen."""
@@ -400,7 +401,8 @@ class MainWindow(QMainWindow):
         self.practice_analysis_duration = QLabel("Duration: —")
         self.practice_analysis_mode = QLabel("Mode: Intermediate")
         self.practice_analysis_capo = QLabel("Capo: 0")
-        for w in [self.practice_analysis_bpm, self.practice_analysis_key, self.practice_analysis_duration, self.practice_analysis_mode, self.practice_analysis_capo]:
+        self.practice_analysis_engine = QLabel("Engine V2: ready")
+        for w in [self.practice_analysis_bpm, self.practice_analysis_key, self.practice_analysis_duration, self.practice_analysis_mode, self.practice_analysis_capo, self.practice_analysis_engine]:
             w.setObjectName("HintLabel")
             analysis_layout.addWidget(w)
 
@@ -555,18 +557,29 @@ class MainWindow(QMainWindow):
         self.practice_analysis_duration.setText(self.duration_label.text() if hasattr(self, "duration_label") else "Duration: —")
         self.practice_analysis_mode.setText(f"Mode: {self.mode.currentText()}" if hasattr(self, "mode") else "Mode: —")
         self.practice_analysis_capo.setText(f"Capo: {self.capo.value()}" if hasattr(self, "capo") else "Capo: —")
+        if hasattr(self, "practice_analysis_engine"):
+            self.practice_analysis_engine.setText(self._engine_v2_summary())
 
-    def _build_current_song_v2_stub(self) -> None:
-        title = self.title_label.text().strip() if hasattr(self, "title_label") else ""
-        artist = self.artist_label.text().strip() if hasattr(self, "artist_label") else ""
-        duration = self.duration_label.text().replace("Duration:", "").strip() if hasattr(self, "duration_label") else ""
-        source_url = self.selected_youtube_result.url if self.selected_youtube_result and getattr(self.selected_youtube_result, "url", "") else ""
-        self.current_song_v2 = Song(
-            metadata=SongMetadata(title=title, artist=artist, duration=duration, source="YouTube" if source_url else "Demo", source_url=source_url),
-            bpm=self.detected_bpm or (self.song.bpm if hasattr(self, "song") else None),
-            key=self.detected_key or (self.song.key if hasattr(self, "song") else None),
-            beat_map=BeatMap(),
-            chord_events=[],
+    def _sync_current_song_v2_from_active_song(self) -> None:
+        """Keep Engine V2 Song model in step with the current working song.
+
+        006.2 still lets the proven UI use the existing song object, but now
+        creates a proper Song/BeatMap/ChordEvent mirror behind it. This is the
+        bridge that lets 006.3 move playback onto BeatMap safely.
+        """
+        source_url = ""
+        if self.selected_youtube_result and getattr(self.selected_youtube_result, "url", ""):
+            source_url = self.selected_youtube_result.url
+
+        self.current_song_v2 = song_model_from_demo_song(self.song, source_url=source_url)
+
+    def _engine_v2_summary(self) -> str:
+        if not self.current_song_v2:
+            return "Engine V2: no song"
+        return (
+            f"Engine V2: {self.current_song_v2.beat_map.bar_count} bars / "
+            f"{self.current_song_v2.beat_map.beat_count} beats / "
+            f"{len(self.current_song_v2.chord_events)} chord events"
         )
 
     def _update_practice_video_panel(self) -> None:
@@ -941,9 +954,10 @@ class MainWindow(QMainWindow):
             self.duration_label.setText(f"Duration: {result.duration}")
             self.bpm_label.setText(f"BPM: {self.song.bpm} (demo until analysed)")
             self.key_label.setText("Key: waiting for analysis")
-            self._build_current_song_v2_stub()
+            self._sync_current_song_v2_from_active_song()
             self._update_practice_video_panel()
-            self._update_practice_analysis_panel()
+            self._sync_current_song_v2_from_active_song()
+        self._update_practice_analysis_panel()
             self.statusBar().showMessage("YouTube result selected. Click Download Audio.")
             return
         if 0 <= row < len(DEMO_SONGS):
