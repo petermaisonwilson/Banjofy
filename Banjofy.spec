@@ -3,11 +3,10 @@
 import os
 import sys
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.building.datastruct import Tree
 
 block_cipher = None
 
-# Build 006.2B packaging fix:
-# Make src importable BEFORE collect_submodules('banjofy') runs.
 SRC_DIR = os.path.abspath('src')
 if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
@@ -16,44 +15,25 @@ datas = []
 datas += collect_data_files('imageio_ffmpeg')
 datas += collect_data_files('librosa')
 
+# Build 006.2C:
+# Bundle the actual Banjofy source tree as runtime data.
+datas += Tree(os.path.join('src', 'banjofy'), prefix=os.path.join('banjofy_src', 'banjofy'))
+
 hiddenimports = []
 hiddenimports += ['PySide6.QtMultimedia']
-
-# Explicit Banjofy modules. These are deliberately listed as well as collected
-# so PyInstaller cannot miss the split UI/model/engine modules.
+hiddenimports += collect_submodules('imageio_ffmpeg')
+hiddenimports += collect_submodules('librosa')
 hiddenimports += [
     'banjofy',
     'banjofy.app',
     'banjofy.ui',
     'banjofy.ui.main_window',
-    'banjofy.ui.widgets',
-    'banjofy.ui.chord_grid',
-    'banjofy.ui.youtube_panel',
-    'banjofy.ui.analysis_panel',
-    'banjofy.ui.song_info',
-    'banjofy.audio',
-    'banjofy.audio.analyser',
-    'banjofy.banjo',
-    'banjofy.banjo.chords',
-    'banjofy.player',
-    'banjofy.player.demo_data',
-    'banjofy.player.playback_engine',
-    'banjofy.youtube',
-    'banjofy.youtube.search',
-    'banjofy.youtube.downloader',
-    'banjofy.library',
-    'banjofy.models',
-    'banjofy.models.song',
-    'banjofy.models.beat',
-    'banjofy.models.beat_map',
-    'banjofy.models.chord_event',
-    'banjofy.engine',
-    'banjofy.engine.song_adapter',
 ]
 
-hiddenimports += collect_submodules('banjofy')
-hiddenimports += collect_submodules('imageio_ffmpeg')
-hiddenimports += collect_submodules('librosa')
+try:
+    hiddenimports += collect_submodules('banjofy')
+except Exception:
+    pass
 
 a = Analysis(
     ['src/main.py'],
