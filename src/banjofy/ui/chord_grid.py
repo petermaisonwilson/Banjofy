@@ -31,21 +31,15 @@ class ChordGridController:
         self.cells = []
         self.bar_labels = []
 
-    def build(
-        self,
-        beat_chords: list[str],
-        display_chord: Callable[[str], str],
-    ) -> list[BeatCell]:
+    def build(self, beat_chords: list[str], display_chord: Callable[[str], str]) -> list[BeatCell]:
         self._clear()
-
         if not beat_chords:
             beat_chords = [""]
-
         bars = (len(beat_chords) + 3) // 4
 
         for bar_index in range(bars):
             bar_label = QLabel(f"Bar {bar_index + 1}")
-            bar_label.setObjectName("BarLabel")
+            bar_label.setObjectName("BarHeader")
             self.grid.addWidget(bar_label, bar_index * 2, 0, 1, 4)
             self.bar_labels.append(bar_label)
 
@@ -59,7 +53,6 @@ class ChordGridController:
 
         for col in range(4):
             self.grid.setColumnStretch(col, 1)
-
         return self.cells
 
     def update(
@@ -76,13 +69,7 @@ class ChordGridController:
         for i, cell in enumerate(self.cells):
             raw_chord = beat_chords[i] if i < len(beat_chords) else ""
             cell.set_chord(display_chord(raw_chord))
-
-            in_loop = (
-                loop_start is not None
-                and loop_end is not None
-                and loop_start <= i <= loop_end
-            )
-
+            in_loop = loop_start is not None and loop_end is not None and loop_start <= i <= loop_end
             cell.set_active(i == position)
             if in_loop and i != position:
                 cell.set_loop(True)
@@ -92,10 +79,8 @@ class ChordGridController:
     def _keep_current_row_visible(self, position: int) -> None:
         if position < 0:
             return
-
         row = position // 4
-        estimated_row_height = 96
-        target_y = max(0, row * estimated_row_height - estimated_row_height)
+        target_y = max(0, row * 96 - 96)
 
         def apply_scroll() -> None:
             bar = self.scroll.verticalScrollBar()

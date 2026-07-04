@@ -1,24 +1,21 @@
 from __future__ import annotations
 
-import time
-
 
 class PlaybackClock:
-    def __init__(self) -> None:
-        self.started_at: float | None = None
-        self.offset_ms = 0
+    """Simple BPM-based clock used by 006.1 recovery build."""
 
-    def start(self) -> None:
-        self.started_at = time.monotonic()
+    def __init__(self, bpm: float = 92, sync_offset_beats: int = 0) -> None:
+        self.bpm = max(1.0, float(bpm or 92))
+        self.sync_offset_beats = int(sync_offset_beats or 0)
 
-    def stop(self) -> None:
-        self.started_at = None
+    @property
+    def ms_per_beat(self) -> float:
+        return 60000.0 / self.bpm
 
-    def reset(self) -> None:
-        self.started_at = None
-        self.offset_ms = 0
+    def audio_position_for_display_beat(self, display_beat: int) -> int:
+        audio_beat = max(0, int(display_beat) + self.sync_offset_beats)
+        return int(audio_beat * self.ms_per_beat)
 
-    def elapsed_ms(self) -> int:
-        if self.started_at is None:
-            return self.offset_ms
-        return int((time.monotonic() - self.started_at) * 1000) + self.offset_ms
+    def display_beat_from_audio_ms(self, audio_ms: int, max_position: int) -> int:
+        raw = int(round(float(audio_ms) / self.ms_per_beat)) - self.sync_offset_beats
+        return max(0, min(int(max_position), raw))
