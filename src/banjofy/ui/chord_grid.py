@@ -9,6 +9,12 @@ from banjofy.ui.widgets import BeatCell
 
 
 class ChordGridController:
+    """Practice grid controller.
+
+    006.1E restores the familiar multi-bar layout:
+    three bars per row, four beats per bar.
+    """
+
     def __init__(
         self,
         grid: QGridLayout,
@@ -20,6 +26,8 @@ class ChordGridController:
         self.cell_clicked_callback = cell_clicked_callback
         self.cells: list[BeatCell] = []
         self.bar_labels: list[QLabel] = []
+        self.bars_per_row = 3
+        self.beats_per_bar = 4
 
     def _clear(self) -> None:
         while self.grid.count():
@@ -35,24 +43,31 @@ class ChordGridController:
         self._clear()
         if not beat_chords:
             beat_chords = [""]
-        bars = (len(beat_chords) + 3) // 4
+
+        bars = (len(beat_chords) + self.beats_per_bar - 1) // self.beats_per_bar
 
         for bar_index in range(bars):
+            bar_group = bar_index // self.bars_per_row
+            bar_slot = bar_index % self.bars_per_row
+            row = bar_group * 2
+            col = bar_slot * self.beats_per_bar
+
             bar_label = QLabel(f"Bar {bar_index + 1}")
             bar_label.setObjectName("BarHeader")
-            self.grid.addWidget(bar_label, bar_index * 2, 0, 1, 4)
+            self.grid.addWidget(bar_label, row, col, 1, self.beats_per_bar)
             self.bar_labels.append(bar_label)
 
-            for beat_in_bar in range(4):
-                beat_index = bar_index * 4 + beat_in_bar
+            for beat_in_bar in range(self.beats_per_bar):
+                beat_index = bar_index * self.beats_per_bar + beat_in_bar
                 raw_chord = beat_chords[beat_index] if beat_index < len(beat_chords) else ""
                 cell = BeatCell(beat_index, display_chord(raw_chord))
                 cell.clicked.connect(self.cell_clicked_callback)
-                self.grid.addWidget(cell, bar_index * 2 + 1, beat_in_bar)
+                self.grid.addWidget(cell, row + 1, col + beat_in_bar)
                 self.cells.append(cell)
 
-        for col in range(4):
+        for col in range(self.bars_per_row * self.beats_per_bar):
             self.grid.setColumnStretch(col, 1)
+
         return self.cells
 
     def update(
@@ -79,11 +94,14 @@ class ChordGridController:
     def _keep_current_row_visible(self, position: int) -> None:
         if position < 0:
             return
-        row = position // 4
-        target_y = max(0, row * 96 - 96)
+
+        bar = position // self.beats_per_bar
+        visual_row = bar // self.bars_per_row
+        estimated_pair_height = 112
+        target_y = max(0, visual_row * estimated_pair_height - estimated_pair_height)
 
         def apply_scroll() -> None:
-            bar = self.scroll.verticalScrollBar()
-            bar.setValue(min(target_y, bar.maximum()))
+            scrollbar = self.scroll.verticalScrollBar()
+            scrollbar.setValue(min(target_y, scrollbar.maximum()))
 
         QTimer.singleShot(0, apply_scroll)

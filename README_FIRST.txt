@@ -1,78 +1,77 @@
-BANJOFY 006.1D - COMPLETE RELEASE - FFMPEG DOWNLOAD FIX
-=======================================================
+BANJOFY 006.1E - UI AND METADATA RESTORE
+========================================
 
 Status
 ------
 BUILD COMPLETE
 
-Objective
----------
-This is a complete release package based on the working Recovery 006.1C baseline.
+Type
+----
+Complete release package.
 
-Only intended functional change:
-- Fix audio download failure caused by ffmpeg/ffprobe not being found inside the packaged EXE.
+Purpose
+-------
+006.1D proved FFmpeg/download analysis was working again, but the Practice Studio layout had regressed.
+006.1E restores the visible behaviour without changing the timing/chord engine.
 
-What changed
-------------
-1. src/banjofy/youtube/downloader.py
-   - Uses imageio-ffmpeg to locate the packaged ffmpeg executable.
-   - Passes that explicit ffmpeg path to yt-dlp.
-   - Adds a fallback direct-audio download if MP3 conversion still fails.
+Changes in this release
+-----------------------
+Library / metadata:
+- Keeps BPM and Key display working.
+- Improves YouTube duration handling when search results provide duration in seconds.
+- Preserves Duration from the selected song into the analysed Practice song.
 
-2. Banjofy.spec
-   - Keeps imageio_ffmpeg data collection.
-   - Explicitly includes imageio_ffmpeg as a hidden import.
+Practice Studio:
+- Reduces the YouTube video panel to a small fixed thumbnail area.
+- Hides/removes the visible Open YouTube Video button.
+- Removes the unused Practice-side No Image block.
+- Adds a compact Practice Song / Analysis panel showing:
+  title, artist, BPM, Key, Duration.
+- Keeps the Library screen as the place for search/download/analysis.
 
-3. src/banjofy/ui/main_window.py
-   - Version text changed to Banjofy 006.1D - FFmpeg Download Fix.
+Grid:
+- Restores the multi-bar visual layout:
+  three bars per row, four beats per bar.
+- Keeps automatic scrolling to the current row.
+- Keeps loop and active-beat highlighting.
 
-No other feature work is included.
+Not changed
+-----------
+- No Beat Engine V2 changes.
+- No timing algorithm changes.
+- No chord detection upgrades.
+- No embedded YouTube playback.
 
-How to apply using GitHub Desktop
----------------------------------
-1. Unzip this package.
+GitHub Desktop upload instructions
+----------------------------------
+1. Download and unzip this ZIP.
 2. Open the unzipped folder.
-3. Select all contents inside it:
-   - .github
-   - src
-   - Banjofy.spec
-   - requirements.txt
-   - README files / manifest
-4. Copy them into your local Banjofy repository folder:
-
+3. Copy ALL contents of the unzipped folder.
+4. Paste into your local Banjofy repository folder:
    C:\Users\peter\Reulo Dropbox\Peter Wilson\Peter Wilson\Documents\Banjo Stuff\Banjo Software\github\Banjofy
-
-5. Windows will ask whether to replace files. Choose Replace.
+5. Allow Windows to replace files.
 6. Open GitHub Desktop.
 7. Confirm the changed files look sensible.
-8. Commit with this exact summary:
+8. Commit summary:
+   Banjofy 006.1E UI and metadata restore
+9. Click Commit.
+10. Click Push origin.
+11. Wait for GitHub Actions.
+12. Download and test the Banjofy-Windows artifact.
 
-   Banjofy 006.1D FFmpeg download fix
-
-9. Click Push origin.
-10. GitHub Actions should start automatically.
-11. When Actions has a green tick, download the Banjofy-Windows artifact.
-12. Unzip it and run Banjofy.exe.
-
-What to test
-------------
+Test checklist
+--------------
 1. App opens.
 2. Search YouTube.
-3. Select a result.
-4. Click Download Audio.
-5. Expected result: download should continue past the previous ffmpeg error.
-6. Analysis should complete using the current recovery analyser.
-7. Practice Studio should open and show the grid.
+3. Select a song.
+4. Duration appears if YouTube provides it.
+5. Download Audio works.
+6. BPM and Key display after analysis.
+7. Practice Studio has small video panel.
+8. No visible Open YouTube Video button.
+9. No Practice-side No Image square.
+10. Grid shows three bars per row.
 
-Known limitations
------------------
-- This is still a recovery baseline, not the fully restored feature-rich target.
-- Analysis is deliberately conservative/reliable rather than musically advanced.
-- Timing drift and beat-level chord detection are not addressed in this build.
-
-Rollback plan
--------------
-If this build makes things worse:
-1. In GitHub Desktop, go to History.
-2. Select the previous working commit: Recovery 006.1C compatibility baseline.
-3. We will revert to that point before trying anything else.
+Expected status
+---------------
+This should be a better visual baseline than 006.1D while preserving the FFmpeg fix.

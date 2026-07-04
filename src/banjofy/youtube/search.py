@@ -14,6 +14,22 @@ class YouTubeResult:
     thumbnail_data: bytes | None = None
 
 
+def _format_duration(value) -> str:
+    if value in (None, ""):
+        return ""
+    try:
+        seconds = int(float(value))
+        if seconds <= 0:
+            return ""
+        hours, rem = divmod(seconds, 3600)
+        minutes, secs = divmod(rem, 60)
+        if hours:
+            return f"{hours}:{minutes:02d}:{secs:02d}"
+        return f"{minutes}:{secs:02d}"
+    except Exception:
+        return str(value)
+
+
 def _load_thumbnail(url: str) -> bytes | None:
     if not url:
         return None
@@ -47,7 +63,7 @@ def search_youtube(query: str, limit: int = 8) -> list[YouTubeResult]:
             YouTubeResult(
                 title=entry.get("title") or "Untitled",
                 channel=entry.get("uploader") or entry.get("channel") or "",
-                duration=entry.get("duration_string") or "",
+                duration=entry.get("duration_string") or _format_duration(entry.get("duration")),
                 url=url,
                 thumbnail_url=thumb_url,
                 thumbnail_data=_load_thumbnail(thumb_url),
