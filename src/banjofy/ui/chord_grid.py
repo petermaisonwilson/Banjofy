@@ -3,16 +3,32 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QGridLayout, QLabel, QScrollArea
+from PySide6.QtWidgets import QFrame, QGridLayout, QLabel, QScrollArea, QVBoxLayout
 
 from banjofy.ui.widgets import BeatCell
+
+
+class BarPanel(QFrame):
+    def __init__(self, title: str) -> None:
+        super().__init__()
+        self.setObjectName("BarPanel")
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(4, 4, 4, 4)
+        self.layout.setSpacing(4)
+
+        self.title = QLabel(title)
+        self.title.setObjectName("BarHeader")
+        self.layout.addWidget(self.title)
+
+        self.beat_grid = QGridLayout()
+        self.beat_grid.setSpacing(4)
+        self.layout.addLayout(self.beat_grid)
 
 
 class ChordGridController:
     """Practice grid controller.
 
-    006.1E restores the familiar multi-bar layout:
-    three bars per row, four beats per bar.
+    006.1F restores visible beat squares and a strong active cursor.
     """
 
     def __init__(
@@ -25,7 +41,7 @@ class ChordGridController:
         self.scroll = scroll
         self.cell_clicked_callback = cell_clicked_callback
         self.cells: list[BeatCell] = []
-        self.bar_labels: list[QLabel] = []
+        self.bar_panels: list[BarPanel] = []
         self.bars_per_row = 3
         self.beats_per_bar = 4
 
@@ -37,7 +53,7 @@ class ChordGridController:
                 widget.setParent(None)
                 widget.deleteLater()
         self.cells = []
-        self.bar_labels = []
+        self.bar_panels = []
 
     def build(self, beat_chords: list[str], display_chord: Callable[[str], str]) -> list[BeatCell]:
         self._clear()
@@ -47,25 +63,23 @@ class ChordGridController:
         bars = (len(beat_chords) + self.beats_per_bar - 1) // self.beats_per_bar
 
         for bar_index in range(bars):
-            bar_group = bar_index // self.bars_per_row
-            bar_slot = bar_index % self.bars_per_row
-            row = bar_group * 2
-            col = bar_slot * self.beats_per_bar
+            row = bar_index // self.bars_per_row
+            col = bar_index % self.bars_per_row
 
-            bar_label = QLabel(f"Bar {bar_index + 1}")
-            bar_label.setObjectName("BarHeader")
-            self.grid.addWidget(bar_label, row, col, 1, self.beats_per_bar)
-            self.bar_labels.append(bar_label)
+            panel = BarPanel(f"Bar {bar_index + 1}")
+            self.grid.addWidget(panel, row, col)
+            self.bar_panels.append(panel)
 
             for beat_in_bar in range(self.beats_per_bar):
                 beat_index = bar_index * self.beats_per_bar + beat_in_bar
                 raw_chord = beat_chords[beat_index] if beat_index < len(beat_chords) else ""
                 cell = BeatCell(beat_index, display_chord(raw_chord))
+                cell.setMinimumHeight(78)
                 cell.clicked.connect(self.cell_clicked_callback)
-                self.grid.addWidget(cell, row + 1, col + beat_in_bar)
+                panel.beat_grid.addWidget(cell, 0, beat_in_bar)
                 self.cells.append(cell)
 
-        for col in range(self.bars_per_row * self.beats_per_bar):
+        for col in range(self.bars_per_row):
             self.grid.setColumnStretch(col, 1)
 
         return self.cells
@@ -97,8 +111,8 @@ class ChordGridController:
 
         bar = position // self.beats_per_bar
         visual_row = bar // self.bars_per_row
-        estimated_pair_height = 112
-        target_y = max(0, visual_row * estimated_pair_height - estimated_pair_height)
+        estimated_row_height = 128
+        target_y = max(0, visual_row * estimated_row_height - estimated_row_height)
 
         def apply_scroll() -> None:
             scrollbar = self.scroll.verticalScrollBar()

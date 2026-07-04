@@ -13,12 +13,15 @@ class BeatCell(QFrame):
         self.chord = chord
         self.label = QLabel(chord)
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.label.setStyleSheet("font-size: 14px; font-weight: bold; color: #f3d99a;")
+        self.label.setStyleSheet("font-size: 15px; font-weight: bold; color: #f3d99a;")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(3, 3, 3, 3)
         layout.addWidget(self.label)
         self.setObjectName("BeatCell")
-        self.setMinimumSize(72, 54)
+        self.setMinimumSize(76, 72)
+        self._active = False
+        self._loop = False
+        self._apply_style()
 
     def mousePressEvent(self, event) -> None:
         self.clicked.emit(self.index)
@@ -28,16 +31,26 @@ class BeatCell(QFrame):
         self.label.setText(chord)
 
     def set_active(self, active: bool) -> None:
-        if active:
-            self.setProperty("active", True)
-            self.setStyleSheet("QFrame { border: 2px solid #f3d99a; background: #43351e; }")
-        else:
-            self.setProperty("active", False)
-            self.setStyleSheet("")
+        self._active = active
+        self._apply_style()
 
     def set_loop(self, in_loop: bool) -> None:
-        if in_loop:
-            self.setStyleSheet("QFrame { border: 2px solid #6ea86e; }")
+        self._loop = in_loop
+        self._apply_style()
+
+    def _apply_style(self) -> None:
+        if self._active:
+            self.setStyleSheet(
+                "QFrame { background: #6b4f17; border: 4px solid #ffe6a3; border-radius: 4px; }"
+            )
+        elif self._loop:
+            self.setStyleSheet(
+                "QFrame { background: #242424; border: 2px solid #6ea86e; border-radius: 4px; }"
+            )
+        else:
+            self.setStyleSheet(
+                "QFrame { background: #1f1f1f; border: 2px solid #555555; border-radius: 4px; }"
+            )
 
 
 class ChordPanel(QFrame):

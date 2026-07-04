@@ -26,7 +26,7 @@ from banjofy.library import SongLibrary, LibrarySong
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 006.1E - UI and Metadata Restore"
+APP_VERSION = "Banjofy 006.1F - Grid Visibility and Song Reset"
 
 
 class MainWindow(QMainWindow):
@@ -81,7 +81,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Banjofy 006.1E ready - UI and metadata restored.")
+        self.statusBar().showMessage("Banjofy 006.1F ready - grid visibility, song length and cursor reset repaired.")
 
     def _build_screen_shell(self) -> QWidget:
         """Build 006.0B: Finder becomes the active search/download screen."""
@@ -808,10 +808,14 @@ class MainWindow(QMainWindow):
                 return
 
     def _build_analysis_grid(self, result: AnalysisResult) -> None:
-        bars = max(4, min(240, result.estimated_bars or 16))
+        if hasattr(self, "duration_label") and (not self.duration_label.text().replace("Duration:", "").strip()):
+            self.duration_label.setText(f"Duration: {self._current_duration_text()}")
+        bars = max(4, min(300, result.estimated_bars or 16))
         duration_bars = self._estimated_bars_from_display_duration(result.bpm)
         if duration_bars:
             bars = max(bars, duration_bars)
+        if getattr(result, "beat_times_ms", None):
+            bars = max(bars, (len(result.beat_times_ms) + 3) // 4)
         tonic = self._tonic_chord(result.key)
         if result.chords_by_bar:
             chords_by_bar = list(result.chords_by_bar[:bars])
@@ -849,6 +853,7 @@ class MainWindow(QMainWindow):
         self.loop_start = None
         self.loop_end = None
         self._build_grid()
+        self._scroll_grid_to_start()
         self._update_loop_status()
         self._update_all()
         self._update_practice_info_panel()
@@ -943,6 +948,9 @@ class MainWindow(QMainWindow):
             self.analysis_progress.setValue(0)
             self.download_status.setText("Audio: ready to download")
             self.analysis_status.setText("Analysis: waiting")
+            self.position = 0
+            self.loop_start = None
+            self.loop_end = None
             self._set_thumbnail(result)
             self.title_label.setText(result.title)
             self.artist_label.setText(result.channel)
