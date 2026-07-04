@@ -11,10 +11,11 @@ if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
 
 datas = []
+# Include imageio-ffmpeg data files, including the bundled ffmpeg executable.
 datas += collect_data_files('imageio_ffmpeg')
 datas += collect_data_files('librosa')
 
-hiddenimports = ['PySide6.QtMultimedia']
+hiddenimports = ['PySide6.QtMultimedia', 'imageio_ffmpeg']
 hiddenimports += collect_submodules('imageio_ffmpeg')
 hiddenimports += collect_submodules('librosa')
 try:

@@ -1,75 +1,78 @@
-BANJOFY RECOVERY 006.1C - FULL COMPATIBILITY BASELINE
-====================================================
+BANJOFY 006.1D - COMPLETE RELEASE - FFMPEG DOWNLOAD FIX
+=======================================================
 
 Status
 ------
 BUILD COMPLETE
 
-What this is
-------------
-This is a COMPLETE project package, not a patch.
-
-It starts from your current desktop repository and repairs the mismatched helper
-modules that caused the recovery scaffold to open in a broken state.
-
-What was repaired
------------------
-- src/banjofy/ui/chord_grid.py
-  Matches MainWindow's ChordGridController(self.grid, self.scroll, self._cell_clicked)
-- src/banjofy/ui/analysis_panel.py
-  Restores the methods MainWindow calls: waiting_for_download, progress,
-  apply_result, error, reset
-- src/banjofy/audio/analyser.py
-  Returns a complete AnalysisResult with estimated_bars and chords_by_bar
-- src/banjofy/player/playback_engine.py
-  Restores the PlaybackClock API used by MainWindow
-- src/banjofy/ui/youtube_panel.py
-  Fixes thumbnail handling when MainWindow passes a YouTubeResult object
-
-Important
+Objective
 ---------
-This is still a recovery baseline. It is intended to give us a build that opens
-and behaves coherently again. It is not yet the full feature-restoration build.
+This is a complete release package based on the working Recovery 006.1C baseline.
+
+Only intended functional change:
+- Fix audio download failure caused by ffmpeg/ffprobe not being found inside the packaged EXE.
+
+What changed
+------------
+1. src/banjofy/youtube/downloader.py
+   - Uses imageio-ffmpeg to locate the packaged ffmpeg executable.
+   - Passes that explicit ffmpeg path to yt-dlp.
+   - Adds a fallback direct-audio download if MP3 conversion still fails.
+
+2. Banjofy.spec
+   - Keeps imageio_ffmpeg data collection.
+   - Explicitly includes imageio_ffmpeg as a hidden import.
+
+3. src/banjofy/ui/main_window.py
+   - Version text changed to Banjofy 006.1D - FFmpeg Download Fix.
+
+No other feature work is included.
 
 How to apply using GitHub Desktop
 ---------------------------------
 1. Unzip this package.
-2. Copy the CONTENTS of this unzipped folder into your local Banjofy folder:
+2. Open the unzipped folder.
+3. Select all contents inside it:
+   - .github
+   - src
+   - Banjofy.spec
+   - requirements.txt
+   - README files / manifest
+4. Copy them into your local Banjofy repository folder:
 
    C:\Users\peter\Reulo Dropbox\Peter Wilson\Peter Wilson\Documents\Banjo Stuff\Banjo Software\github\Banjofy
 
-3. Allow Windows to replace files.
-4. Open GitHub Desktop.
-5. Confirm it shows changed files.
-6. Commit with this message:
+5. Windows will ask whether to replace files. Choose Replace.
+6. Open GitHub Desktop.
+7. Confirm the changed files look sensible.
+8. Commit with this exact summary:
 
-   Recovery 006.1C compatibility baseline
+   Banjofy 006.1D FFmpeg download fix
 
-7. Push origin.
-8. GitHub Actions should run.
-9. Download the EXE and test.
+9. Click Push origin.
+10. GitHub Actions should start automatically.
+11. When Actions has a green tick, download the Banjofy-Windows artifact.
+12. Unzip it and run Banjofy.exe.
 
-Test checklist
---------------
-- App opens
-- Library tab appears
-- Practice Studio appears
-- Demo grid displays in four-beat bars
-- Play button advances the cursor
-- YouTube search starts
-- Selecting a result updates title/thumbnail
-- Download no longer fails because of mismatched helper modules
+What to test
+------------
+1. App opens.
+2. Search YouTube.
+3. Select a result.
+4. Click Download Audio.
+5. Expected result: download should continue past the previous ffmpeg error.
+6. Analysis should complete using the current recovery analyser.
+7. Practice Studio should open and show the grid.
 
-Known compromises
+Known limitations
 -----------------
-- Advanced chord detection/timing is not restored yet.
-- Video player is still placeholder/open-button based.
-- This build prioritises getting a reliable baseline back.
+- This is still a recovery baseline, not the fully restored feature-rich target.
+- Analysis is deliberately conservative/reliable rather than musically advanced.
+- Timing drift and beat-level chord detection are not addressed in this build.
 
-Next builds
------------
-006.1D - UI layout restoration only
-006.1E - YouTube download/analyse restoration only
-006.1F - Save/library cleanup only
-
-No more mixed architecture + UI changes.
+Rollback plan
+-------------
+If this build makes things worse:
+1. In GitHub Desktop, go to History.
+2. Select the previous working commit: Recovery 006.1C compatibility baseline.
+3. We will revert to that point before trying anything else.
