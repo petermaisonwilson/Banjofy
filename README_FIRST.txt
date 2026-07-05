@@ -1,5 +1,5 @@
-BANJOFY 006.1F - GRID VISIBILITY AND SONG RESET
-================================================
+BANJOFY 006.1G - LIBRARY LOAD + GRID LENGTH + RESET REPAIR
+==========================================================
 
 Status
 ------
@@ -9,63 +9,86 @@ Type
 ----
 Complete release package.
 
-Purpose
--------
-006.1E restored FFmpeg plus some UI/metadata behaviour, but the Practice grid was hard to read,
-only showed 16 bars in some cases, and the cursor did not always reset properly when loading a new song.
+Audit summary
+-------------
+Before building 006.1G I audited the current source flow.
 
-Changes in this release
------------------------
-Grid:
-- Restores clear visible beat squares.
-- Makes the moving cursor much more obvious.
-- Restores a 3-bars-per-row layout.
-- Keeps automatic current-row scrolling.
-- Keeps loop highlighting.
+Findings:
+1. Saved Library songs were listed but not connected to a loader.
+   The list existed, but clicking a saved song did not reconstruct the Practice song.
 
-Song length:
-- Improves grid length calculation so analysed songs can extend beyond 16 bars.
-- Uses detected beat count and/or displayed duration where available.
+2. Library entries stored only basic text metadata:
+   title, artist, duration, BPM, key.
+   They did not store audio path, chord grid, beat timings, source URL, or thumbnail URL.
 
-Song loading:
-- When a new YouTube result is selected, position resets to beat 1.
-- When a new analysed song is built, position resets to beat 1.
-- When a demo song is loaded, the grid scrolls back to the start.
+3. The Practice screen could re-analyse cached audio quickly because the MP3 was cached on disk,
+   but the Library had no route to reopen that cached song properly.
+
+4. Grid length was vulnerable to falling back to 16 bars because the Practice song could be rebuilt
+   without enough persisted chord/bar information.
+
+5. Cursor reset existed in some paths, but not consistently across Library load, analyse, and audio reload.
+
+Changes in 006.1G
+-----------------
+Library:
+- LibrarySong now stores:
+  title, artist, duration, BPM, key, source,
+  audio_path, source_url, thumbnail_url, chords_by_bar, beat_times_ms.
+- Library loading remains backwards-compatible with old saved entries.
+- Clicking a saved Library item now loads it into Practice Studio.
+- If saved audio still exists on disk, the audio is loaded and ready.
+- If saved chord data exists, the grid is rebuilt from it.
+- If old saved entries have no chord data, a sensible full-length grid is generated.
+
+Grid length:
+- Grid length is restored from saved chords where possible.
+- When no chords are saved, grid length is estimated from duration + BPM.
+- This avoids defaulting back to 16 bars where possible.
+
+Cursor reset:
+- Library-loaded songs reset to first beat/bar.
+- Analysed songs reset to first beat/bar.
+- Audio position is reset to start when relevant.
+- Grid scroll resets to the top.
 
 Not changed
 -----------
-- No timing-engine changes.
-- No chord-detection changes.
-- No new features.
-- FFmpeg fix from 006.1D retained.
-- UI/metadata restore from 006.1E retained.
+- Timing engine is not changed.
+- Chord detection is not upgraded.
+- UI layout is not redesigned.
+- FFmpeg fix from 006.1D is retained.
+- Grid visibility from 006.1F is retained.
 
 Known remaining issue
 ---------------------
-Timing may still be out. That is planned for 006.2A as a separate timing-engine repair build.
+Timing may still be out. That is separate and should be handled in 006.2A.
 
 GitHub Desktop instructions
 ---------------------------
 1. Download and unzip this ZIP.
 2. Copy ALL contents of the unzipped folder.
-3. Paste into your local Banjofy folder:
+3. Paste into your local Banjofy repository folder:
    C:\Users\peter\Reulo Dropbox\Peter Wilson\Peter Wilson\Documents\Banjo Stuff\Banjo Software\github\Banjofy
 4. Allow Windows to replace files.
 5. Open GitHub Desktop.
-6. Check changed files.
+6. Review changed files.
 7. Commit summary:
-   Banjofy 006.1F grid visibility and song reset
+   Banjofy 006.1G library load grid length reset
 8. Commit.
 9. Push origin.
-10. Wait for Actions.
-11. Download and test the artifact.
+10. Wait for GitHub Actions.
+11. Download and test the Banjofy-Windows artifact.
 
 Test checklist
 --------------
 1. App opens.
-2. Search and select a song.
+2. Search a song.
 3. Download/analyse.
-4. Practice page cursor starts at beat 1/bar 1.
-5. Grid shows visible beat squares.
-6. Active cursor is easy to see.
-7. Grid length goes beyond 16 bars when song duration/beat count is available.
+4. Confirm grid is longer than 16 bars.
+5. Confirm cursor starts at beat 1/bar 1.
+6. Confirm song appears in Saved Song Library.
+7. Click the saved song in Library.
+8. Confirm it loads into Practice Studio.
+9. Confirm the cursor starts at beat 1/bar 1 again.
+10. Confirm audio is loaded from cache if the MP3 still exists.
