@@ -32,9 +32,19 @@ class SongLibrary:
             for item in data:
                 if not isinstance(item, dict):
                     continue
-                allowed = {"title", "artist", "duration", "bpm", "key", "source", "audio_path", "chords_by_bar"}
+                allowed = {
+                    "title", "artist", "duration", "bpm", "key", "source",
+                    "audio_path", "chords_by_bar",
+                }
                 clean = {k: v for k, v in item.items() if k in allowed}
-                if "chords_by_bar" not in clean or not isinstance(clean.get("chords_by_bar"), list):
+                clean.setdefault("title", "")
+                clean.setdefault("artist", "")
+                clean.setdefault("duration", "")
+                clean.setdefault("bpm", "")
+                clean.setdefault("key", "")
+                clean.setdefault("source", "YouTube")
+                clean.setdefault("audio_path", "")
+                if not isinstance(clean.get("chords_by_bar"), list):
                     clean["chords_by_bar"] = []
                 songs.append(LibrarySong(**clean))
             return songs
@@ -44,6 +54,12 @@ class SongLibrary:
     def save_song(self, song: LibrarySong) -> None:
         songs = self.load()
         key = (song.title.lower(), song.artist.lower(), song.duration.lower())
-        songs = [s for s in songs if (s.title.lower(), s.artist.lower(), s.duration.lower()) != key]
+        songs = [
+            s for s in songs
+            if (s.title.lower(), s.artist.lower(), s.duration.lower()) != key
+        ]
         songs.insert(0, song)
-        self.index_file.write_text(json.dumps([asdict(s) for s in songs[:100]], indent=2), encoding="utf-8")
+        self.index_file.write_text(
+            json.dumps([asdict(s) for s in songs[:200]], indent=2),
+            encoding="utf-8",
+        )

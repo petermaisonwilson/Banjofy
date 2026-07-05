@@ -26,7 +26,7 @@ from banjofy.library import SongLibrary, LibrarySong
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 006.2.0 - Library Grid Reset Stabilisation"
+APP_VERSION = "Banjofy 006.2.1 - Library Load Search Reuse Grid Cleanup"
 
 
 class MainWindow(QMainWindow):
@@ -82,7 +82,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Banjofy 006.2.0 ready - library, grid length and reset stabilised.")
+        self.statusBar().showMessage("Banjofy 006.2.1 ready - library load, search reuse and grid cleanup repaired.")
 
     def _build_screen_shell(self) -> QWidget:
         """Build 006.0B: Finder becomes the active search/download screen."""
@@ -159,6 +159,8 @@ class MainWindow(QMainWindow):
         self.library_list.setMaximumHeight(150)
         self.library_list.currentRowChanged.connect(self._load_library_song_by_row)
         left_layout.addWidget(self.library_list)
+        self.library_list.itemClicked.connect(self._library_item_clicked)
+        self.library_list.itemDoubleClicked.connect(self._library_item_clicked)
 
         library_buttons = QHBoxLayout()
         self.refresh_library_btn = QPushButton("Refresh Library")
@@ -631,6 +633,77 @@ class MainWindow(QMainWindow):
         self.library_list.blockSignals(False)
 
 
+    def _library_item_clicked(self, item) -> None:
+        try:
+            row = self.library_list.row(item)
+        except Exception:
+            row = -1
+        self._load_library_song(row)
+
+    def _load_library_song(self, row: int) -> None:
+        songs = self.library.load()
+        if row < 0 or row >= len(songs):
+            return
+
+        saved = songs[row]
+        if not getattr(saved, "title", "") or saved.title.startswith("No saved songs"):
+            return
+
+        chords = list(getattr(saved, "chords_by_bar", []) or [])
+        if not chords:
+            # Backward compatibility for older library entries.
+            chords = ["G", "C", "G", "D"] * 16
+
+        try:
+            bpm = int(float(str(saved.bpm).replace("(demo)", "").strip().split()[0]))
+        except Exception:
+            bpm = self.song.bpm if hasattr(self, "song") else 92
+
+        key = str(saved.key or "Unknown").replace("Key:", "").strip() or "Unknown"
+        duration = saved.duration or "—"
+
+        self._stop()
+        self.selected_youtube_result = None
+        self.song = DemoSong(
+            title=saved.title,
+            artist=saved.artist or "Unknown artist",
+            bpm=bpm,
+            key=key,
+            duration=duration,
+            chords_by_bar=chords,
+        )
+
+        self._reset_song_position_to_start()
+
+        self.downloaded_audio_path = Path(saved.audio_path) if getattr(saved, "audio_path", "") else None
+        self.audio_ready = bool(self.downloaded_audio_path and self.downloaded_audio_path.exists())
+        if self.audio_ready:
+            self._load_audio_file(self.downloaded_audio_path)
+            if hasattr(self, "download_status"):
+                self.download_status.setText("Audio: loaded from Library")
+        else:
+            if hasattr(self, "download_status"):
+                self.download_status.setText("Audio: not available for this Library item")
+
+        self.title_label.setText(saved.title)
+        self.artist_label.setText(saved.artist or "Unknown artist")
+        self.source_label.setText("Source: Library")
+        self.bpm_label.setText(f"BPM: {saved.bpm or bpm}")
+        self.key_label.setText(f"Key: {key}")
+        self.duration_label.setText(f"Duration: {duration}")
+
+        self._build_grid()
+        self._scroll_grid_to_start()
+        self._update_loop_status()
+        self._update_all()
+        self._update_practice_video_panel()
+        self._update_practice_info_panel()
+
+        if hasattr(self, "tabs"):
+            self.tabs.setCurrentIndex(1)
+
+        self.statusBar().showMessage(f"Loaded from Library: {saved.title}")
+
     def _save_current_song_to_library(self) -> None:
         title = self.title_label.text().strip() if hasattr(self, "title_label") else ""
         artist = self.artist_label.text().strip() if hasattr(self, "artist_label") else ""
@@ -891,6 +964,9 @@ class MainWindow(QMainWindow):
                     self._build_analysis_grid(result)
                     self.statusBar().showMessage(f"Analysis complete: {summary}")
                     self._save_current_song_to_library()
+                    self.search_button.setEnabled(True)
+                    if self.selected_youtube_result:
+                        self.download_btn.setEnabled(True)
                     if hasattr(self, "tabs"):
                         self.tabs.setCurrentIndex(1)
                     if self.timer.isActive():

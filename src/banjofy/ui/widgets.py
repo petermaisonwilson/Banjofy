@@ -13,7 +13,7 @@ class BeatCell(QFrame):
         self.chord = chord
         self.label = QLabel(chord)
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.label.setStyleSheet("font-size: 15px; font-weight: bold; color: #f3d99a;")
+        self.label.setStyleSheet("font-size: 16px; font-weight: bold; color: #f3d99a;")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(3, 3, 3, 3)
         layout.addWidget(self.label)

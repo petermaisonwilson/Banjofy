@@ -28,7 +28,7 @@ class BarPanel(QFrame):
 class ChordGridController:
     """Practice grid controller.
 
-    006.1F restores visible beat squares and a strong active cursor.
+    006.2.1 keeps the grid as chord-name-only squares; diagrams belong only in NOW/NEXT.
     """
 
     def __init__(
