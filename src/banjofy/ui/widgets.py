@@ -55,19 +55,19 @@ class BeatCell(QFrame):
 
 class ChordPanel(QFrame):
     SIMPLE_BANJO_SHAPES = {
-        "G": ["0", "0", "0", "0", "0"],
-        "C": ["2", "0", "1", "2", "0"],
-        "D": ["0", "2", "3", "4", "0"],
-        "D7": ["0", "2", "1", "0", "0"],
-        "Em": ["0", "2", "2", "0", "0"],
-        "Am": ["2", "2", "1", "2", "0"],
-        "A": ["2", "2", "2", "2", "0"],
-        "B": ["4", "4", "4", "4", "0"],
-        "E": ["2", "1", "0", "2", "0"],
-        "F": ["3", "2", "1", "3", "0"],
-        "F#": ["4", "3", "2", "4", "0"],
-        "G#": ["1", "1", "1", "1", "1"],
-        "C#m": ["6", "6", "5", "6", "0"],
+        "G":  (0,  ["0", "0", "0", "0", "0"], ["", "", "", "", ""]),
+        "C":  (0,  ["0", "2", "0", "1", "2"], ["", "2", "", "1", "3"]),
+        "D":  (0,  ["0", "0", "2", "3", "4"], ["", "", "1", "2", "3"]),
+        "D7": (0,  ["0", "0", "2", "1", "0"], ["", "", "2", "1", ""]),
+        "Em": (0,  ["0", "0", "2", "0", "2"], ["", "", "1", "", "2"]),
+        "Am": (0,  ["0", "2", "2", "1", "2"], ["", "2", "3", "1", "4"]),
+        "A":  (0,  ["0", "2", "2", "2", "2"], ["", "1", "2", "3", "4"]),
+        "B":  (0,  ["0", "4", "4", "4", "4"], ["", "1", "2", "3", "4"]),
+        "E":  (0,  ["0", "2", "1", "0", "2"], ["", "2", "1", "", "3"]),
+        "F":  (0,  ["0", "3", "2", "1", "3"], ["", "3", "2", "1", "4"]),
+        "F#": (0,  ["0", "4", "3", "2", "4"], ["", "3", "2", "1", "4"]),
+        "G#": (1,  ["1", "1", "1", "1", "1"], ["1", "1", "1", "1", "1"]),
+        "C#m": (4, ["4", "6", "6", "5", "4"], ["1", "3", "4", "2", "1"]),
     }
 
     def __init__(self, title: str, chord: str = "—", colour: str = "#f3d99a", subtitle: str = "") -> None:
@@ -78,9 +78,9 @@ class ChordPanel(QFrame):
         self.diagram_label = QLabel("")
         self.subtitle = QLabel(subtitle)
         self.chord_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.chord_label.setStyleSheet("font-size: 34px; font-weight: bold; color: #f3d99a;")
+        self.chord_label.setStyleSheet("font-size: 32px; font-weight: bold; color: #f3d99a;")
         self.diagram_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.diagram_label.setStyleSheet("font-family: Consolas, monospace; font-size: 12px; color: #dddddd;")
+        self.diagram_label.setStyleSheet("font-family: Consolas, 'Courier New', monospace; font-size: 11px; color: #eeeeee;")
         self.subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 4, 6, 4)
@@ -98,11 +98,24 @@ class ChordPanel(QFrame):
     def _diagram_text(self, chord: str) -> str:
         if not chord or chord == "—":
             return ""
-        shape = self.SIMPLE_BANJO_SHAPES.get(chord)
+        lookup = chord.strip()
+        shape = self.SIMPLE_BANJO_SHAPES.get(lookup)
         if shape is None:
-            root = chord.replace("maj7", "").replace("sus4", "").replace("sus2", "").replace("add9", "")
+            root = lookup.replace("maj7", "").replace("sus4", "").replace("sus2", "").replace("add9", "").replace("7", "")
             shape = self.SIMPLE_BANJO_SHAPES.get(root)
         if shape is None:
             return "diagram coming"
-        strings = ["D", "B", "G", "D", "g"]
-        return "\n".join(f"{s}|-{f}-" for s, f in zip(strings, shape))
+        start_fret, frets, fingers = shape
+        strings = ["g", "D", "G", "B", "D"]
+        lines = ["Open G banjo"]
+        if start_fret:
+            lines.append(f"start fret {start_fret}")
+        for string, fret, finger in zip(strings, frets, fingers):
+            if fret == "0":
+                marker = "open"
+            elif finger:
+                marker = f"{fret}({finger})"
+            else:
+                marker = fret
+            lines.append(f"{string} ─● {marker}")
+        return "\n".join(lines)

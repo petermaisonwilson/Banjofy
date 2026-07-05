@@ -26,7 +26,7 @@ from banjofy.library import SongLibrary, LibrarySong
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 006.2.2 - Library Workflow and NOW NEXT Diagrams"
+APP_VERSION = "Banjofy 006.2.3 - Workflow Enforcement and Better Diagrams"
 
 
 class MainWindow(QMainWindow):
@@ -51,6 +51,8 @@ class MainWindow(QMainWindow):
         self.audio_ready = False
         self.library = SongLibrary()
         self.selected_library_row: int | None = None
+        self.current_song_analysed = False
+        self.current_loaded_from_library = False
         self.library_songs: list[LibrarySong] = []
         self.detected_bpm: int | None = None
         self.detected_key: str | None = None
@@ -83,7 +85,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Banjofy 006.2.2 ready - Library workflow clarified and NOW/NEXT diagrams added.")
+        self.statusBar().showMessage("Banjofy 006.2.3 ready - workflow enforcement and clearer NOW/NEXT diagrams.")
 
     def _build_screen_shell(self) -> QWidget:
         """Build 006.0B: Finder becomes the active search/download screen."""
@@ -644,10 +646,22 @@ class MainWindow(QMainWindow):
         row = self.selected_library_row
         if row is None:
             row = self.library_list.currentRow() if hasattr(self, "library_list") else -1
-        if row is None or row < 0:
-            self.statusBar().showMessage("Select a Library song first, then click Send to Practice")
+
+        if row is not None and row >= 0:
+            songs = self.library.load()
+            if row < len(songs):
+                self._load_library_song(row)
+                return
+
+        if getattr(self, "current_song_analysed", False) or getattr(self, "current_loaded_from_library", False):
+            if hasattr(self, "tabs"):
+                self.tabs.setCurrentIndex(1)
+            self._reset_song_position_to_start()
+            self._update_all()
+            self.statusBar().showMessage("Analysed song sent to Practice")
             return
-        self._load_library_song(row)
+
+        self.statusBar().showMessage("Analyse a song or select a saved Library song before sending to Practice")
 
     def _library_item_clicked(self, item) -> None:
         try:
@@ -726,110 +740,37 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Loaded from Library: {saved.title}")
 
     def _save_current_song_to_library(self) -> None:
-        title = self.title_label.text().strip() if hasattr(self, "title_label") else ""
-        artist = self.artist_label.text().strip() if hasattr(self, "artist_label") else ""
-        duration = self._current_duration_text() if hasattr(self, "_current_duration_text") else ""
-        if not title or title in {"—", "No song selected"}:
-            self.statusBar().showMessage("No song selected to save")
+        if not getattr(self, "current_song_analysed", False) and not getattr(self, "current_loaded_from_library", False):
+            self.statusBar().showMessage("Analyse a song before saving it to Library")
             return
 
-        source_url = ""
-        thumbnail_url = ""
-        if self.selected_youtube_result:
-            source_url = getattr(self.selected_youtube_result, "url", "") or ""
-            thumbnail_url = getattr(self.selected_youtube_result, "thumbnail_url", "") or ""
+        title = self.title_label.text().strip() if hasattr(self, "title_label") else ""
+        artist = self.artist_label.text().strip() if hasattr(self, "artist_label") else ""
+        duration = self.duration_label.text().replace("Duration:", "").strip() if hasattr(self, "duration_label") else ""
+
+        if not title or title in {"—", "No song selected"}:
+            self.statusBar().showMessage("No analysed song available to save")
+            return
+
+        chords_by_bar = list(getattr(self.song, "chords_by_bar", []) or [])
+        if not chords_by_bar:
+            self.statusBar().showMessage("No chord grid available to save. Analyse the song first.")
+            return
 
         self.library.save_song(
             LibrarySong(
                 title=title,
                 artist=artist or "Unknown artist",
-                duration=duration or "Unknown duration",
+                duration=duration or self._current_duration_text() or "Unknown duration",
                 bpm=self.bpm_label.text().replace("BPM:", "").strip() if hasattr(self, "bpm_label") else "",
                 key=self.key_label.text().replace("Key:", "").strip() if hasattr(self, "key_label") else "",
                 source="YouTube",
-                audio_path=str(self.downloaded_audio_path or ""),
-                source_url=source_url,
-                thumbnail_url=thumbnail_url,
-                chords_by_bar=list(getattr(self.song, "chords_by_bar", []) or []),
-                beat_times_ms=list(self.beat_times_ms or []),
+                audio_path=str(self.downloaded_audio_path) if self.downloaded_audio_path else "",
+                chords_by_bar=chords_by_bar,
             )
         )
         self._refresh_library_list()
         self.statusBar().showMessage(f"Saved to Library manually: {title}")
-
-
-    def _load_library_song_by_row(self, row: int) -> None:
-        if not hasattr(self, "library_songs"):
-            return
-        if row < 0 or row >= len(self.library_songs):
-            return
-
-        song_entry = self.library_songs[row]
-        if not song_entry.title or song_entry.title == "No saved songs yet":
-            return
-
-        self._stop()
-        self.youtube_results = []
-        self.selected_youtube_result = None
-
-        bpm_text = str(song_entry.bpm or "").split()[0]
-        try:
-            bpm = int(round(float(bpm_text)))
-        except Exception:
-            bpm = self.song.bpm if hasattr(self, "song") else 92
-
-        key = str(song_entry.key or "").replace("Key:", "").strip() or "G"
-
-        chords_by_bar = list(song_entry.chords_by_bar or [])
-        if not chords_by_bar:
-            bars = self._bars_from_duration_and_bpm(song_entry.duration, bpm)
-            if bars <= 0:
-                bars = 64
-            tonic = self._tonic_chord(key)
-            chords_by_bar = [tonic for _ in range(bars)]
-
-        self.song = DemoSong(
-            title=song_entry.title,
-            artist=song_entry.artist or "Unknown artist",
-            bpm=bpm,
-            key=key,
-            duration=song_entry.duration or "—",
-            chords_by_bar=chords_by_bar,
-        )
-
-        self.beat_times_ms = list(song_entry.beat_times_ms or [])
-        self.downloaded_audio_path = Path(song_entry.audio_path) if song_entry.audio_path else None
-        self.audio_ready = False
-        if self.downloaded_audio_path and self.downloaded_audio_path.exists():
-            self._load_audio_file(self.downloaded_audio_path)
-
-        self.position = 0
-        if self.audio_ready:
-            self.media_player.setPosition(0)
-        self.loop_start = None
-        self.loop_end = None
-        self.sync_offset_beats = 0
-        self._update_sync_label()
-
-        self.title_label.setText(self.song.title)
-        self.artist_label.setText(self.song.artist)
-        self.source_label.setText("Source: Saved Library")
-        self.bpm_label.setText(f"BPM: {self.song.bpm}")
-        self.key_label.setText(f"Key: {self.song.key}")
-        self.duration_label.setText(f"Duration: {self.song.duration}")
-        self.download_status.setText("Audio: loaded from library" if self.audio_ready else "Audio: not available from library")
-        self.analysis_status.setText("Analysis: loaded from library")
-        self.download_progress.setValue(100 if self.audio_ready else 0)
-        self.analysis_progress.setValue(100)
-
-        self._build_grid()
-        self._scroll_grid_to_start()
-        self._update_loop_status()
-        self._update_all()
-        self._update_practice_info_panel()
-        if hasattr(self, "tabs"):
-            self.tabs.setCurrentIndex(1)
-        self.statusBar().showMessage(f"Loaded from Library: {self.song.title}")
 
     def _start_youtube_search(self) -> None:
         query = self.search.text().strip()
@@ -987,8 +928,8 @@ class MainWindow(QMainWindow):
                     self.search_button.setEnabled(True)
                     if self.selected_youtube_result:
                         self.download_btn.setEnabled(True)
-                    if hasattr(self, "tabs"):
-                        self.tabs.setCurrentIndex(1)
+                    self.current_song_analysed = True
+                    self.current_loaded_from_library = False
                     if self.timer.isActive():
                         self.timer.start(self._interval_ms())
                 return
@@ -1177,6 +1118,8 @@ class MainWindow(QMainWindow):
             result = self.youtube_results[row]
             self._stop()
             self.selected_youtube_result = result
+            self.current_song_analysed = False
+            self.current_loaded_from_library = False
             self._reset_song_position_to_start()
             self._clear_audio_file()
             self.download_btn.setEnabled(True)
