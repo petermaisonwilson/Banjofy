@@ -26,7 +26,7 @@ from banjofy.library import SongLibrary, LibrarySong
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 006.2.3 - Workflow Enforcement and Better Diagrams"
+APP_VERSION = "Banjofy 006.2.4 - Validated Workflow Repair"
 
 
 class MainWindow(QMainWindow):
@@ -85,7 +85,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Banjofy 006.2.3 ready - workflow enforcement and clearer NOW/NEXT diagrams.")
+        self.statusBar().showMessage("Banjofy 006.2.4 ready - validated workflow repair.")
 
     def _build_screen_shell(self) -> QWidget:
         """Build 006.0B: Finder becomes the active search/download screen."""
@@ -674,6 +674,10 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Library item selected: {songs[row].title}")
         else:
             self.statusBar().showMessage("Library item selected, but no saved song data was found")
+
+    def _load_library_song_by_row(self) -> None:
+        """Compatibility wrapper for older Send to Practice signal connection."""
+        self._send_selected_library_to_practice()
 
     def _load_library_song(self, row: int) -> None:
         songs = self.library.load()

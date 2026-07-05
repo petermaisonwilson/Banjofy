@@ -77,11 +77,13 @@ class ChordPanel(QFrame):
         self.chord_label = QLabel(chord)
         self.diagram_label = QLabel("")
         self.subtitle = QLabel(subtitle)
+
         self.chord_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.chord_label.setStyleSheet("font-size: 32px; font-weight: bold; color: #f3d99a;")
         self.diagram_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.diagram_label.setStyleSheet("font-family: Consolas, 'Courier New', monospace; font-size: 11px; color: #eeeeee;")
         self.subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 4, 6, 4)
         layout.addWidget(self.title)
