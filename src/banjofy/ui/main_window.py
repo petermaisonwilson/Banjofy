@@ -26,7 +26,7 @@ from banjofy.library import SongLibrary, LibrarySong
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 006.2.1 - Library Load Search Reuse Grid Cleanup"
+APP_VERSION = "Banjofy 006.2.2 - Library Workflow and NOW NEXT Diagrams"
 
 
 class MainWindow(QMainWindow):
@@ -50,6 +50,7 @@ class MainWindow(QMainWindow):
         self.downloaded_audio_path: Path | None = None
         self.audio_ready = False
         self.library = SongLibrary()
+        self.selected_library_row: int | None = None
         self.library_songs: list[LibrarySong] = []
         self.detected_bpm: int | None = None
         self.detected_key: str | None = None
@@ -82,7 +83,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Banjofy 006.2.1 ready - library load, search reuse and grid cleanup repaired.")
+        self.statusBar().showMessage("Banjofy 006.2.2 ready - Library workflow clarified and NOW/NEXT diagrams added.")
 
     def _build_screen_shell(self) -> QWidget:
         """Build 006.0B: Finder becomes the active search/download screen."""
@@ -147,6 +148,7 @@ class MainWindow(QMainWindow):
         left_layout.addLayout(search_row)
 
         self.result_list = QListWidget()
+        self.result_list.setMaximumHeight(220)
         self.result_list.setIconSize(QSize(128, 72))
         self.result_list.currentRowChanged.connect(self._select_result)
         left_layout.addWidget(self.result_list, 1)
@@ -156,6 +158,7 @@ class MainWindow(QMainWindow):
         left_layout.addWidget(library_title)
 
         self.library_list = QListWidget()
+        self.library_list.setMinimumHeight(260)
         self.library_list.setMaximumHeight(150)
         self.library_list.currentRowChanged.connect(self._load_library_song_by_row)
         left_layout.addWidget(self.library_list)
@@ -164,7 +167,7 @@ class MainWindow(QMainWindow):
 
         library_buttons = QHBoxLayout()
         self.refresh_library_btn = QPushButton("Refresh Library")
-        self.refresh_library_btn.clicked.connect(self._refresh_library_list)
+        self.refresh_library_btn.clicked.connect(self._manual_refresh_library)
         library_buttons.addWidget(self.refresh_library_btn)
         library_buttons.addStretch()
         left_layout.addLayout(library_buttons)
@@ -615,6 +618,10 @@ class MainWindow(QMainWindow):
         else:
             self.statusBar().showMessage("No YouTube video selected")
 
+    def _manual_refresh_library(self) -> None:
+        self._refresh_library_list()
+        self.statusBar().showMessage("Library refreshed from disk")
+
     def _refresh_library_list(self) -> None:
         if not hasattr(self, "library_list"):
             return
@@ -633,12 +640,26 @@ class MainWindow(QMainWindow):
         self.library_list.blockSignals(False)
 
 
+    def _send_selected_library_to_practice(self) -> None:
+        row = self.selected_library_row
+        if row is None:
+            row = self.library_list.currentRow() if hasattr(self, "library_list") else -1
+        if row is None or row < 0:
+            self.statusBar().showMessage("Select a Library song first, then click Send to Practice")
+            return
+        self._load_library_song(row)
+
     def _library_item_clicked(self, item) -> None:
         try:
             row = self.library_list.row(item)
         except Exception:
             row = -1
-        self._load_library_song(row)
+        self.selected_library_row = row
+        songs = self.library.load()
+        if 0 <= row < len(songs):
+            self.statusBar().showMessage(f"Library item selected: {songs[row].title}")
+        else:
+            self.statusBar().showMessage("Library item selected, but no saved song data was found")
 
     def _load_library_song(self, row: int) -> None:
         songs = self.library.load()
@@ -734,7 +755,7 @@ class MainWindow(QMainWindow):
             )
         )
         self._refresh_library_list()
-        self.statusBar().showMessage(f"Saved to Library: {title}")
+        self.statusBar().showMessage(f"Saved to Library manually: {title}")
 
 
     def _load_library_song_by_row(self, row: int) -> None:
@@ -963,7 +984,6 @@ class MainWindow(QMainWindow):
                     self.detected_bpm, self.detected_key, self.detected_key_confidence, summary = self.analysis_panel.apply_result(result)
                     self._build_analysis_grid(result)
                     self.statusBar().showMessage(f"Analysis complete: {summary}")
-                    self._save_current_song_to_library()
                     self.search_button.setEnabled(True)
                     if self.selected_youtube_result:
                         self.download_btn.setEnabled(True)

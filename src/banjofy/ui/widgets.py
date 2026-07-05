@@ -54,19 +54,55 @@ class BeatCell(QFrame):
 
 
 class ChordPanel(QFrame):
+    SIMPLE_BANJO_SHAPES = {
+        "G": ["0", "0", "0", "0", "0"],
+        "C": ["2", "0", "1", "2", "0"],
+        "D": ["0", "2", "3", "4", "0"],
+        "D7": ["0", "2", "1", "0", "0"],
+        "Em": ["0", "2", "2", "0", "0"],
+        "Am": ["2", "2", "1", "2", "0"],
+        "A": ["2", "2", "2", "2", "0"],
+        "B": ["4", "4", "4", "4", "0"],
+        "E": ["2", "1", "0", "2", "0"],
+        "F": ["3", "2", "1", "3", "0"],
+        "F#": ["4", "3", "2", "4", "0"],
+        "G#": ["1", "1", "1", "1", "1"],
+        "C#m": ["6", "6", "5", "6", "0"],
+    }
+
     def __init__(self, title: str, chord: str = "—", colour: str = "#f3d99a", subtitle: str = "") -> None:
         super().__init__()
         self.setObjectName("ChordPanel")
         self.title = QLabel(title)
         self.chord_label = QLabel(chord)
+        self.diagram_label = QLabel("")
         self.subtitle = QLabel(subtitle)
         self.chord_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.chord_label.setStyleSheet("font-size: 34px; font-weight: bold;")
+        self.chord_label.setStyleSheet("font-size: 34px; font-weight: bold; color: #f3d99a;")
+        self.diagram_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.diagram_label.setStyleSheet("font-family: Consolas, monospace; font-size: 12px; color: #dddddd;")
+        self.subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 4, 6, 4)
         layout.addWidget(self.title)
         layout.addWidget(self.chord_label)
+        layout.addWidget(self.diagram_label)
         layout.addWidget(self.subtitle)
+        self.set_chord(chord)
 
     def set_chord(self, chord: str) -> None:
-        self.chord_label.setText(chord)
+        clean = (chord or "—").strip()
+        self.chord_label.setText(clean)
+        self.diagram_label.setText(self._diagram_text(clean))
+
+    def _diagram_text(self, chord: str) -> str:
+        if not chord or chord == "—":
+            return ""
+        shape = self.SIMPLE_BANJO_SHAPES.get(chord)
+        if shape is None:
+            root = chord.replace("maj7", "").replace("sus4", "").replace("sus2", "").replace("add9", "")
+            shape = self.SIMPLE_BANJO_SHAPES.get(root)
+        if shape is None:
+            return "diagram coming"
+        strings = ["D", "B", "G", "D", "g"]
+        return "\n".join(f"{s}|-{f}-" for s, f in zip(strings, shape))

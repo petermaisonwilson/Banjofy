@@ -1,4 +1,4 @@
-BANJOFY 006.2.1 - LIBRARY LOAD SEARCH REUSE GRID CLEANUP
+BANJOFY 006.2.2 - LIBRARY WORKFLOW AND NOW/NEXT DIAGRAMS
 =========================================================
 
 Status
@@ -13,65 +13,38 @@ Validation performed before release
 -----------------------------------
 - Parsed all Python files for syntax errors.
 - Checked MainWindow for missing private self._method calls.
-- Confirmed Library click handlers are present.
-- Confirmed grid remains chord-name-only.
+- Confirmed auto-save after analysis was removed.
 
-Purpose
--------
-006.2.0 fixed startup, grid length and cursor reset, but:
-- clicking saved Library songs did not load them into Practice,
-- selecting another song from the same search was awkward,
-- grid content needed to remain chord names only.
+Important behaviour change
+--------------------------
+Analysed songs are NO LONGER auto-saved to Library.
+A song is saved only when the user clicks Save to Library.
 
-Changes
--------
-Library:
-- Clicking or double-clicking a saved Library item now calls a dedicated loader.
-- Library-loaded songs switch to Practice Studio.
-- Stored audio path is reused if the file still exists.
-- Saved library records keep audio_path and chords_by_bar.
-- Backward compatible with older saved items.
+Library workflow
+----------------
+- Library box is larger.
+- Search results box is smaller.
+- Clicking a Library item selects it and shows a status message.
+- Send to Practice loads the selected Library item.
+- Refresh Library reloads the Library list from disk.
+- Go to Practice Studio only changes tab.
 
-Search reuse:
-- After analysing/downloading one search result, the results list is left in place.
-- Search and download buttons are re-enabled.
-- Selecting another result from the same search should no longer require a full re-search.
+NOW/NEXT chord diagrams
+-----------------------
+- Grid remains chord names only.
+- NOW and NEXT panels show simple banjo chord diagrams.
+- Diagrams are placeholders and will be improved later.
 
-Grid cleanup:
-- Grid remains chord-name-only squares.
-- Chord diagrams are reserved for NOW and NEXT boxes only.
-- This build does not add or change chord diagrams themselves.
-
-Not changed
+Future note
 -----------
-- Chord/key accuracy is not changed.
-- Timing engine is not changed.
-- Difficulty modes are not implemented yet.
-- Portable library folder redesign is not included yet.
+A later build will move the Library into a clear portable folder near the app/user-chosen location.
 
 GitHub Desktop instructions
 ---------------------------
 1. Download and unzip this ZIP.
-2. Copy ALL contents of the unzipped folder.
-3. Paste into your local Banjofy repository folder.
-4. Allow Windows to replace files.
-5. Open GitHub Desktop.
-6. Review changed files.
-7. Commit summary:
-   Banjofy 006.2.1 library search grid cleanup
-8. Commit.
-9. Push origin.
-10. Wait for GitHub Actions.
-11. Download and test the artifact.
-
-Test checklist
---------------
-1. App opens.
-2. Search for a song.
-3. Select, download and analyse one result.
-4. Confirm the search results are still available.
-5. Select another result from the same search without re-searching.
-6. Confirm saved song appears in Library.
-7. Click saved Library song.
-8. Confirm it loads into Practice Studio.
-9. Confirm grid contains chord names only.
+2. Copy ALL contents into your local Banjofy repository folder.
+3. Allow Windows to replace files.
+4. Open GitHub Desktop.
+5. Commit summary: Banjofy 006.2.2 library workflow now next diagrams
+6. Commit, then Push origin.
+7. Wait for Actions, download and test.
