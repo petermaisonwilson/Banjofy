@@ -1,5 +1,5 @@
-BANJOFY 006.1G - LIBRARY LOAD + GRID LENGTH + RESET REPAIR
-==========================================================
+BANJOFY 006.2.0 - LIBRARY GRID RESET STABILISATION
+===================================================
 
 Status
 ------
@@ -9,86 +9,68 @@ Type
 ----
 Complete release package.
 
-Audit summary
--------------
-Before building 006.1G I audited the current source flow.
+Validation performed before release
+-----------------------------------
+- Parsed all Python files for syntax errors.
+- Checked MainWindow for missing private self._method calls.
+- Confirmed _scroll_grid_to_start exists as a MainWindow method.
 
-Findings:
-1. Saved Library songs were listed but not connected to a loader.
-   The list existed, but clicking a saved song did not reconstruct the Practice song.
+Purpose
+-------
+006.1G failed at startup because _scroll_grid_to_start was called but not present
+as a MainWindow method. 006.2.0 fixes that and stabilises the unfinished
+library/grid/reset work.
 
-2. Library entries stored only basic text metadata:
-   title, artist, duration, BPM, key.
-   They did not store audio path, chord grid, beat timings, source URL, or thumbnail URL.
-
-3. The Practice screen could re-analyse cached audio quickly because the MP3 was cached on disk,
-   but the Library had no route to reopen that cached song properly.
-
-4. Grid length was vulnerable to falling back to 16 bars because the Practice song could be rebuilt
-   without enough persisted chord/bar information.
-
-5. Cursor reset existed in some paths, but not consistently across Library load, analyse, and audio reload.
-
-Changes in 006.1G
------------------
-Library:
-- LibrarySong now stores:
-  title, artist, duration, BPM, key, source,
-  audio_path, source_url, thumbnail_url, chords_by_bar, beat_times_ms.
-- Library loading remains backwards-compatible with old saved entries.
-- Clicking a saved Library item now loads it into Practice Studio.
-- If saved audio still exists on disk, the audio is loaded and ready.
-- If saved chord data exists, the grid is rebuilt from it.
-- If old saved entries have no chord data, a sensible full-length grid is generated.
-
-Grid length:
-- Grid length is restored from saved chords where possible.
-- When no chords are saved, grid length is estimated from duration + BPM.
-- This avoids defaulting back to 16 bars where possible.
+Changes
+-------
+Startup:
+- Fixes the missing _scroll_grid_to_start method crash.
 
 Cursor reset:
-- Library-loaded songs reset to first beat/bar.
-- Analysed songs reset to first beat/bar.
-- Audio position is reset to start when relevant.
-- Grid scroll resets to the top.
+- New selected songs reset to beat 1.
+- Analysed songs reset to beat 1.
+- Library-loaded songs reset to beat 1.
+- Practice grid scrolls back to the start on load.
+
+Grid length:
+- Uses detected beat count, displayed duration, and estimated bars.
+- Removes the repeated 16-bar fallback where better evidence exists.
+- Allows up to 300 bars.
+
+Library:
+- Extends saved library records to include audio_path and chords_by_bar.
+- Backward-compatible with old saved library entries.
+- Clicking or double-clicking a saved Library item loads it into Practice Studio.
+- If the saved audio file still exists, it is reloaded.
 
 Not changed
 -----------
-- Timing engine is not changed.
-- Chord detection is not upgraded.
-- UI layout is not redesigned.
-- FFmpeg fix from 006.1D is retained.
-- Grid visibility from 006.1F is retained.
-
-Known remaining issue
----------------------
-Timing may still be out. That is separate and should be handled in 006.2A.
+- Timing engine is not repaired in this build.
+- Chord accuracy is not changed.
+- Portable library folder beside/near EXE is not included yet.
 
 GitHub Desktop instructions
 ---------------------------
 1. Download and unzip this ZIP.
 2. Copy ALL contents of the unzipped folder.
-3. Paste into your local Banjofy repository folder:
-   C:\Users\peter\Reulo Dropbox\Peter Wilson\Peter Wilson\Documents\Banjo Stuff\Banjo Software\github\Banjofy
+3. Paste into your local Banjofy repository folder.
 4. Allow Windows to replace files.
 5. Open GitHub Desktop.
 6. Review changed files.
 7. Commit summary:
-   Banjofy 006.1G library load grid length reset
+   Banjofy 006.2.0 library grid reset stabilisation
 8. Commit.
 9. Push origin.
 10. Wait for GitHub Actions.
-11. Download and test the Banjofy-Windows artifact.
+11. Download and test the artifact.
 
 Test checklist
 --------------
 1. App opens.
-2. Search a song.
-3. Download/analyse.
-4. Confirm grid is longer than 16 bars.
-5. Confirm cursor starts at beat 1/bar 1.
-6. Confirm song appears in Saved Song Library.
-7. Click the saved song in Library.
-8. Confirm it loads into Practice Studio.
-9. Confirm the cursor starts at beat 1/bar 1 again.
-10. Confirm audio is loaded from cache if the MP3 still exists.
+2. Search/download/analyse a song.
+3. Cursor starts at beat 1.
+4. Grid extends beyond 16 bars when duration or beat count supports it.
+5. Saved song appears in Library.
+6. Click saved song in Library.
+7. It loads into Practice Studio.
+8. If audio file still exists locally, playback can use it.

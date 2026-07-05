@@ -14,10 +14,7 @@ class LibrarySong:
     key: str = ""
     source: str = "YouTube"
     audio_path: str = ""
-    source_url: str = ""
-    thumbnail_url: str = ""
     chords_by_bar: list[str] = field(default_factory=list)
-    beat_times_ms: list[int] = field(default_factory=list)
 
 
 class SongLibrary:
@@ -35,11 +32,11 @@ class SongLibrary:
             for item in data:
                 if not isinstance(item, dict):
                     continue
-                # Backwards-compatible load: older library entries only had
-                # title/artist/duration/bpm/key/source.
-                allowed = {field.name for field in LibrarySong.__dataclass_fields__.values()}
-                cleaned = {k: v for k, v in item.items() if k in allowed}
-                songs.append(LibrarySong(**cleaned))
+                allowed = {"title", "artist", "duration", "bpm", "key", "source", "audio_path", "chords_by_bar"}
+                clean = {k: v for k, v in item.items() if k in allowed}
+                if "chords_by_bar" not in clean or not isinstance(clean.get("chords_by_bar"), list):
+                    clean["chords_by_bar"] = []
+                songs.append(LibrarySong(**clean))
             return songs
         except Exception:
             return []
@@ -47,12 +44,6 @@ class SongLibrary:
     def save_song(self, song: LibrarySong) -> None:
         songs = self.load()
         key = (song.title.lower(), song.artist.lower(), song.duration.lower())
-        songs = [
-            s for s in songs
-            if (s.title.lower(), s.artist.lower(), s.duration.lower()) != key
-        ]
+        songs = [s for s in songs if (s.title.lower(), s.artist.lower(), s.duration.lower()) != key]
         songs.insert(0, song)
-        self.index_file.write_text(
-            json.dumps([asdict(s) for s in songs[:200]], indent=2),
-            encoding="utf-8",
-        )
+        self.index_file.write_text(json.dumps([asdict(s) for s in songs[:100]], indent=2), encoding="utf-8")

@@ -26,7 +26,7 @@ from banjofy.library import SongLibrary, LibrarySong
 from banjofy.youtube.downloader import DownloadResult, download_audio
 from banjofy.youtube.search import YouTubeResult, search_youtube
 
-APP_VERSION = "Banjofy 006.1G - Library Load Grid Length Reset"
+APP_VERSION = "Banjofy 006.2.0 - Library Grid Reset Stabilisation"
 
 
 class MainWindow(QMainWindow):
@@ -82,7 +82,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._load_song(self.song)
         self._update_all()
-        self.statusBar().showMessage("Banjofy 006.1G ready - library load, grid length and reset repaired.")
+        self.statusBar().showMessage("Banjofy 006.2.0 ready - library, grid length and reset stabilised.")
 
     def _build_screen_shell(self) -> QWidget:
         """Build 006.0B: Finder becomes the active search/download screen."""
@@ -903,16 +903,21 @@ class MainWindow(QMainWindow):
                 return
 
     def _build_analysis_grid(self, result: AnalysisResult) -> None:
-        if hasattr(self, "duration_label") and (not self.duration_label.text().replace("Duration:", "").strip()):
-            self.duration_label.setText(f"Duration: {self._current_duration_text()}")
-        bars = max(4, min(300, result.estimated_bars or 16))
+        duration_text = self._current_duration_text()
+        if hasattr(self, "duration_label"):
+            self.duration_label.setText(f"Duration: {duration_text or '—'}")
+
         duration_bars = self._estimated_bars_from_display_duration(result.bpm)
-        if duration_bars:
-            bars = max(bars, duration_bars)
+        beat_time_bars = 0
         if getattr(result, "beat_times_ms", None):
-            bars = max(bars, (len(result.beat_times_ms) + 3) // 4)
+            beat_time_bars = (len(result.beat_times_ms) + 3) // 4
+
+        estimated = int(getattr(result, "estimated_bars", 0) or 0)
+        bars = max(4, estimated, duration_bars, beat_time_bars)
+        bars = min(300, bars)
+
         tonic = self._tonic_chord(result.key)
-        if result.chords_by_bar:
+        if getattr(result, "chords_by_bar", None):
             chords_by_bar = list(result.chords_by_bar[:bars])
             if len(chords_by_bar) < bars:
                 chords_by_bar.extend([""] * (bars - len(chords_by_bar)))
@@ -929,7 +934,7 @@ class MainWindow(QMainWindow):
         else:
             chords_by_bar = [tonic for _ in range(bars)]
 
-        self.beat_times_ms = list(result.beat_times_ms or [])
+        self.beat_times_ms = list(getattr(result, "beat_times_ms", []) or [])
         self.sync_offset_beats = 0
         self._update_sync_label()
         target_beats = len(chords_by_bar) * 4
@@ -942,20 +947,21 @@ class MainWindow(QMainWindow):
         artist = self.artist_label.text() or "YouTube"
         key = result.key or "Unknown"
         bpm = int(round(result.bpm or self.song.bpm))
-        self.song = DemoSong(title=title, artist=artist, bpm=bpm, key=key, duration=self._current_duration_text(), chords_by_bar=chords_by_bar)
-        self.duration_label.setText(f"Duration: {self.song.duration or '—'}")
-        self.position = 0
-        if self.audio_ready:
-            self.media_player.setPosition(0)
-        self.loop_start = None
-        self.loop_end = None
+        self.song = DemoSong(
+            title=title,
+            artist=artist,
+            bpm=bpm,
+            key=key,
+            duration=duration_text or "—",
+            chords_by_bar=chords_by_bar,
+        )
+        self._reset_song_position_to_start()
         self._build_grid()
         self._scroll_grid_to_start()
         self._update_loop_status()
         self._update_all()
+        self._update_practice_video_panel()
         self._update_practice_info_panel()
-        self._update_practice_video_panel()
-        self._update_practice_video_panel()
 
     def _current_duration_text(self) -> str:
         duration = ""
@@ -994,12 +1000,24 @@ class MainWindow(QMainWindow):
         return max(0, int(beats / 4) + 2)
 
     def _estimated_bars_from_display_duration(self, bpm: float | None) -> int:
-        """Fallback song length estimate when beat detection stops too early."""
+        """Estimate full song grid length from displayed duration and BPM."""
         try:
-            return self._bars_from_duration_and_bpm(self._current_duration_text(), bpm)
+            duration_text = self._current_duration_text()
+            if not duration_text or duration_text == "—":
+                return 0
+            parts = duration_text.strip().split(":")
+            if len(parts) == 2:
+                seconds = int(parts[0]) * 60 + int(parts[1])
+            elif len(parts) == 3:
+                seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+            else:
+                return 0
+            if seconds <= 0 or not bpm:
+                return 0
+            beats = int((seconds * float(bpm)) / 60)
+            return max(0, (beats + 3) // 4 + 1)
         except Exception:
             return 0
-
 
     def _tonic_chord(self, key: str | None) -> str:
         if not key:
@@ -1035,10 +1053,7 @@ class MainWindow(QMainWindow):
     def _load_song(self, song: DemoSong) -> None:
         self._stop()
         self.song = song
-        self.position = 0
-        self.loop_start = None
-        self.loop_end = None
-        self.selection_mode = None
+        self._reset_song_position_to_start()
         self.selected_youtube_result = None
         self._clear_audio_file()
         self.download_btn.setEnabled(False)
@@ -1066,6 +1081,7 @@ class MainWindow(QMainWindow):
             result = self.youtube_results[row]
             self._stop()
             self.selected_youtube_result = result
+            self._reset_song_position_to_start()
             self._clear_audio_file()
             self.download_btn.setEnabled(True)
             self.download_progress.setValue(0)
@@ -1089,6 +1105,23 @@ class MainWindow(QMainWindow):
         if 0 <= row < len(DEMO_SONGS):
             self._load_song(DEMO_SONGS[row])
             self.statusBar().showMessage(f"Loaded demo: {DEMO_SONGS[row].title}")
+
+    def _reset_song_position_to_start(self) -> None:
+        """Reset playback state to the first beat of the song."""
+        self.position = 0
+        self.loop_start = None
+        self.loop_end = None
+        self.selection_mode = None
+        self._scroll_grid_to_start()
+
+    def _scroll_grid_to_start(self) -> None:
+        """Reset the Practice grid scrollbars to the start of the song."""
+        try:
+            if hasattr(self, "scroll"):
+                self.scroll.verticalScrollBar().setValue(0)
+                self.scroll.horizontalScrollBar().setValue(0)
+        except Exception:
+            pass
 
     def _build_grid(self) -> None:
         self.cells = self.chord_grid.build(self.song.beat_chords, self._display_chord)
