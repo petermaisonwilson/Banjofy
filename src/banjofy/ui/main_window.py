@@ -27,7 +27,7 @@ from banjofy.analysis.audio_analysis import AnalysisManager, AnalysisResult
 from banjofy.storage.paths import audio_folder, get_library_path, set_library_path
 
 
-APP_VERSION = "Banjofy 006.3.0 Module 3A - Library Startup Fix + Analysis"
+APP_VERSION = "Banjofy 006.3.0 Module 3B - Search Fix + Restart Banner"
 
 
 class MainWindow(QMainWindow):
@@ -43,6 +43,8 @@ class MainWindow(QMainWindow):
         self.search_queue: queue.Queue = queue.Queue()
         self.download_queue: queue.Queue = queue.Queue()
         self.analysis_queue: queue.Queue = queue.Queue()
+        self.search_wait_ticks = 0
+        self.search_timeout_ticks = 300
 
         self.setWindowTitle(APP_VERSION)
         self.resize(1200, 760)
@@ -77,6 +79,12 @@ class MainWindow(QMainWindow):
         note.setObjectName("Hint")
         note.setAlignment(Qt.AlignmentFlag.AlignCenter)
         outer.addWidget(note)
+
+        self.restart_banner = QLabel("")
+        self.restart_banner.setObjectName("RestartBanner")
+        self.restart_banner.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.restart_banner.setVisible(False)
+        outer.addWidget(self.restart_banner)
 
         library_row = QHBoxLayout()
         self.library_path_label = QLabel("Library: not set")
@@ -183,6 +191,14 @@ class MainWindow(QMainWindow):
                 background: #181818;
                 border: 1px solid #555;
             }
+            QLabel#RestartBanner {
+                background: #6b1f1f;
+                color: #ffffff;
+                border: 2px solid #ffcc88;
+                padding: 8px;
+                font-size: 16px;
+                font-weight: bold;
+            }
         """)
 
     def _start_search(self) -> None:
@@ -203,6 +219,7 @@ class MainWindow(QMainWindow):
         self.analyse_button.setEnabled(False)
         self.download_status.setText("Download: no result selected")
         self.analysis_status.setText("Analysis: no downloaded audio")
+        self.search_wait_ticks = 0
         self.statusBar().showMessage(f"Searching YouTube for: {query}")
 
         def worker() -> None:
@@ -219,6 +236,13 @@ class MainWindow(QMainWindow):
         try:
             kind, payload = self.search_queue.get_nowait()
         except queue.Empty:
+            self.search_wait_ticks += 1
+            if self.search_wait_ticks >= self.search_timeout_ticks:
+                self.search_poll_timer.stop()
+                self.search_button.setEnabled(True)
+                self.result_list.clear()
+                self.result_list.addItem(QListWidgetItem("YouTube search timed out. Try again, or check internet/YouTube access."))
+                self.statusBar().showMessage("YouTube search timed out")
             return
 
         self.search_poll_timer.stop()
@@ -289,10 +313,14 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Choose a permanent Banjofy Library folder")
             self.library_path_label.setText("Library: not set - choose a permanent folder")
             self.audio_folder_label.setText("Audio folder: choose Library folder first")
+            if hasattr(self, "restart_banner"):
+                self.restart_banner.setVisible(False)
             return
 
         self.library_path_label.setText(f"Library: {path}")
         self.audio_folder_label.setText(f"Audio folder: {audio_folder()}")
+        if hasattr(self, "restart_banner"):
+            self.restart_banner.setVisible(False)
 
     def _choose_library_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Choose Banjofy Library Folder")
@@ -301,7 +329,9 @@ class MainWindow(QMainWindow):
         path = set_library_path(folder)
         self.library_path_label.setText(f"Library: {path}")
         self.audio_folder_label.setText(f"Audio folder: {audio_folder()}")
-        self.statusBar().showMessage(f"Library folder set: {path}")
+        self.restart_banner.setText("IMPORTANT: Library folder set. Please close and restart Banjofy before continuing.")
+        self.restart_banner.setVisible(True)
+        self.statusBar().showMessage(f"Library folder set: {path}. Please restart Banjofy.")
 
     def _start_download(self) -> None:
         if not self.selected_result:

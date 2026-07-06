@@ -1,46 +1,17 @@
-BANJOFY 006.3.0 MODULE 3A - LIBRARY STARTUP FIX + ANALYSIS
-=========================================================
+BANJOFY 006.3.0 MODULE 3B - SEARCH FIX + RESTART BANNER
+======================================================
 
 Status
 ------
 BUILD COMPLETE
 
-Clean rebuild module
---------------------
-This is Module 3 with the first-run Library startup crash fixed.
-
-Diagnosis
----------
-Module 3 crashed on first run because the UI called audio_folder() while no Library
-folder had been chosen yet.
-
-Fix
----
-- App now starts even if no Library folder is set.
-- UI shows:
-  Audio folder: choose Library folder first
-- User chooses permanent Library folder.
-- Only then does the app resolve/create:
-  Audio
-  Analysis
-  Artwork
-  Songs
-
-Included
---------
-- Application shell.
-- YouTube search.
-- Result selection.
-- Download Selected Audio.
-- Persistent user-chosen Library folder.
-- Analysis record creation.
-
-Not included yet
-----------------
-- Library save/load list.
-- Practice screen.
-- Chord diagrams.
-- Playback/timing.
+Fixes
+-----
+- Search now has yt-dlp/network timeout settings.
+- UI search polling now has a timeout and re-enables the Search button if no result arrives.
+- If YouTube search times out, the user sees a clear message rather than a permanent hang.
+- After the user first chooses a Library folder, a bold restart banner appears.
+- Banner disappears on subsequent launches once the stored Library path is loaded.
 
 GitHub Desktop instructions
 ---------------------------
@@ -49,19 +20,16 @@ GitHub Desktop instructions
 3. Allow Windows to replace files.
 4. Open GitHub Desktop.
 5. Commit summary:
-   Banjofy 006.3.0 module 3A library startup fix
-6. Commit.
-7. Push origin.
-8. Wait for GitHub Actions.
-9. Download artifact and test.
+   Banjofy 006.3.0 module 3B search fix restart banner
+6. Commit, Push origin, wait for Actions, download artifact.
 
 Acceptance test
 ---------------
 PASS if:
-- App opens before any Library folder has been chosen.
-- It says Library not set.
-- It says Audio folder: choose Library folder first.
-- Choose Library Folder works.
-- Close/reopen remembers the folder.
-- Download saves into chosen Library/Audio.
-- Analysis creates JSON in chosen Library/Analysis.
+- App opens.
+- Existing Library folder is remembered.
+- If Library folder is newly chosen, bold restart banner appears.
+- After restart, banner disappears.
+- Search either returns results or times out cleanly without hanging forever.
+- Search button becomes usable again after timeout/error.
+- Download and Analyse workflow still works after a successful search.
