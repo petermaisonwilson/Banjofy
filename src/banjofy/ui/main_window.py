@@ -25,7 +25,7 @@ from banjofy.search.youtube_search import YouTubeSearchManager
 from banjofy.storage.paths import get_library_path, set_library_path
 
 
-APP_VERSION = "Banjofy 006.3.0 Module 2A - Search + Library Folder"
+APP_VERSION = "Banjofy 006.3.0 Module 2B - Visible Library Setup + Search"
 
 
 class MainWindow(QMainWindow):
@@ -46,7 +46,7 @@ class MainWindow(QMainWindow):
 
         self.setStatusBar(QStatusBar())
         self._refresh_library_status()
-        self.statusBar().showMessage("Ready - Module 2A search + library folder loaded")
+        self.statusBar().showMessage("Ready - Module 2B visible library setup + search loaded")
 
     def _build_ui(self) -> None:
         root = QWidget()
@@ -64,20 +64,29 @@ class MainWindow(QMainWindow):
         note.setAlignment(Qt.AlignmentFlag.AlignCenter)
         outer.addWidget(note)
 
-        library_row = QHBoxLayout()
-        self.library_path_label = QLabel("Library: not set")
+        self.library_setup_panel = QWidget()
+        self.library_setup_panel.setObjectName("LibrarySetupPanel")
+        library_panel_layout = QVBoxLayout(self.library_setup_panel)
+        library_panel_layout.setContentsMargins(8, 8, 8, 8)
+        library_panel_layout.setSpacing(6)
+
+        self.library_path_label = QLabel("LIBRARY: not set")
+        self.library_path_label.setObjectName("LibraryPathLabel")
         self.library_path_label.setWordWrap(True)
-        self.choose_library_button = QPushButton("Choose Library Folder")
-        self.choose_library_button.clicked.connect(self._choose_library_folder)
-        library_row.addWidget(self.library_path_label, 1)
-        library_row.addWidget(self.choose_library_button)
-        outer.addLayout(library_row)
+        library_panel_layout.addWidget(self.library_path_label)
 
         self.restart_banner = QLabel("")
         self.restart_banner.setObjectName("RestartBanner")
         self.restart_banner.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.restart_banner.setVisible(False)
-        outer.addWidget(self.restart_banner)
+        library_panel_layout.addWidget(self.restart_banner)
+
+        self.choose_library_button = QPushButton("CHOOSE / CHANGE LIBRARY FOLDER")
+        self.choose_library_button.setMinimumHeight(44)
+        self.choose_library_button.clicked.connect(self._choose_library_folder)
+        library_panel_layout.addWidget(self.choose_library_button)
+
+        outer.addWidget(self.library_setup_panel)
 
         search_row = QHBoxLayout()
         self.search_box = QLineEdit()
@@ -164,6 +173,16 @@ class MainWindow(QMainWindow):
             QLabel#Thumbnail {
                 background: #181818;
                 border: 1px solid #555;
+            }
+            QWidget#LibrarySetupPanel {
+                background: #1b2638;
+                border: 2px solid #f3d99a;
+                border-radius: 6px;
+            }
+            QLabel#LibraryPathLabel {
+                color: #ffffff;
+                font-size: 15px;
+                font-weight: bold;
             }
             QLabel#RestartBanner {
                 background: #6b1f1f;

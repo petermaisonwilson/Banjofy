@@ -1,39 +1,21 @@
-BANJOFY 006.3.0 MODULE 2A - SEARCH + LIBRARY FOLDER
-==================================================
+BANJOFY 006.3.0 MODULE 2B - VISIBLE LIBRARY SETUP + SEARCH
+=========================================================
 
 Status
 ------
 BUILD COMPLETE
 
-Purpose
--------
-This build starts again from the proven-working Module 1 search code.
+Diagnosis
+---------
+Module 2A search worked, but the Choose Library Folder controls were not visible.
 
-It adds only:
-- permanent Library folder selection,
-- persistent settings in AppData/Roaming/Banjofy/settings.json,
-- creation of Library subfolders:
-  Audio
-  Analysis
-  Artwork
-  Songs,
-- restart banner after first choosing Library folder.
-
-It deliberately does NOT add:
-- download,
-- analysis,
-- Library save/load,
-- Practice,
-- chord diagrams,
-- playback/timing.
-
-Diagnosis from previous attempt
--------------------------------
-Module 1 search works.
-Module 3 search failed.
-Therefore the fault was in added Module 3 surrounding code, not the search engine itself.
-
-This module proves that Library folder setup does not break search.
+Fix
+---
+- Search code remains unchanged from working Module 1/2A.
+- Library setup is now a large, clearly visible panel at the top.
+- Button text is now:
+  CHOOSE / CHANGE LIBRARY FOLDER
+- Restart banner appears inside the same visible panel.
 
 GitHub Desktop instructions
 ---------------------------
@@ -42,7 +24,7 @@ GitHub Desktop instructions
 3. Allow Windows to replace files.
 4. Open GitHub Desktop.
 5. Commit summary:
-   Banjofy 006.3.0 module 2A search library folder
+   Banjofy 006.3.0 module 2B visible library setup
 6. Commit.
 7. Push origin.
 8. Wait for GitHub Actions.
@@ -52,14 +34,8 @@ Acceptance test
 ---------------
 PASS if:
 - App opens.
-- Search works exactly like Module 1.
-- Selecting result works exactly like Module 1.
-- Choose Library Folder works.
-- Restart banner appears after choosing Library folder.
-- After restart, Library folder is remembered and banner disappears.
-- Choosing Library folder does not break search.
-
-FAIL if:
-- Search stops returning results.
-- Selecting a result triggers hidden actions.
-- App crashes.
+- Library panel is visible at the top.
+- Choose/Change Library Folder button is visible.
+- Choosing a folder shows the restart banner.
+- Restart remembers the folder.
+- Search still works.
