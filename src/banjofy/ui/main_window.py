@@ -25,9 +25,10 @@ from banjofy.search.youtube_search import YouTubeSearchManager
 from banjofy.storage.paths import get_library_path, set_library_path, audio_folder
 from banjofy.download.audio_downloader import DownloadManager, DownloadedAudio
 from banjofy.analysis.audio_analysis import AnalysisManager, AnalysisResult
+from banjofy.library.song_library import LibraryManager, LibrarySong
 
 
-APP_VERSION = "Banjofy 006.3.0 Module 4 Build 001 - Analysis"
+APP_VERSION = "Banjofy 006.3.0 Module 5 Build 001 - Library Manager"
 
 
 class MainWindow(QMainWindow):
@@ -36,10 +37,13 @@ class MainWindow(QMainWindow):
         self.search_manager = YouTubeSearchManager()
         self.download_manager = DownloadManager()
         self.analysis_manager = AnalysisManager()
+        self.library_manager = LibraryManager()
         self.search_results: list[SearchResult] = []
         self.selected_result: SearchResult | None = None
         self.downloaded_audio: DownloadedAudio | None = None
         self.analysis_result: AnalysisResult | None = None
+        self.library_songs: list[LibrarySong] = []
+        self.selected_library_song: LibrarySong | None = None
         self.search_queue: queue.Queue = queue.Queue()
         self.download_queue: queue.Queue = queue.Queue()
         self.analysis_queue: queue.Queue = queue.Queue()
@@ -60,7 +64,8 @@ class MainWindow(QMainWindow):
 
         self.setStatusBar(QStatusBar())
         self._refresh_library_status()
-        self.statusBar().showMessage("Ready - Module 4 analysis loaded")
+        self._refresh_library_list()
+        self.statusBar().showMessage("Ready - Module 5 library manager loaded")
 
     def _build_ui(self) -> None:
         root = QWidget()
@@ -73,7 +78,7 @@ class MainWindow(QMainWindow):
         title.setObjectName("Title")
         outer.addWidget(title)
 
-        note = QLabel("Module 4 test build: Search + Library folder + Download + Analysis record. No save/list or Practice.")
+        note = QLabel("Module 5 test build: Search + Download + Analysis + Library save/list. No Practice yet.")
         note.setObjectName("Hint")
         note.setAlignment(Qt.AlignmentFlag.AlignCenter)
         outer.addWidget(note)
@@ -117,8 +122,30 @@ class MainWindow(QMainWindow):
         left = QVBoxLayout()
         left.addWidget(QLabel("Search Results"))
         self.result_list = QListWidget()
+        self.result_list.setMaximumHeight(300)
         self.result_list.itemClicked.connect(self._select_result)
         left.addWidget(self.result_list, 1)
+
+        left.addWidget(QLabel("Library"))
+        self.library_list = QListWidget()
+        self.library_list.setMinimumHeight(260)
+        self.library_list.itemClicked.connect(self._select_library_song)
+        left.addWidget(self.library_list, 2)
+
+        library_buttons = QHBoxLayout()
+        self.save_library_button = QPushButton("Save Analysis to Library")
+        self.save_library_button.setEnabled(False)
+        self.save_library_button.clicked.connect(self._save_analysis_to_library)
+        self.refresh_library_button = QPushButton("Refresh Library")
+        self.refresh_library_button.clicked.connect(self._refresh_library_list)
+        self.send_practice_button = QPushButton("Send to Practice")
+        self.send_practice_button.setEnabled(False)
+        self.send_practice_button.clicked.connect(self._send_library_to_practice_placeholder)
+        library_buttons.addWidget(self.save_library_button)
+        library_buttons.addWidget(self.refresh_library_button)
+        library_buttons.addWidget(self.send_practice_button)
+        left.addLayout(library_buttons)
+
         body.addLayout(left, 2)
 
         right = QVBoxLayout()
@@ -251,6 +278,7 @@ class MainWindow(QMainWindow):
             self.audio_folder_label.setText(f"Audio folder: {audio_folder()}")
         self.restart_banner.setText("IMPORTANT: Library folder set. Please close and restart Banjofy before continuing.")
         self.restart_banner.setVisible(True)
+        self._refresh_library_list()
         self.statusBar().showMessage(f"Library folder set: {path}. Please restart Banjofy.")
 
     def _start_search(self) -> None:
@@ -271,6 +299,8 @@ class MainWindow(QMainWindow):
         self.analyse_button.setEnabled(False)
         self.download_status.setText("Download: select a result first")
         self.analysis_status.setText("Analysis: download audio first")
+        if hasattr(self, "save_library_button"):
+            self.save_library_button.setEnabled(False)
         self.statusBar().showMessage(f"Searching YouTube for: {query}")
 
         def worker() -> None:
@@ -326,6 +356,8 @@ class MainWindow(QMainWindow):
         self.analyse_button.setEnabled(False)
         self.download_status.setText("Download: ready")
         self.analysis_status.setText("Analysis: download audio first")
+        if hasattr(self, "save_library_button"):
+            self.save_library_button.setEnabled(False)
         self.statusBar().showMessage(f"Selected only: {self.selected_result.title}")
 
     def _show_selected_result(self, result: SearchResult) -> None:
@@ -350,6 +382,53 @@ class MainWindow(QMainWindow):
 
         self.thumbnail.setPixmap(QPixmap())
         self.thumbnail.setText("No thumbnail")
+
+    def _refresh_library_list(self) -> None:
+        self.library_list.clear()
+        self.library_songs = []
+        self.selected_library_song = None
+        if hasattr(self, "send_practice_button"):
+            self.send_practice_button.setEnabled(False)
+
+        if get_library_path() is None:
+            self.library_list.addItem(QListWidgetItem("Choose Library folder first"))
+            return
+
+        self.library_songs = self.library_manager.load_all()
+        if not self.library_songs:
+            self.library_list.addItem(QListWidgetItem("No saved songs yet"))
+            return
+
+        for song in self.library_songs:
+            self.library_list.addItem(QListWidgetItem(f"{song.title}\n{song.channel} · {song.duration} · BPM {song.bpm}"))
+
+    def _save_analysis_to_library(self) -> None:
+        if not self.analysis_result:
+            self.statusBar().showMessage("Analyse a downloaded song before saving to Library")
+            return
+        try:
+            path = self.library_manager.save_from_analysis(self.analysis_result)
+            self._refresh_library_list()
+            self.statusBar().showMessage(f"Saved to Library: {path.name}")
+        except Exception as exc:
+            self.statusBar().showMessage(f"Save to Library failed: {exc}")
+
+    def _select_library_song(self, item: QListWidgetItem) -> None:
+        row = self.library_list.row(item)
+        if row < 0 or row >= len(self.library_songs):
+            self.selected_library_song = None
+            self.send_practice_button.setEnabled(False)
+            self.statusBar().showMessage("No saved Library song selected")
+            return
+        self.selected_library_song = self.library_songs[row]
+        self.send_practice_button.setEnabled(True)
+        self.statusBar().showMessage(f"Library song selected: {self.selected_library_song.title}")
+
+    def _send_library_to_practice_placeholder(self) -> None:
+        if not self.selected_library_song:
+            self.statusBar().showMessage("Select a Library song first")
+            return
+        self.statusBar().showMessage("Practice Studio is not included yet. This button is reserved for Module 6.")
 
     def _start_download(self) -> None:
         if not self.selected_result:
@@ -395,7 +474,7 @@ class MainWindow(QMainWindow):
                 self.download_button.setEnabled(True)
                 self.downloaded_audio = payload
                 cached = "cached" if payload.was_cached else "downloaded"
-                self.download_status.setText(f"Download: {cached} - {payload.file_path}")
+                self.download_status.setText(f"Download: {cached}")
                 self.analyse_button.setEnabled(True)
                 self.analysis_status.setText("Analysis: ready")
                 self.statusBar().showMessage(f"Audio {cached}: {payload.file_path}")
@@ -442,11 +521,12 @@ class MainWindow(QMainWindow):
             return
 
         self.analysis_result = payload
+        self.save_library_button.setEnabled(True)
         self.analysis_status.setText(
-            f"Analysis: complete | BPM {payload.bpm} | Bars {payload.estimated_bars} | File {payload.analysis_file}"
+            f"Analysis: complete | BPM {payload.bpm} | Bars {payload.estimated_bars}"
         )
         self.statusBar().showMessage(
-            f"Analysis complete: BPM {payload.bpm}, Bars {payload.estimated_bars}"
+            f"Analysis complete: BPM {payload.bpm}, Bars {payload.estimated_bars}. Use Save Analysis to Library if wanted."
         )
 
     def _clear_selected_panel(self) -> None:

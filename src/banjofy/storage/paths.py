@@ -76,3 +76,9 @@ def analysis_folder() -> Path:
     folder = require_library_path() / "Analysis"
     folder.mkdir(parents=True, exist_ok=True)
     return folder
+
+
+def songs_folder() -> Path:
+    folder = require_library_path() / "Songs"
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder

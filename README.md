@@ -1,3 +1,3 @@
 # Banjofy
 
-006.3.0 clean rebuild - Module 4 Build 001 Analysis.
+006.3.0 Module 5 Build 001 Library Manager.
