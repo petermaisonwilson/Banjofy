@@ -1,5 +1,5 @@
-BANJOFY 006.3.0 MODULE 1 - SHELL + SEARCH
-=========================================
+BANJOFY 006.3.0 MODULE 2 - SEARCH + DOWNLOAD
+===========================================
 
 Status
 ------
@@ -7,25 +7,29 @@ BUILD COMPLETE
 
 Clean rebuild
 -------------
-This is a clean rebuild module, not a patch from the broken 006.2.x sequence.
+This continues the clean rebuild from Module 1.
 
 Included
 --------
-- Application startup shell.
-- YouTube search manager.
-- Search results list.
+- Application shell.
+- YouTube search.
 - Result selection.
-- Selected-result details panel.
+- Download Selected Audio button.
+- Portable local audio storage folder: Banjofy Library/Audio.
+- Download attempts: standard, Edge cookies, Chrome cookies, Firefox cookies.
 
 Not included yet
 ----------------
-- Download.
 - Analysis.
-- Library.
+- Library save/load.
 - Practice screen.
 - Chord diagrams.
-- Playback.
-- Timing.
+- Playback/timing.
+
+Important
+---------
+Module 2 deliberately avoids FFmpeg post-processing.
+It downloads the best available audio file as provided by YouTube.
 
 GitHub Desktop instructions
 ---------------------------
@@ -34,25 +38,16 @@ GitHub Desktop instructions
 3. Allow Windows to replace files.
 4. Open GitHub Desktop.
 5. Commit summary:
-   Banjofy 006.3.0 module 1 shell search
-6. Commit.
-7. Push origin.
-8. Wait for GitHub Actions.
-9. Download artifact and test.
+   Banjofy 006.3.0 module 2 download
+6. Commit, Push origin, wait for Actions, download artifact.
 
 Acceptance test
 ---------------
 PASS if:
 - App opens.
 - Search works.
-- Several results appear.
-- Result thumbnails appear where available.
-- Selecting a result fills the right-hand panel.
-- Selecting a result does NOT download.
-- Selecting a result does NOT analyse.
-- Selecting a result does NOT save.
-- Selecting a result does NOT open Practice.
-
-Next module
------------
-006.3.0 Module 2 - Download Manager.
+- Selecting a result fills the right panel.
+- Download button enables only after selecting a result.
+- Download Selected Audio downloads or loads cached audio.
+- A file appears in Banjofy Library/Audio.
+- No analysis, save, Library load, or Practice opens.

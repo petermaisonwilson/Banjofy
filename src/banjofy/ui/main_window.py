@@ -21,18 +21,23 @@ from PySide6.QtWidgets import (
 
 from banjofy.models.search_result import SearchResult
 from banjofy.search.youtube_search import YouTubeSearchManager
+from banjofy.download.audio_downloader import DownloadManager, DownloadedAudio
+from banjofy.storage.paths import audio_folder
 
 
-APP_VERSION = "Banjofy 006.3.0 Module 1 - Shell + Search"
+APP_VERSION = "Banjofy 006.3.0 Module 2 - Search + Download"
 
 
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.search_manager = YouTubeSearchManager()
+        self.download_manager = DownloadManager()
         self.search_results: list[SearchResult] = []
         self.selected_result: SearchResult | None = None
+        self.downloaded_audio: DownloadedAudio | None = None
         self.search_queue: queue.Queue = queue.Queue()
+        self.download_queue: queue.Queue = queue.Queue()
 
         self.setWindowTitle(APP_VERSION)
         self.resize(1200, 760)
@@ -42,8 +47,11 @@ class MainWindow(QMainWindow):
         self.search_poll_timer = QTimer(self)
         self.search_poll_timer.timeout.connect(self._poll_search_results)
 
+        self.download_poll_timer = QTimer(self)
+        self.download_poll_timer.timeout.connect(self._poll_download_results)
+
         self.setStatusBar(QStatusBar())
-        self.statusBar().showMessage("Ready - Module 1 search shell loaded")
+        self.statusBar().showMessage("Ready - Module 2 search + download loaded")
 
     def _build_ui(self) -> None:
         root = QWidget()
@@ -56,7 +64,7 @@ class MainWindow(QMainWindow):
         title.setObjectName("Title")
         outer.addWidget(title)
 
-        note = QLabel("Module 1 test build: Search only. Selecting a result must not download, analyse, save, or open Practice.")
+        note = QLabel("Module 2 test build: Search + Download only. No analysis, Library, Practice, or auto-actions yet.")
         note.setObjectName("Hint")
         note.setAlignment(Qt.AlignmentFlag.AlignCenter)
         outer.addWidget(note)
@@ -101,6 +109,16 @@ class MainWindow(QMainWindow):
         right.addWidget(self.selected_duration)
         right.addWidget(QLabel("URL"))
         right.addWidget(self.selected_url)
+        self.download_button = QPushButton("Download Selected Audio")
+        self.download_button.setEnabled(False)
+        self.download_button.clicked.connect(self._start_download)
+        self.download_status = QLabel("Download: no result selected")
+        self.download_status.setWordWrap(True)
+        self.audio_folder_label = QLabel(f"Audio folder: {audio_folder()}")
+        self.audio_folder_label.setWordWrap(True)
+        right.addWidget(self.download_button)
+        right.addWidget(self.download_status)
+        right.addWidget(self.audio_folder_label)
         right.addStretch()
         body.addLayout(right, 1)
 
@@ -160,7 +178,10 @@ class MainWindow(QMainWindow):
         self.result_list.addItem(QListWidgetItem(f"Searching YouTube for: {query}\nPlease wait..."))
         self.search_results = []
         self.selected_result = None
+        self.downloaded_audio = None
         self._clear_selected_panel()
+        self.download_button.setEnabled(False)
+        self.download_status.setText("Download: no result selected")
         self.statusBar().showMessage(f"Searching YouTube for: {query}")
 
         def worker() -> None:
@@ -209,7 +230,10 @@ class MainWindow(QMainWindow):
         if row < 0 or row >= len(self.search_results):
             return
         self.selected_result = self.search_results[row]
+        self.downloaded_audio = None
         self._show_selected_result(self.selected_result)
+        self.download_button.setEnabled(True)
+        self.download_status.setText("Download: ready")
         self.statusBar().showMessage(f"Selected only: {self.selected_result.title}")
 
     def _show_selected_result(self, result: SearchResult) -> None:
@@ -235,6 +259,53 @@ class MainWindow(QMainWindow):
         self.thumbnail.setPixmap(QPixmap())
         self.thumbnail.setText("No thumbnail")
 
+    def _start_download(self) -> None:
+        if not self.selected_result:
+            self.statusBar().showMessage("Select a result before downloading")
+            return
+        self.download_button.setEnabled(False)
+        self.download_status.setText("Download: starting...")
+        self.statusBar().showMessage(f"Downloading audio: {self.selected_result.title}")
+
+        def progress(message: str, percent: int, detail: str) -> None:
+            self.download_queue.put(("progress", (message, percent, detail)))
+
+        def worker() -> None:
+            try:
+                result = self.download_manager.download(self.selected_result, progress=progress)
+                self.download_queue.put(("done", result))
+            except Exception as exc:
+                self.download_queue.put(("error", str(exc)))
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.download_poll_timer.start(100)
+
+    def _poll_download_results(self) -> None:
+        while True:
+            try:
+                kind, payload = self.download_queue.get_nowait()
+            except queue.Empty:
+                return
+            if kind == "progress":
+                message, percent, detail = payload
+                suffix = f" ({percent}%)" if percent is not None else ""
+                self.download_status.setText(f"Download: {message}{suffix}")
+                self.statusBar().showMessage(f"Download: {message}{suffix}")
+            elif kind == "done":
+                self.download_poll_timer.stop()
+                self.download_button.setEnabled(True)
+                self.downloaded_audio = payload
+                cached = "cached" if payload.was_cached else "downloaded"
+                self.download_status.setText(f"Download: {cached} - {payload.file_path}")
+                self.statusBar().showMessage(f"Audio {cached}: {payload.file_path}")
+                return
+            elif kind == "error":
+                self.download_poll_timer.stop()
+                self.download_button.setEnabled(True)
+                self.download_status.setText(f"Download error: {payload}")
+                self.statusBar().showMessage(f"Download error: {payload}")
+                return
+
     def _clear_selected_panel(self) -> None:
         self.thumbnail.setPixmap(QPixmap())
         self.thumbnail.setText("No result selected")
@@ -242,3 +313,7 @@ class MainWindow(QMainWindow):
         self.selected_channel.setText("Channel: —")
         self.selected_duration.setText("Duration: —")
         self.selected_url.setPlainText("")
+        if hasattr(self, "download_status"):
+            self.download_status.setText("Download: no result selected")
+        if hasattr(self, "download_button"):
+            self.download_button.setEnabled(False)
