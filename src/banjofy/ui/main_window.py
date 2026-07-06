@@ -27,7 +27,7 @@ from banjofy.analysis.audio_analysis import AnalysisManager, AnalysisResult
 from banjofy.storage.paths import audio_folder, get_library_path, set_library_path
 
 
-APP_VERSION = "Banjofy 006.3.0 Module 3 - Library Location + Analysis"
+APP_VERSION = "Banjofy 006.3.0 Module 3A - Library Startup Fix + Analysis"
 
 
 class MainWindow(QMainWindow):
@@ -132,7 +132,7 @@ class MainWindow(QMainWindow):
         self.download_button.clicked.connect(self._start_download)
         self.download_status = QLabel("Download: no result selected")
         self.download_status.setWordWrap(True)
-        self.audio_folder_label = QLabel(f"Audio folder: {audio_folder()}")
+        self.audio_folder_label = QLabel("Audio folder: choose Library folder first")
         self.audio_folder_label.setWordWrap(True)
         right.addWidget(self.download_button)
         right.addWidget(self.download_status)
@@ -288,7 +288,9 @@ class MainWindow(QMainWindow):
         if path is None:
             self.statusBar().showMessage("Choose a permanent Banjofy Library folder")
             self.library_path_label.setText("Library: not set - choose a permanent folder")
+            self.audio_folder_label.setText("Audio folder: choose Library folder first")
             return
+
         self.library_path_label.setText(f"Library: {path}")
         self.audio_folder_label.setText(f"Audio folder: {audio_folder()}")
 

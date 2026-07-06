@@ -1,45 +1,46 @@
-BANJOFY 006.3.0 MODULE 3 - LIBRARY LOCATION + ANALYSIS
-=====================================================
+BANJOFY 006.3.0 MODULE 3A - LIBRARY STARTUP FIX + ANALYSIS
+=========================================================
 
 Status
 ------
 BUILD COMPLETE
 
-Clean rebuild
--------------
-This continues the clean rebuild from Module 2.
+Clean rebuild module
+--------------------
+This is Module 3 with the first-run Library startup crash fixed.
 
-Included in this module
------------------------
-- Application shell.
-- YouTube search.
-- Result selection.
-- Download Selected Audio.
-- First-run/user-selected permanent Library folder.
-- Library path stored in:
-  AppData/Roaming/Banjofy/settings.json
-- Library subfolders created:
+Diagnosis
+---------
+Module 3 crashed on first run because the UI called audio_folder() while no Library
+folder had been chosen yet.
+
+Fix
+---
+- App now starts even if no Library folder is set.
+- UI shows:
+  Audio folder: choose Library folder first
+- User chooses permanent Library folder.
+- Only then does the app resolve/create:
   Audio
   Analysis
   Artwork
   Songs
-- Analysis Manager creates a first analysis record in Analysis.
 
-Important limitation
---------------------
-Module 3 analysis is a workflow/storage placeholder:
-- BPM is placeholder.
-- Key is placeholder.
-- Chords are placeholder.
-The real music intelligence comes later after the workflow is stable.
+Included
+--------
+- Application shell.
+- YouTube search.
+- Result selection.
+- Download Selected Audio.
+- Persistent user-chosen Library folder.
+- Analysis record creation.
 
-Explicitly NOT included yet
----------------------------
+Not included yet
+----------------
 - Library save/load list.
 - Practice screen.
 - Chord diagrams.
 - Playback/timing.
-- Accurate chord/key engine.
 
 GitHub Desktop instructions
 ---------------------------
@@ -48,7 +49,7 @@ GitHub Desktop instructions
 3. Allow Windows to replace files.
 4. Open GitHub Desktop.
 5. Commit summary:
-   Banjofy 006.3.0 module 3 library location analysis
+   Banjofy 006.3.0 module 3A library startup fix
 6. Commit.
 7. Push origin.
 8. Wait for GitHub Actions.
@@ -57,20 +58,10 @@ GitHub Desktop instructions
 Acceptance test
 ---------------
 PASS if:
-- App opens.
-- It shows Library path status.
+- App opens before any Library folder has been chosen.
+- It says Library not set.
+- It says Audio folder: choose Library folder first.
 - Choose Library Folder works.
-- Chosen Library path is remembered next launch.
-- Search works.
-- Select result works.
-- Download works into the chosen Library/Audio folder.
-- Analyse Downloaded Audio becomes enabled after download.
-- Analysis creates a JSON file in chosen Library/Analysis.
-- No save-to-library list yet.
-- No Practice screen opens.
-
-FAIL if:
-- App crashes.
-- Library path is still tied to temporary EXE/module folder after choosing a folder.
-- Download happens without chosen Library folder.
-- Analysis opens Practice or saves to Library list.
+- Close/reopen remembers the folder.
+- Download saves into chosen Library/Audio.
+- Analysis creates JSON in chosen Library/Analysis.
