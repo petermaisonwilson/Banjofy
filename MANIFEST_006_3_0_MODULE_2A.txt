@@ -1,0 +1,17 @@
+.github/workflows/windows-build.yml
+Banjofy.spec
+MANIFEST_006_3_0_MODULE_1.txt
+README.md
+README_FIRST.txt
+requirements.txt
+src/banjofy/__init__.py
+src/banjofy/app.py
+src/banjofy/models/__init__.py
+src/banjofy/models/search_result.py
+src/banjofy/search/__init__.py
+src/banjofy/search/youtube_search.py
+src/banjofy/storage/__init__.py
+src/banjofy/storage/paths.py
+src/banjofy/ui/__init__.py
+src/banjofy/ui/main_window.py
+src/main.py

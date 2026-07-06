@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 from urllib.request import urlopen
-
 from yt_dlp import YoutubeDL
-
 from banjofy.models.search_result import SearchResult
 
 
@@ -36,11 +34,7 @@ def _load_thumbnail(url: str) -> bytes | None:
 
 
 class YouTubeSearchManager:
-    """Responsible only for YouTube searching.
-
-    This restores the proven Module 1 search behaviour.
-    Timeout handling belongs in the UI layer, not inside yt-dlp search options.
-    """
+    """Responsible only for YouTube searching."""
 
     def search(self, query: str, limit: int = 8) -> list[SearchResult]:
         if not query.strip():

@@ -1,23 +1,39 @@
-BANJOFY 006.3.0 MODULE 3C - SEARCH RESTORED + RESTART BANNER
-===========================================================
+BANJOFY 006.3.0 MODULE 2A - SEARCH + LIBRARY FOLDER
+==================================================
 
 Status
 ------
 BUILD COMPLETE
 
-Precise diagnosis
------------------
-Module 1 search worked.
+Purpose
+-------
+This build starts again from the proven-working Module 1 search code.
 
-Module 3B added yt-dlp/socket timeout options inside the YouTube search manager.
-On your setup, that stopped search results returning.
+It adds only:
+- permanent Library folder selection,
+- persistent settings in AppData/Roaming/Banjofy/settings.json,
+- creation of Library subfolders:
+  Audio
+  Analysis
+  Artwork
+  Songs,
+- restart banner after first choosing Library folder.
 
-Fix
----
-- Restored the proven Module 1 YouTube search manager.
-- Kept the UI timeout wrapper so the screen does not hang forever.
-- Kept the restart banner after choosing Library folder.
-- Kept Library location and Analysis functionality from Module 3A.
+It deliberately does NOT add:
+- download,
+- analysis,
+- Library save/load,
+- Practice,
+- chord diagrams,
+- playback/timing.
+
+Diagnosis from previous attempt
+-------------------------------
+Module 1 search works.
+Module 3 search failed.
+Therefore the fault was in added Module 3 surrounding code, not the search engine itself.
+
+This module proves that Library folder setup does not break search.
 
 GitHub Desktop instructions
 ---------------------------
@@ -26,7 +42,7 @@ GitHub Desktop instructions
 3. Allow Windows to replace files.
 4. Open GitHub Desktop.
 5. Commit summary:
-   Banjofy 006.3.0 module 3C search restored
+   Banjofy 006.3.0 module 2A search library folder
 6. Commit.
 7. Push origin.
 8. Wait for GitHub Actions.
@@ -36,8 +52,14 @@ Acceptance test
 ---------------
 PASS if:
 - App opens.
-- Library folder is remembered.
-- Search returns results again.
-- Select result works.
-- Download works.
-- Analyse works.
+- Search works exactly like Module 1.
+- Selecting result works exactly like Module 1.
+- Choose Library Folder works.
+- Restart banner appears after choosing Library folder.
+- After restart, Library folder is remembered and banner disappears.
+- Choosing Library folder does not break search.
+
+FAIL if:
+- Search stops returning results.
+- Selecting a result triggers hidden actions.
+- App crashes.
