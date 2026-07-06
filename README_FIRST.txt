@@ -1,39 +1,31 @@
-BANJOFY 006.2.4 - VALIDATED WORKFLOW REPAIR
-===========================================
+BANJOFY 006.3.0 MODULE 1 - SHELL + SEARCH
+=========================================
 
 Status
 ------
 BUILD COMPLETE
 
-Type
-----
-Complete release package.
+Clean rebuild
+-------------
+This is a clean rebuild module, not a patch from the broken 006.2.x sequence.
 
-Why this build exists
----------------------
-006.2.3 failed on startup with:
+Included
+--------
+- Application startup shell.
+- YouTube search manager.
+- Search results list.
+- Result selection.
+- Selected-result details panel.
 
-    MainWindow object has no attribute _load_library_song_by_row
-
-006.2.4 fixes that stale button/signal connection and adds validation to catch
-this class of error before release.
-
-Validation performed before release
------------------------------------
-PASSED - Python syntax check for all source files.
-PASSED - MainWindow missing private self._method check.
-PASSED - Qt signal connection target check.
-PASSED - _load_library_song_by_row compatibility method confirmed present.
-
-Included behaviour
-------------------
-- No auto-save after analysis.
-- No auto-send to Practice after analysis.
-- Save to Library refuses unanalysed songs.
-- Send to Practice refuses unanalysed songs.
-- Send to Practice can send the current analysed song or selected saved Library song.
-- NOW/NEXT diagrams show strings, fret position and finger number.
-- Grid remains chord names only.
+Not included yet
+----------------
+- Download.
+- Analysis.
+- Library.
+- Practice screen.
+- Chord diagrams.
+- Playback.
+- Timing.
 
 GitHub Desktop instructions
 ---------------------------
@@ -42,7 +34,25 @@ GitHub Desktop instructions
 3. Allow Windows to replace files.
 4. Open GitHub Desktop.
 5. Commit summary:
-   Banjofy 006.2.4 validated workflow repair
+   Banjofy 006.3.0 module 1 shell search
 6. Commit.
 7. Push origin.
-8. Wait for Actions, download artifact, test.
+8. Wait for GitHub Actions.
+9. Download artifact and test.
+
+Acceptance test
+---------------
+PASS if:
+- App opens.
+- Search works.
+- Several results appear.
+- Result thumbnails appear where available.
+- Selecting a result fills the right-hand panel.
+- Selecting a result does NOT download.
+- Selecting a result does NOT analyse.
+- Selecting a result does NOT save.
+- Selecting a result does NOT open Practice.
+
+Next module
+-----------
+006.3.0 Module 2 - Download Manager.

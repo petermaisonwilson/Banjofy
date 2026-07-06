@@ -1,6 +1,2 @@
 PySide6
 yt-dlp
-librosa
-numpy
-soundfile
-imageio-ffmpeg
