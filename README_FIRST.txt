@@ -1,5 +1,5 @@
-BANJOFY 006.3.0 MODULE 5 BUILD 001 - LIBRARY MANAGER
-===================================================
+BANJOFY 006.3.0 MODULE 5B BUILD 001 - LIBRARY BUTTON FIXES
+=========================================================
 
 Status
 ------
@@ -7,29 +7,24 @@ BUILD COMPLETE
 
 Starting point
 --------------
-Confirmed-good Module 4 Build 001.
+Confirmed-good Module 5 Build 001.
 
-Added
------
-- Search Results panel reduced.
-- Library panel added underneath Search Results.
-- Save Analysis to Library.
-- Refresh Library.
-- Send to Practice placeholder.
-- Saved song records in Library/Songs.
+Changed
+-------
+- Refresh Library now shows clear feedback.
+- Send to Practice placeholder enables after selecting a valid Library song.
+- Send to Practice shows a visible placeholder message.
 
-Not added
----------
-- Practice screen.
-- Chord diagrams.
-- Timing.
+Not changed
+-----------
+- Search, Download, Analysis and Library save format were not changed.
+- Practice screen was not added.
 
 Acceptance test
 ---------------
 PASS if:
 - Search/download/analyse still work.
-- Save Analysis to Library enables only after analysis.
-- Save adds song to Library list.
-- Refresh reloads Library list.
-- Selecting Library song only selects it.
-- Send to Practice says Practice is not included yet and does not crash.
+- Save Analysis to Library still works.
+- Refresh Library shows a clear status message.
+- Selecting a saved Library song enables Send to Practice.
+- Clicking Send to Practice shows placeholder message and does not crash.

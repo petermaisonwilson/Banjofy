@@ -28,7 +28,7 @@ from banjofy.analysis.audio_analysis import AnalysisManager, AnalysisResult
 from banjofy.library.song_library import LibraryManager, LibrarySong
 
 
-APP_VERSION = "Banjofy 006.3.0 Module 5 Build 001 - Library Manager"
+APP_VERSION = "Banjofy 006.3.0 Module 5B Build 001 - Library Button Fixes"
 
 
 class MainWindow(QMainWindow):
@@ -65,7 +65,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._refresh_library_status()
         self._refresh_library_list()
-        self.statusBar().showMessage("Ready - Module 5 library manager loaded")
+        self.statusBar().showMessage("Ready - Module 5B library button fixes loaded")
 
     def _build_ui(self) -> None:
         root = QWidget()
@@ -392,15 +392,20 @@ class MainWindow(QMainWindow):
 
         if get_library_path() is None:
             self.library_list.addItem(QListWidgetItem("Choose Library folder first"))
+            self.statusBar().showMessage("Library refresh: choose Library folder first")
             return
 
         self.library_songs = self.library_manager.load_all()
         if not self.library_songs:
             self.library_list.addItem(QListWidgetItem("No saved songs yet"))
+            self.statusBar().showMessage("Library refreshed: 0 songs found")
             return
 
         for song in self.library_songs:
-            self.library_list.addItem(QListWidgetItem(f"{song.title}\n{song.channel} · {song.duration} · BPM {song.bpm}"))
+            item_text = f"{song.title}\n{song.channel} · {song.duration} · BPM {song.bpm}"
+            self.library_list.addItem(QListWidgetItem(item_text))
+
+        self.statusBar().showMessage(f"Library refreshed: {len(self.library_songs)} songs found")
 
     def _save_analysis_to_library(self) -> None:
         if not self.analysis_result:
@@ -420,15 +425,21 @@ class MainWindow(QMainWindow):
             self.send_practice_button.setEnabled(False)
             self.statusBar().showMessage("No saved Library song selected")
             return
+
         self.selected_library_song = self.library_songs[row]
         self.send_practice_button.setEnabled(True)
-        self.statusBar().showMessage(f"Library song selected: {self.selected_library_song.title}")
+        self.statusBar().showMessage(
+            f"Library song selected: {self.selected_library_song.title} | Send to Practice now available"
+        )
 
     def _send_library_to_practice_placeholder(self) -> None:
         if not self.selected_library_song:
             self.statusBar().showMessage("Select a Library song first")
             return
-        self.statusBar().showMessage("Practice Studio is not included yet. This button is reserved for Module 6.")
+
+        self.statusBar().showMessage(
+            f"Practice Studio is not included yet. Selected song is ready: {self.selected_library_song.title}"
+        )
 
     def _start_download(self) -> None:
         if not self.selected_result:
