@@ -27,7 +27,7 @@ from banjofy.analysis.audio_analysis import AnalysisManager, AnalysisResult
 from banjofy.storage.paths import audio_folder, get_library_path, set_library_path
 
 
-APP_VERSION = "Banjofy 006.3.0 Module 3B - Search Fix + Restart Banner"
+APP_VERSION = "Banjofy 006.3.0 Module 3C - Search Restored + Restart Banner"
 
 
 class MainWindow(QMainWindow):
@@ -62,7 +62,7 @@ class MainWindow(QMainWindow):
 
         self.setStatusBar(QStatusBar())
         self._ensure_library_location()
-        self.statusBar().showMessage("Ready - Module 3 library location + analysis loaded")
+        self.statusBar().showMessage("Ready - Module 3C search restored + analysis loaded")
 
     def _build_ui(self) -> None:
         root = QWidget()

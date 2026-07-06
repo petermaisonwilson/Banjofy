@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from urllib.request import urlopen
-import socket
+
 from yt_dlp import YoutubeDL
+
 from banjofy.models.search_result import SearchResult
 
 
@@ -35,21 +36,21 @@ def _load_thumbnail(url: str) -> bytes | None:
 
 
 class YouTubeSearchManager:
-    """Responsible only for YouTube searching."""
+    """Responsible only for YouTube searching.
+
+    This restores the proven Module 1 search behaviour.
+    Timeout handling belongs in the UI layer, not inside yt-dlp search options.
+    """
 
     def search(self, query: str, limit: int = 8) -> list[SearchResult]:
         if not query.strip():
             return []
 
-        socket.setdefaulttimeout(20)
         options = {
             "quiet": True,
             "extract_flat": True,
             "skip_download": True,
             "noplaylist": True,
-            "socket_timeout": 20,
-            "retries": 1,
-            "fragment_retries": 1,
         }
 
         with YoutubeDL(options) as ydl:

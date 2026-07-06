@@ -1,17 +1,23 @@
-BANJOFY 006.3.0 MODULE 3B - SEARCH FIX + RESTART BANNER
-======================================================
+BANJOFY 006.3.0 MODULE 3C - SEARCH RESTORED + RESTART BANNER
+===========================================================
 
 Status
 ------
 BUILD COMPLETE
 
-Fixes
------
-- Search now has yt-dlp/network timeout settings.
-- UI search polling now has a timeout and re-enables the Search button if no result arrives.
-- If YouTube search times out, the user sees a clear message rather than a permanent hang.
-- After the user first chooses a Library folder, a bold restart banner appears.
-- Banner disappears on subsequent launches once the stored Library path is loaded.
+Precise diagnosis
+-----------------
+Module 1 search worked.
+
+Module 3B added yt-dlp/socket timeout options inside the YouTube search manager.
+On your setup, that stopped search results returning.
+
+Fix
+---
+- Restored the proven Module 1 YouTube search manager.
+- Kept the UI timeout wrapper so the screen does not hang forever.
+- Kept the restart banner after choosing Library folder.
+- Kept Library location and Analysis functionality from Module 3A.
 
 GitHub Desktop instructions
 ---------------------------
@@ -20,16 +26,18 @@ GitHub Desktop instructions
 3. Allow Windows to replace files.
 4. Open GitHub Desktop.
 5. Commit summary:
-   Banjofy 006.3.0 module 3B search fix restart banner
-6. Commit, Push origin, wait for Actions, download artifact.
+   Banjofy 006.3.0 module 3C search restored
+6. Commit.
+7. Push origin.
+8. Wait for GitHub Actions.
+9. Download artifact and test.
 
 Acceptance test
 ---------------
 PASS if:
 - App opens.
-- Existing Library folder is remembered.
-- If Library folder is newly chosen, bold restart banner appears.
-- After restart, banner disappears.
-- Search either returns results or times out cleanly without hanging forever.
-- Search button becomes usable again after timeout/error.
-- Download and Analyse workflow still works after a successful search.
+- Library folder is remembered.
+- Search returns results again.
+- Select result works.
+- Download works.
+- Analyse works.
