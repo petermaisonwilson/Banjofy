@@ -70,3 +70,9 @@ def audio_folder() -> Path:
     folder = require_library_path() / "Audio"
     folder.mkdir(parents=True, exist_ok=True)
     return folder
+
+
+def analysis_folder() -> Path:
+    folder = require_library_path() / "Analysis"
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder

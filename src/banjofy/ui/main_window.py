@@ -24,9 +24,10 @@ from banjofy.models.search_result import SearchResult
 from banjofy.search.youtube_search import YouTubeSearchManager
 from banjofy.storage.paths import get_library_path, set_library_path, audio_folder
 from banjofy.download.audio_downloader import DownloadManager, DownloadedAudio
+from banjofy.analysis.audio_analysis import AnalysisManager, AnalysisResult
 
 
-APP_VERSION = "Banjofy 006.3.0 Module 3 - Search + Library + Download"
+APP_VERSION = "Banjofy 006.3.0 Module 4 Build 001 - Analysis"
 
 
 class MainWindow(QMainWindow):
@@ -34,11 +35,14 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.search_manager = YouTubeSearchManager()
         self.download_manager = DownloadManager()
+        self.analysis_manager = AnalysisManager()
         self.search_results: list[SearchResult] = []
         self.selected_result: SearchResult | None = None
         self.downloaded_audio: DownloadedAudio | None = None
+        self.analysis_result: AnalysisResult | None = None
         self.search_queue: queue.Queue = queue.Queue()
         self.download_queue: queue.Queue = queue.Queue()
+        self.analysis_queue: queue.Queue = queue.Queue()
 
         self.setWindowTitle(APP_VERSION)
         self.resize(1200, 760)
@@ -51,9 +55,12 @@ class MainWindow(QMainWindow):
         self.download_poll_timer = QTimer(self)
         self.download_poll_timer.timeout.connect(self._poll_download_results)
 
+        self.analysis_poll_timer = QTimer(self)
+        self.analysis_poll_timer.timeout.connect(self._poll_analysis_results)
+
         self.setStatusBar(QStatusBar())
         self._refresh_library_status()
-        self.statusBar().showMessage("Ready - Module 3 search + library + download loaded")
+        self.statusBar().showMessage("Ready - Module 4 analysis loaded")
 
     def _build_ui(self) -> None:
         root = QWidget()
@@ -66,7 +73,7 @@ class MainWindow(QMainWindow):
         title.setObjectName("Title")
         outer.addWidget(title)
 
-        note = QLabel("Module 3 test build: Search + permanent Library folder + Download only. No analysis, save/list, or Practice.")
+        note = QLabel("Module 4 test build: Search + Library folder + Download + Analysis record. No save/list or Practice.")
         note.setObjectName("Hint")
         note.setAlignment(Qt.AlignmentFlag.AlignCenter)
         outer.addWidget(note)
@@ -145,9 +152,18 @@ class MainWindow(QMainWindow):
         self.audio_folder_label = QLabel("Audio folder: choose Library folder first")
         self.audio_folder_label.setWordWrap(True)
 
+        self.analyse_button = QPushButton("Analyse Downloaded Audio")
+        self.analyse_button.setEnabled(False)
+        self.analyse_button.clicked.connect(self._start_analysis)
+
+        self.analysis_status = QLabel("Analysis: download audio first")
+        self.analysis_status.setWordWrap(True)
+
         right.addWidget(self.download_button)
         right.addWidget(self.download_status)
         right.addWidget(self.audio_folder_label)
+        right.addWidget(self.analyse_button)
+        right.addWidget(self.analysis_status)
         right.addStretch()
         body.addLayout(right, 1)
 
@@ -249,9 +265,12 @@ class MainWindow(QMainWindow):
         self.search_results = []
         self.selected_result = None
         self.downloaded_audio = None
+        self.analysis_result = None
         self._clear_selected_panel()
         self.download_button.setEnabled(False)
+        self.analyse_button.setEnabled(False)
         self.download_status.setText("Download: select a result first")
+        self.analysis_status.setText("Analysis: download audio first")
         self.statusBar().showMessage(f"Searching YouTube for: {query}")
 
         def worker() -> None:
@@ -301,9 +320,12 @@ class MainWindow(QMainWindow):
             return
         self.selected_result = self.search_results[row]
         self.downloaded_audio = None
+        self.analysis_result = None
         self._show_selected_result(self.selected_result)
         self.download_button.setEnabled(True)
+        self.analyse_button.setEnabled(False)
         self.download_status.setText("Download: ready")
+        self.analysis_status.setText("Analysis: download audio first")
         self.statusBar().showMessage(f"Selected only: {self.selected_result.title}")
 
     def _show_selected_result(self, result: SearchResult) -> None:
@@ -374,6 +396,8 @@ class MainWindow(QMainWindow):
                 self.downloaded_audio = payload
                 cached = "cached" if payload.was_cached else "downloaded"
                 self.download_status.setText(f"Download: {cached} - {payload.file_path}")
+                self.analyse_button.setEnabled(True)
+                self.analysis_status.setText("Analysis: ready")
                 self.statusBar().showMessage(f"Audio {cached}: {payload.file_path}")
                 return
             elif kind == "error":
@@ -382,6 +406,48 @@ class MainWindow(QMainWindow):
                 self.download_status.setText(f"Download error: {payload}")
                 self.statusBar().showMessage(f"Download error: {payload}")
                 return
+
+    def _start_analysis(self) -> None:
+        if not self.downloaded_audio:
+            self.statusBar().showMessage("Download audio before analysis")
+            self.analysis_status.setText("Analysis: download audio first")
+            return
+
+        self.analyse_button.setEnabled(False)
+        self.analysis_status.setText("Analysis: running...")
+        self.statusBar().showMessage(f"Analysing: {self.downloaded_audio.title}")
+
+        def worker() -> None:
+            try:
+                result = self.analysis_manager.analyse(self.downloaded_audio)
+                self.analysis_queue.put(("done", result))
+            except Exception as exc:
+                self.analysis_queue.put(("error", str(exc)))
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.analysis_poll_timer.start(100)
+
+    def _poll_analysis_results(self) -> None:
+        try:
+            kind, payload = self.analysis_queue.get_nowait()
+        except queue.Empty:
+            return
+
+        self.analysis_poll_timer.stop()
+        self.analyse_button.setEnabled(True)
+
+        if kind == "error":
+            self.analysis_status.setText(f"Analysis error: {payload}")
+            self.statusBar().showMessage(f"Analysis error: {payload}")
+            return
+
+        self.analysis_result = payload
+        self.analysis_status.setText(
+            f"Analysis: complete | BPM {payload.bpm} | Bars {payload.estimated_bars} | File {payload.analysis_file}"
+        )
+        self.statusBar().showMessage(
+            f"Analysis complete: BPM {payload.bpm}, Bars {payload.estimated_bars}"
+        )
 
     def _clear_selected_panel(self) -> None:
         self.thumbnail.setPixmap(QPixmap())
@@ -394,3 +460,7 @@ class MainWindow(QMainWindow):
             self.download_button.setEnabled(False)
         if hasattr(self, "download_status"):
             self.download_status.setText("Download: select a result first")
+        if hasattr(self, "analyse_button"):
+            self.analyse_button.setEnabled(False)
+        if hasattr(self, "analysis_status"):
+            self.analysis_status.setText("Analysis: download audio first")
