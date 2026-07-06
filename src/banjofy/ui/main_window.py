@@ -7,6 +7,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QLabel,
+    QFileDialog,
     QHBoxLayout,
     QLineEdit,
     QListWidget,
@@ -22,10 +23,11 @@ from PySide6.QtWidgets import (
 from banjofy.models.search_result import SearchResult
 from banjofy.search.youtube_search import YouTubeSearchManager
 from banjofy.download.audio_downloader import DownloadManager, DownloadedAudio
-from banjofy.storage.paths import audio_folder
+from banjofy.analysis.audio_analysis import AnalysisManager, AnalysisResult
+from banjofy.storage.paths import audio_folder, get_library_path, set_library_path
 
 
-APP_VERSION = "Banjofy 006.3.0 Module 2 - Search + Download"
+APP_VERSION = "Banjofy 006.3.0 Module 3 - Library Location + Analysis"
 
 
 class MainWindow(QMainWindow):
@@ -33,11 +35,14 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.search_manager = YouTubeSearchManager()
         self.download_manager = DownloadManager()
+        self.analysis_manager = AnalysisManager()
         self.search_results: list[SearchResult] = []
         self.selected_result: SearchResult | None = None
         self.downloaded_audio: DownloadedAudio | None = None
+        self.analysis_result: AnalysisResult | None = None
         self.search_queue: queue.Queue = queue.Queue()
         self.download_queue: queue.Queue = queue.Queue()
+        self.analysis_queue: queue.Queue = queue.Queue()
 
         self.setWindowTitle(APP_VERSION)
         self.resize(1200, 760)
@@ -50,8 +55,12 @@ class MainWindow(QMainWindow):
         self.download_poll_timer = QTimer(self)
         self.download_poll_timer.timeout.connect(self._poll_download_results)
 
+        self.analysis_poll_timer = QTimer(self)
+        self.analysis_poll_timer.timeout.connect(self._poll_analysis_results)
+
         self.setStatusBar(QStatusBar())
-        self.statusBar().showMessage("Ready - Module 2 search + download loaded")
+        self._ensure_library_location()
+        self.statusBar().showMessage("Ready - Module 3 library location + analysis loaded")
 
     def _build_ui(self) -> None:
         root = QWidget()
@@ -64,10 +73,19 @@ class MainWindow(QMainWindow):
         title.setObjectName("Title")
         outer.addWidget(title)
 
-        note = QLabel("Module 2 test build: Search + Download only. No analysis, Library, Practice, or auto-actions yet.")
+        note = QLabel("Module 3 test build: Search + Download + Library Location + Analysis record. No Library save/load or Practice yet.")
         note.setObjectName("Hint")
         note.setAlignment(Qt.AlignmentFlag.AlignCenter)
         outer.addWidget(note)
+
+        library_row = QHBoxLayout()
+        self.library_path_label = QLabel("Library: not set")
+        self.library_path_label.setWordWrap(True)
+        self.choose_library_button = QPushButton("Choose Library Folder")
+        self.choose_library_button.clicked.connect(self._choose_library_folder)
+        library_row.addWidget(self.library_path_label, 1)
+        library_row.addWidget(self.choose_library_button)
+        outer.addLayout(library_row)
 
         search_row = QHBoxLayout()
         self.search_box = QLineEdit()
@@ -179,9 +197,12 @@ class MainWindow(QMainWindow):
         self.search_results = []
         self.selected_result = None
         self.downloaded_audio = None
+        self.analysis_result = None
         self._clear_selected_panel()
         self.download_button.setEnabled(False)
+        self.analyse_button.setEnabled(False)
         self.download_status.setText("Download: no result selected")
+        self.analysis_status.setText("Analysis: no downloaded audio")
         self.statusBar().showMessage(f"Searching YouTube for: {query}")
 
         def worker() -> None:
@@ -231,9 +252,12 @@ class MainWindow(QMainWindow):
             return
         self.selected_result = self.search_results[row]
         self.downloaded_audio = None
+        self.analysis_result = None
         self._show_selected_result(self.selected_result)
         self.download_button.setEnabled(True)
+        self.analyse_button.setEnabled(False)
         self.download_status.setText("Download: ready")
+        self.analysis_status.setText("Analysis: no downloaded audio")
         self.statusBar().showMessage(f"Selected only: {self.selected_result.title}")
 
     def _show_selected_result(self, result: SearchResult) -> None:
@@ -259,9 +283,30 @@ class MainWindow(QMainWindow):
         self.thumbnail.setPixmap(QPixmap())
         self.thumbnail.setText("No thumbnail")
 
+    def _ensure_library_location(self) -> None:
+        path = get_library_path()
+        if path is None:
+            self.statusBar().showMessage("Choose a permanent Banjofy Library folder")
+            self.library_path_label.setText("Library: not set - choose a permanent folder")
+            return
+        self.library_path_label.setText(f"Library: {path}")
+        self.audio_folder_label.setText(f"Audio folder: {audio_folder()}")
+
+    def _choose_library_folder(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "Choose Banjofy Library Folder")
+        if not folder:
+            return
+        path = set_library_path(folder)
+        self.library_path_label.setText(f"Library: {path}")
+        self.audio_folder_label.setText(f"Audio folder: {audio_folder()}")
+        self.statusBar().showMessage(f"Library folder set: {path}")
+
     def _start_download(self) -> None:
         if not self.selected_result:
             self.statusBar().showMessage("Select a result before downloading")
+            return
+        if get_library_path() is None:
+            self.statusBar().showMessage("Choose a Library folder before downloading")
             return
         self.download_button.setEnabled(False)
         self.download_status.setText("Download: starting...")
@@ -297,6 +342,8 @@ class MainWindow(QMainWindow):
                 self.downloaded_audio = payload
                 cached = "cached" if payload.was_cached else "downloaded"
                 self.download_status.setText(f"Download: {cached} - {payload.file_path}")
+                self.analyse_button.setEnabled(True)
+                self.analysis_status.setText("Analysis: ready")
                 self.statusBar().showMessage(f"Audio {cached}: {payload.file_path}")
                 return
             elif kind == "error":
@@ -305,6 +352,47 @@ class MainWindow(QMainWindow):
                 self.download_status.setText(f"Download error: {payload}")
                 self.statusBar().showMessage(f"Download error: {payload}")
                 return
+
+    def _start_analysis(self) -> None:
+        if not self.downloaded_audio:
+            self.statusBar().showMessage("Download audio before analysis")
+            return
+
+        self.analyse_button.setEnabled(False)
+        self.analysis_status.setText("Analysis: running...")
+        self.statusBar().showMessage(f"Analysing: {self.downloaded_audio.title}")
+
+        def worker() -> None:
+            try:
+                result = self.analysis_manager.analyse(self.downloaded_audio)
+                self.analysis_queue.put(("done", result))
+            except Exception as exc:
+                self.analysis_queue.put(("error", str(exc)))
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.analysis_poll_timer.start(100)
+
+    def _poll_analysis_results(self) -> None:
+        try:
+            kind, payload = self.analysis_queue.get_nowait()
+        except queue.Empty:
+            return
+
+        self.analysis_poll_timer.stop()
+        self.analyse_button.setEnabled(True)
+
+        if kind == "error":
+            self.analysis_status.setText(f"Analysis error: {payload}")
+            self.statusBar().showMessage(f"Analysis error: {payload}")
+            return
+
+        self.analysis_result = payload
+        self.analysis_status.setText(
+            f"Analysis: complete | BPM {payload.bpm} | Key {payload.key} | Bars {payload.estimated_bars}"
+        )
+        self.statusBar().showMessage(
+            f"Analysis complete: BPM {payload.bpm}, Key {payload.key}, Bars {payload.estimated_bars}"
+        )
 
     def _clear_selected_panel(self) -> None:
         self.thumbnail.setPixmap(QPixmap())
@@ -317,3 +405,7 @@ class MainWindow(QMainWindow):
             self.download_status.setText("Download: no result selected")
         if hasattr(self, "download_button"):
             self.download_button.setEnabled(False)
+        if hasattr(self, "analyse_button"):
+            self.analyse_button.setEnabled(False)
+        if hasattr(self, "analysis_status"):
+            self.analysis_status.setText("Analysis: no downloaded audio")
