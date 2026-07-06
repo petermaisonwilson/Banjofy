@@ -56,3 +56,17 @@ def create_library_folders(library: Path) -> None:
     library.mkdir(parents=True, exist_ok=True)
     for sub in ["Audio", "Analysis", "Artwork", "Songs"]:
         (library / sub).mkdir(parents=True, exist_ok=True)
+
+
+def require_library_path() -> Path:
+    library = get_library_path()
+    if library is None:
+        raise RuntimeError("Library folder has not been chosen")
+    create_library_folders(library)
+    return library
+
+
+def audio_folder() -> Path:
+    folder = require_library_path() / "Audio"
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
