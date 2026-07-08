@@ -10,11 +10,14 @@ from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
     QLabel,
     QFileDialog,
+    QFrame,
     QHBoxLayout,
+    QGridLayout,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QScrollArea,
     QPushButton,
     QStatusBar,
     QTextEdit,
@@ -32,7 +35,7 @@ from banjofy.analysis.audio_analysis import AnalysisManager, AnalysisResult
 from banjofy.library.song_library import LibraryManager, LibrarySong
 
 
-APP_VERSION = "Banjofy 006.3.0 Module 7 Build 001 - Beat Grid Framework"
+APP_VERSION = "Banjofy 006.3.0 Module 7 Build 001A - Beat Grid Startup Fix"
 
 
 class MainWindow(QMainWindow):
@@ -81,7 +84,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._refresh_library_status()
         self._refresh_library_list()
-        self.statusBar().showMessage("Ready - Module 7 beat grid framework loaded")
+        self.statusBar().showMessage("Ready - Module 7 Build 001A beat grid startup fix loaded")
 
     def _build_ui(self) -> None:
         root = QWidget()

@@ -1,5 +1,5 @@
-BANJOFY 006.3.0 MODULE 7 BUILD 001 - BEAT GRID FRAMEWORK
-=======================================================
+BANJOFY 006.3.0 MODULE 7 BUILD 001A - BEAT GRID STARTUP FIX
+==========================================================
 
 Status
 ------
@@ -7,41 +7,36 @@ BUILD COMPLETE
 
 Starting point
 --------------
-Confirmed Module 6 Build 001.
+Module 7 Build 001.
 
-Added
------
-- Beat grid framework in Practice Studio.
-- Grid uses saved estimated_bars from Library song record.
-- Grid supports up to 300 bars.
-- Four beat cells per bar.
-- Cursor starts at Beat 1 when song loads.
-- Cursor moves with playback position.
-- Stop returns cursor to Beat 1.
-- Grid auto-scrolls to keep current beat visible.
+Precise diagnosis
+-----------------
+Module 7 Build 001 failed on startup because QGridLayout was used in the Practice
+screen but was not imported correctly.
 
-Not added yet
--------------
-- Real chord names.
-- Chord recognition.
-- Key detection.
-- Beat-accurate timing engine.
-- Banjo chord diagrams.
+Fix
+---
+- Added the missing QGridLayout import.
+- Confirmed QScrollArea/QFrame imports are present.
+- No beat-grid behaviour was changed.
+- Search/download/analysis/library/player code was not changed.
 
-Important
----------
-Module 7 cursor movement is proportional across the whole song duration.
-It is not yet beat-detected timing. Proper timing refinement comes later.
+Validation
+----------
+- Python syntax check passed.
+- Signal target check passed.
+- Required Qt widget import check passed.
+- GUI construction check passed if PySide6 is available in the validation environment.
 
 Acceptance test
 ---------------
 PASS if:
+- App opens.
 - Search/download/analyse/save still work.
-- Send to Practice still loads selected Library song.
+- Send to Practice loads selected Library song.
 - Practice player still works.
 - Beat grid appears.
-- Grid starts at Beat 1.
+- Cursor starts at Beat 1.
 - Cursor moves during playback.
 - Pause holds position.
 - Stop returns cursor to Beat 1.
-- Grid scrolls as playback progresses.
