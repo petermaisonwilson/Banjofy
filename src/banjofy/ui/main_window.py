@@ -28,7 +28,7 @@ from banjofy.analysis.audio_analysis import AnalysisManager, AnalysisResult
 from banjofy.library.song_library import LibraryManager, LibrarySong
 
 
-APP_VERSION = "Banjofy 006.3.0 Module 5B Build 001 - Library Button Fixes"
+APP_VERSION = "Banjofy 006.3.0 Module 5C Build 001 - Library UI Polish"
 
 
 class MainWindow(QMainWindow):
@@ -65,7 +65,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._refresh_library_status()
         self._refresh_library_list()
-        self.statusBar().showMessage("Ready - Module 5B library button fixes loaded")
+        self.statusBar().showMessage("Ready - Module 5C library UI polish loaded")
 
     def _build_ui(self) -> None:
         root = QWidget()
@@ -127,6 +127,10 @@ class MainWindow(QMainWindow):
         left.addWidget(self.result_list, 1)
 
         left.addWidget(QLabel("Library"))
+        self.library_message_label = QLabel("Library: ready")
+        self.library_message_label.setObjectName("LibraryMessage")
+        self.library_message_label.setWordWrap(True)
+        left.addWidget(self.library_message_label)
         self.library_list = QListWidget()
         self.library_list.setMinimumHeight(260)
         self.library_list.itemClicked.connect(self._select_library_song)
@@ -153,6 +157,8 @@ class MainWindow(QMainWindow):
         self.thumbnail = QLabel("No result selected")
         self.thumbnail.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.thumbnail.setFixedSize(320, 180)
+        self.thumbnail.setMinimumSize(320, 180)
+        self.thumbnail.setMaximumSize(320, 180)
         self.thumbnail.setObjectName("Thumbnail")
         right.addWidget(self.thumbnail, alignment=Qt.AlignmentFlag.AlignCenter)
 
@@ -176,8 +182,10 @@ class MainWindow(QMainWindow):
 
         self.download_status = QLabel("Download: select a result first")
         self.download_status.setWordWrap(True)
+        self.download_status.setMaximumHeight(44)
         self.audio_folder_label = QLabel("Audio folder: choose Library folder first")
         self.audio_folder_label.setWordWrap(True)
+        self.audio_folder_label.setMaximumHeight(44)
 
         self.analyse_button = QPushButton("Analyse Downloaded Audio")
         self.analyse_button.setEnabled(False)
@@ -185,6 +193,7 @@ class MainWindow(QMainWindow):
 
         self.analysis_status = QLabel("Analysis: download audio first")
         self.analysis_status.setWordWrap(True)
+        self.analysis_status.setMaximumHeight(60)
 
         right.addWidget(self.download_button)
         right.addWidget(self.download_status)
@@ -255,6 +264,13 @@ class MainWindow(QMainWindow):
                 font-size: 16px;
                 font-weight: bold;
             }
+            QLabel#LibraryMessage {
+                background: #202020;
+                color: #f3d99a;
+                border: 1px solid #555;
+                padding: 6px;
+                font-weight: bold;
+            }
         """)
 
     def _refresh_library_status(self) -> None:
@@ -265,7 +281,7 @@ class MainWindow(QMainWindow):
         else:
             self.library_path_label.setText(f"Library: {path}")
             if hasattr(self, "audio_folder_label"):
-                self.audio_folder_label.setText(f"Audio folder: {audio_folder()}")
+                self.audio_folder_label.setText("Audio folder: ready")
             self.restart_banner.setVisible(False)
 
     def _choose_library_folder(self) -> None:
@@ -275,7 +291,7 @@ class MainWindow(QMainWindow):
         path = set_library_path(folder)
         self.library_path_label.setText(f"Library: {path}")
         if hasattr(self, "audio_folder_label"):
-            self.audio_folder_label.setText(f"Audio folder: {audio_folder()}")
+            self.audio_folder_label.setText("Audio folder: ready")
         self.restart_banner.setText("IMPORTANT: Library folder set. Please close and restart Banjofy before continuing.")
         self.restart_banner.setVisible(True)
         self._refresh_library_list()
@@ -383,6 +399,11 @@ class MainWindow(QMainWindow):
         self.thumbnail.setPixmap(QPixmap())
         self.thumbnail.setText("No thumbnail")
 
+    def _set_library_message(self, message: str) -> None:
+        if hasattr(self, "library_message_label"):
+            self.library_message_label.setText(message)
+        self.statusBar().showMessage(message)
+
     def _refresh_library_list(self) -> None:
         self.library_list.clear()
         self.library_songs = []
@@ -392,52 +413,52 @@ class MainWindow(QMainWindow):
 
         if get_library_path() is None:
             self.library_list.addItem(QListWidgetItem("Choose Library folder first"))
-            self.statusBar().showMessage("Library refresh: choose Library folder first")
+            self._set_library_message("Library refresh: choose Library folder first")
             return
 
         self.library_songs = self.library_manager.load_all()
         if not self.library_songs:
             self.library_list.addItem(QListWidgetItem("No saved songs yet"))
-            self.statusBar().showMessage("Library refreshed: 0 songs found")
+            self._set_library_message("Library refreshed: 0 songs found")
             return
 
         for song in self.library_songs:
             item_text = f"{song.title}\n{song.channel} · {song.duration} · BPM {song.bpm}"
             self.library_list.addItem(QListWidgetItem(item_text))
 
-        self.statusBar().showMessage(f"Library refreshed: {len(self.library_songs)} songs found")
+        self._set_library_message(f"Library refreshed: {len(self.library_songs)} songs found")
 
     def _save_analysis_to_library(self) -> None:
         if not self.analysis_result:
-            self.statusBar().showMessage("Analyse a downloaded song before saving to Library")
+            self._set_library_message("Analyse a downloaded song before saving to Library")
             return
         try:
             path = self.library_manager.save_from_analysis(self.analysis_result)
             self._refresh_library_list()
-            self.statusBar().showMessage(f"Saved to Library: {path.name}")
+            self._set_library_message(f"Saved to Library: {path.name}")
         except Exception as exc:
-            self.statusBar().showMessage(f"Save to Library failed: {exc}")
+            self._set_library_message(f"Save to Library failed: {exc}")
 
     def _select_library_song(self, item: QListWidgetItem) -> None:
         row = self.library_list.row(item)
         if row < 0 or row >= len(self.library_songs):
             self.selected_library_song = None
             self.send_practice_button.setEnabled(False)
-            self.statusBar().showMessage("No saved Library song selected")
+            self._set_library_message("No saved Library song selected")
             return
 
         self.selected_library_song = self.library_songs[row]
         self.send_practice_button.setEnabled(True)
-        self.statusBar().showMessage(
+        self._set_library_message(
             f"Library song selected: {self.selected_library_song.title} | Send to Practice now available"
         )
 
     def _send_library_to_practice_placeholder(self) -> None:
         if not self.selected_library_song:
-            self.statusBar().showMessage("Select a Library song first")
+            self._set_library_message("Select a Library song first")
             return
 
-        self.statusBar().showMessage(
+        self._set_library_message(
             f"Practice Studio is not included yet. Selected song is ready: {self.selected_library_song.title}"
         )
 
