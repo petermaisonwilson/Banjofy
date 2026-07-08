@@ -32,7 +32,7 @@ from banjofy.analysis.audio_analysis import AnalysisManager, AnalysisResult
 from banjofy.library.song_library import LibraryManager, LibrarySong
 
 
-APP_VERSION = "Banjofy 006.3.0 Module 6 Build 001 - Practice Player"
+APP_VERSION = "Banjofy 006.3.0 Module 7 Build 001 - Beat Grid Framework"
 
 
 class MainWindow(QMainWindow):
@@ -49,6 +49,9 @@ class MainWindow(QMainWindow):
         self.library_songs: list[LibrarySong] = []
         self.selected_library_song: LibrarySong | None = None
         self.practice_song: LibrarySong | None = None
+        self.grid_cells: list[QLabel] = []
+        self.grid_bar_count = 0
+        self.current_beat_index = 0
         self.search_queue: queue.Queue = queue.Queue()
         self.download_queue: queue.Queue = queue.Queue()
         self.analysis_queue: queue.Queue = queue.Queue()
@@ -78,7 +81,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._refresh_library_status()
         self._refresh_library_list()
-        self.statusBar().showMessage("Ready - Module 6 practice player loaded")
+        self.statusBar().showMessage("Ready - Module 7 beat grid framework loaded")
 
     def _build_ui(self) -> None:
         root = QWidget()
@@ -291,6 +294,32 @@ class MainWindow(QMainWindow):
                 padding: 6px;
                 font-weight: bold;
             }
+            QLabel#GridHeader {
+                background: #303030;
+                color: #f3d99a;
+                border: 1px solid #555;
+                padding: 4px;
+                font-weight: bold;
+            }
+            QLabel#BarLabel {
+                background: #242424;
+                color: #dddddd;
+                border: 1px solid #444;
+                padding: 4px;
+            }
+            QLabel#BeatCell {
+                background: #181818;
+                color: #dddddd;
+                border: 1px solid #555;
+                padding: 4px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QLabel#BeatCell[active="true"] {
+                background: #f3d99a;
+                color: #111111;
+                border: 2px solid #ffffff;
+            }
         """)
 
     def _refresh_library_status(self) -> None:
@@ -491,6 +520,22 @@ class MainWindow(QMainWindow):
         self.time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         right.addWidget(self.time_label)
 
+        self.grid_status_label = QLabel("Grid: no song loaded")
+        self.grid_status_label.setObjectName("LibraryMessage")
+        self.grid_status_label.setWordWrap(True)
+        right.addWidget(self.grid_status_label)
+
+        self.beat_grid_container = QWidget()
+        self.beat_grid_layout = QGridLayout(self.beat_grid_container)
+        self.beat_grid_layout.setContentsMargins(4, 4, 4, 4)
+        self.beat_grid_layout.setSpacing(3)
+
+        self.grid_scroll = QScrollArea()
+        self.grid_scroll.setWidgetResizable(True)
+        self.grid_scroll.setMinimumHeight(260)
+        self.grid_scroll.setWidget(self.beat_grid_container)
+        right.addWidget(self.grid_scroll, 1)
+
         self.loaded_audio_label = QLabel("Audio: none")
         self.loaded_audio_label.setWordWrap(True)
         right.addWidget(self.loaded_audio_label)
@@ -525,11 +570,96 @@ class MainWindow(QMainWindow):
         self.media_player.stop()
         self.media_player.setSource(QUrl.fromLocalFile(str(audio_path)))
         self.position_slider.setValue(0)
+        self.current_beat_index = 0
         self.practice_artwork.setText("Artwork\ncoming later")
+        self._build_beat_grid(song)
+        self._highlight_beat(0)
         self.practice_message.setText(f"Loaded for Practice: {song.title}")
         self.loaded_audio_label.setText(f"Audio loaded: {audio_path.name}")
         self._set_library_message(f"Loaded into Practice: {song.title}")
         self.tabs.setCurrentWidget(self.practice_page)
+
+    def _build_beat_grid(self, song: LibrarySong) -> None:
+        while self.beat_grid_layout.count():
+            item = self.beat_grid_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        self.grid_cells = []
+        try:
+            bars = int(song.estimated_bars)
+        except Exception:
+            bars = 16
+        bars = max(16, min(300, bars))
+        self.grid_bar_count = bars
+
+        # Module 7 does not include chord recognition yet, so cells are beat markers only.
+        # Chord names will be populated in a later music-intelligence module.
+        header = QLabel("Bar")
+        header.setObjectName("GridHeader")
+        self.beat_grid_layout.addWidget(header, 0, 0)
+
+        for beat in range(4):
+            beat_header = QLabel(f"Beat {beat + 1}")
+            beat_header.setObjectName("GridHeader")
+            beat_header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.beat_grid_layout.addWidget(beat_header, 0, beat + 1)
+
+        for bar in range(bars):
+            bar_label = QLabel(str(bar + 1))
+            bar_label.setObjectName("BarLabel")
+            bar_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.beat_grid_layout.addWidget(bar_label, bar + 1, 0)
+
+            for beat in range(4):
+                cell = QLabel("•")
+                cell.setObjectName("BeatCell")
+                cell.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                cell.setMinimumSize(54, 30)
+                cell.setProperty("beat_index", bar * 4 + beat)
+                self.beat_grid_layout.addWidget(cell, bar + 1, beat + 1)
+                self.grid_cells.append(cell)
+
+        self.grid_status_label.setText(f"Grid: {bars} bars / {bars * 4} beats")
+        self._highlight_beat(0)
+
+    def _highlight_beat(self, beat_index: int) -> None:
+        if not self.grid_cells:
+            return
+
+        beat_index = max(0, min(beat_index, len(self.grid_cells) - 1))
+        self.current_beat_index = beat_index
+
+        for i, cell in enumerate(self.grid_cells):
+            if i == beat_index:
+                cell.setProperty("active", True)
+                cell.setText("▶")
+            else:
+                cell.setProperty("active", False)
+                cell.setText("•")
+            cell.style().unpolish(cell)
+            cell.style().polish(cell)
+
+        self._scroll_grid_to_beat(beat_index)
+
+    def _scroll_grid_to_beat(self, beat_index: int) -> None:
+        if not hasattr(self, "grid_scroll") or not self.grid_cells:
+            return
+        cell = self.grid_cells[max(0, min(beat_index, len(self.grid_cells) - 1))]
+        self.grid_scroll.ensureWidgetVisible(cell, 20, 80)
+
+    def _update_grid_cursor_from_position(self, position_ms: int) -> None:
+        if not self.practice_song or not self.grid_cells:
+            return
+        duration = self.media_player.duration()
+        if duration <= 0:
+            return
+        total_beats = len(self.grid_cells)
+        beat_index = int((position_ms / duration) * total_beats)
+        beat_index = max(0, min(beat_index, total_beats - 1))
+        if beat_index != self.current_beat_index:
+            self._highlight_beat(beat_index)
 
     def _practice_play(self) -> None:
         if not self.practice_song:
@@ -543,6 +673,8 @@ class MainWindow(QMainWindow):
     def _practice_stop(self) -> None:
         self.media_player.stop()
         self.position_slider.setValue(0)
+        self.current_beat_index = 0
+        self._highlight_beat(0)
 
     def _practice_seek(self, position: int) -> None:
         self.media_player.setPosition(position)
@@ -552,6 +684,7 @@ class MainWindow(QMainWindow):
             self.position_slider.setValue(position)
         if hasattr(self, "time_label"):
             self._update_time_label(position, self.media_player.duration())
+        self._update_grid_cursor_from_position(position)
 
     def _player_duration_changed(self, duration: int) -> None:
         if hasattr(self, "position_slider"):
