@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import queue
 import threading
+from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QUrl
 from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
     QLabel,
     QFileDialog,
@@ -16,6 +18,8 @@ from PySide6.QtWidgets import (
     QPushButton,
     QStatusBar,
     QTextEdit,
+    QTabWidget,
+    QSlider,
     QVBoxLayout,
     QWidget,
 )
@@ -28,7 +32,7 @@ from banjofy.analysis.audio_analysis import AnalysisManager, AnalysisResult
 from banjofy.library.song_library import LibraryManager, LibrarySong
 
 
-APP_VERSION = "Banjofy 006.3.0 Module 5C Build 001 - Library UI Polish"
+APP_VERSION = "Banjofy 006.3.0 Module 6 Build 001 - Practice Player"
 
 
 class MainWindow(QMainWindow):
@@ -44,6 +48,7 @@ class MainWindow(QMainWindow):
         self.analysis_result: AnalysisResult | None = None
         self.library_songs: list[LibrarySong] = []
         self.selected_library_song: LibrarySong | None = None
+        self.practice_song: LibrarySong | None = None
         self.search_queue: queue.Queue = queue.Queue()
         self.download_queue: queue.Queue = queue.Queue()
         self.analysis_queue: queue.Queue = queue.Queue()
@@ -52,6 +57,14 @@ class MainWindow(QMainWindow):
         self.resize(1200, 760)
         self._build_ui()
         self._apply_style()
+
+        self.media_player = QMediaPlayer(self)
+        self.audio_output = QAudioOutput(self)
+        self.media_player.setAudioOutput(self.audio_output)
+        self.audio_output.setVolume(0.85)
+        self.media_player.positionChanged.connect(self._player_position_changed)
+        self.media_player.durationChanged.connect(self._player_duration_changed)
+        self.media_player.playbackStateChanged.connect(self._player_state_changed)
 
         self.search_poll_timer = QTimer(self)
         self.search_poll_timer.timeout.connect(self._poll_search_results)
@@ -65,7 +78,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._refresh_library_status()
         self._refresh_library_list()
-        self.statusBar().showMessage("Ready - Module 5C library UI polish loaded")
+        self.statusBar().showMessage("Ready - Module 6 practice player loaded")
 
     def _build_ui(self) -> None:
         root = QWidget()
@@ -204,7 +217,14 @@ class MainWindow(QMainWindow):
         body.addLayout(right, 1)
 
         outer.addLayout(body, 1)
-        self.setCentralWidget(root)
+        self.library_page = root
+        self.practice_page = self._build_practice_page()
+
+        self.tabs = QTabWidget()
+        self.tabs.addTab(self.library_page, "Library / Search")
+        self.tabs.addTab(self.practice_page, "Practice Studio")
+
+        self.setCentralWidget(self.tabs)
 
     def _apply_style(self) -> None:
         self.setStyleSheet("""
@@ -399,6 +419,168 @@ class MainWindow(QMainWindow):
         self.thumbnail.setPixmap(QPixmap())
         self.thumbnail.setText("No thumbnail")
 
+    def _build_practice_page(self) -> QWidget:
+        page = QWidget()
+        outer = QVBoxLayout(page)
+        outer.setContentsMargins(10, 10, 10, 10)
+        outer.setSpacing(8)
+
+        title = QLabel("Practice Studio - Player Foundation")
+        title.setObjectName("Title")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        outer.addWidget(title)
+
+        hint = QLabel("Module 6: Library song playback only. Chord grid, timing and diagrams come later.")
+        hint.setObjectName("Hint")
+        hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        outer.addWidget(hint)
+
+        body = QHBoxLayout()
+
+        left = QVBoxLayout()
+        self.practice_artwork = QLabel("No song loaded")
+        self.practice_artwork.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.practice_artwork.setFixedSize(360, 220)
+        self.practice_artwork.setMinimumSize(360, 220)
+        self.practice_artwork.setMaximumSize(360, 220)
+        self.practice_artwork.setObjectName("Thumbnail")
+        left.addWidget(self.practice_artwork, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        self.practice_title_label = QLabel("Title: —")
+        self.practice_title_label.setWordWrap(True)
+        self.practice_channel_label = QLabel("Artist/Channel: —")
+        self.practice_duration_label = QLabel("Duration: —")
+        self.practice_bpm_label = QLabel("BPM: —")
+        self.practice_key_label = QLabel("Key: not available yet")
+        for label in [
+            self.practice_title_label,
+            self.practice_channel_label,
+            self.practice_duration_label,
+            self.practice_bpm_label,
+            self.practice_key_label,
+        ]:
+            label.setObjectName("PracticeInfo")
+            left.addWidget(label)
+
+        body.addLayout(left, 1)
+
+        right = QVBoxLayout()
+        self.practice_message = QLabel("Select a Library song, then click Send to Practice.")
+        self.practice_message.setObjectName("LibraryMessage")
+        self.practice_message.setWordWrap(True)
+        right.addWidget(self.practice_message)
+
+        controls = QHBoxLayout()
+        self.play_button = QPushButton("Play")
+        self.pause_button = QPushButton("Pause")
+        self.stop_button = QPushButton("Stop")
+        self.play_button.clicked.connect(self._practice_play)
+        self.pause_button.clicked.connect(self._practice_pause)
+        self.stop_button.clicked.connect(self._practice_stop)
+        controls.addWidget(self.play_button)
+        controls.addWidget(self.pause_button)
+        controls.addWidget(self.stop_button)
+        right.addLayout(controls)
+
+        self.position_slider = QSlider(Qt.Orientation.Horizontal)
+        self.position_slider.setRange(0, 0)
+        self.position_slider.sliderMoved.connect(self._practice_seek)
+        right.addWidget(self.position_slider)
+
+        self.time_label = QLabel("00:00 / 00:00")
+        self.time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        right.addWidget(self.time_label)
+
+        self.loaded_audio_label = QLabel("Audio: none")
+        self.loaded_audio_label.setWordWrap(True)
+        right.addWidget(self.loaded_audio_label)
+
+        right.addStretch()
+        body.addLayout(right, 1)
+
+        outer.addLayout(body, 1)
+        return page
+
+    def _load_selected_song_into_practice(self) -> None:
+        if not self.selected_library_song:
+            self._set_library_message("Select a Library song first")
+            return
+
+        song = self.selected_library_song
+        self.practice_song = song
+        self.practice_title_label.setText(f"Title: {song.title}")
+        self.practice_channel_label.setText(f"Artist/Channel: {song.channel}")
+        self.practice_duration_label.setText(f"Duration: {song.duration}")
+        self.practice_bpm_label.setText(f"BPM: {song.bpm}")
+        self.practice_key_label.setText("Key: not available yet")
+
+        audio_path = Path(song.audio_file)
+        if not audio_path.exists():
+            self.practice_message.setText("Audio file missing. Re-download this song before practice.")
+            self.loaded_audio_label.setText(f"Audio missing: {audio_path}")
+            self._set_library_message(f"Practice load failed: audio missing for {song.title}")
+            self.tabs.setCurrentWidget(self.practice_page)
+            return
+
+        self.media_player.stop()
+        self.media_player.setSource(QUrl.fromLocalFile(str(audio_path)))
+        self.position_slider.setValue(0)
+        self.practice_artwork.setText("Artwork\ncoming later")
+        self.practice_message.setText(f"Loaded for Practice: {song.title}")
+        self.loaded_audio_label.setText(f"Audio loaded: {audio_path.name}")
+        self._set_library_message(f"Loaded into Practice: {song.title}")
+        self.tabs.setCurrentWidget(self.practice_page)
+
+    def _practice_play(self) -> None:
+        if not self.practice_song:
+            self.practice_message.setText("Load a Library song into Practice first.")
+            return
+        self.media_player.play()
+
+    def _practice_pause(self) -> None:
+        self.media_player.pause()
+
+    def _practice_stop(self) -> None:
+        self.media_player.stop()
+        self.position_slider.setValue(0)
+
+    def _practice_seek(self, position: int) -> None:
+        self.media_player.setPosition(position)
+
+    def _player_position_changed(self, position: int) -> None:
+        if hasattr(self, "position_slider") and not self.position_slider.isSliderDown():
+            self.position_slider.setValue(position)
+        if hasattr(self, "time_label"):
+            self._update_time_label(position, self.media_player.duration())
+
+    def _player_duration_changed(self, duration: int) -> None:
+        if hasattr(self, "position_slider"):
+            self.position_slider.setRange(0, max(0, duration))
+        if hasattr(self, "time_label"):
+            self._update_time_label(self.media_player.position(), duration)
+
+    def _player_state_changed(self, state) -> None:
+        if not hasattr(self, "practice_message"):
+            return
+        if self.practice_song:
+            if state == QMediaPlayer.PlaybackState.PlayingState:
+                self.practice_message.setText(f"Playing: {self.practice_song.title}")
+            elif state == QMediaPlayer.PlaybackState.PausedState:
+                self.practice_message.setText(f"Paused: {self.practice_song.title}")
+            elif state == QMediaPlayer.PlaybackState.StoppedState:
+                self.practice_message.setText(f"Stopped: {self.practice_song.title}")
+
+    def _update_time_label(self, position_ms: int, duration_ms: int) -> None:
+        self.time_label.setText(f"{self._format_ms(position_ms)} / {self._format_ms(duration_ms)}")
+
+    def _format_ms(self, value: int) -> str:
+        seconds = max(0, int(value / 1000))
+        minutes, seconds = divmod(seconds, 60)
+        hours, minutes = divmod(minutes, 60)
+        if hours:
+            return f"{hours}:{minutes:02d}:{seconds:02d}"
+        return f"{minutes:02d}:{seconds:02d}"
+
     def _set_library_message(self, message: str) -> None:
         if hasattr(self, "library_message_label"):
             self.library_message_label.setText(message)
@@ -457,10 +639,7 @@ class MainWindow(QMainWindow):
         if not self.selected_library_song:
             self._set_library_message("Select a Library song first")
             return
-
-        self._set_library_message(
-            f"Practice Studio is not included yet. Selected song is ready: {self.selected_library_song.title}"
-        )
+        self._load_selected_song_into_practice()
 
     def _start_download(self) -> None:
         if not self.selected_result:
