@@ -35,7 +35,7 @@ from banjofy.analysis.audio_analysis import AnalysisManager, AnalysisResult
 from banjofy.library.song_library import LibraryManager, LibrarySong
 
 
-APP_VERSION = "Banjofy 006.3.0 Module 7 Build 001A - Beat Grid Startup Fix"
+APP_VERSION = "Banjofy 006.3.0 Module 8 Build 001 - Analysis Data to Grid"
 
 
 class MainWindow(QMainWindow):
@@ -84,7 +84,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._refresh_library_status()
         self._refresh_library_list()
-        self.statusBar().showMessage("Ready - Module 7 Build 001A beat grid startup fix loaded")
+        self.statusBar().showMessage("Ready - Module 8 analysis data to grid loaded")
 
     def _build_ui(self) -> None:
         root = QWidget()
@@ -560,7 +560,7 @@ class MainWindow(QMainWindow):
         self.practice_channel_label.setText(f"Artist/Channel: {song.channel}")
         self.practice_duration_label.setText(f"Duration: {song.duration}")
         self.practice_bpm_label.setText(f"BPM: {song.bpm}")
-        self.practice_key_label.setText("Key: not available yet")
+        self.practice_key_label.setText(f"Key: {getattr(song, 'key', 'Unknown')}")
 
         audio_path = Path(song.audio_file)
         if not audio_path.exists():
@@ -597,8 +597,9 @@ class MainWindow(QMainWindow):
         bars = max(16, min(300, bars))
         self.grid_bar_count = bars
 
-        # Module 7 does not include chord recognition yet, so cells are beat markers only.
-        # Chord names will be populated in a later music-intelligence module.
+        chords_by_bar = getattr(song, "chords_by_bar", None) or []
+        # Module 8 feeds analysis chord data into the grid.
+        # Accuracy remains provisional until the real chord-recognition module.
         header = QLabel("Bar")
         header.setObjectName("GridHeader")
         self.beat_grid_layout.addWidget(header, 0, 0)
@@ -616,7 +617,9 @@ class MainWindow(QMainWindow):
             self.beat_grid_layout.addWidget(bar_label, bar + 1, 0)
 
             for beat in range(4):
-                cell = QLabel("•")
+                chord_name = chords_by_bar[bar] if bar < len(chords_by_bar) else ""
+                cell_text = chord_name if beat == 0 and chord_name else "•"
+                cell = QLabel(cell_text)
                 cell.setObjectName("BeatCell")
                 cell.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 cell.setMinimumSize(54, 30)
@@ -624,7 +627,7 @@ class MainWindow(QMainWindow):
                 self.beat_grid_layout.addWidget(cell, bar + 1, beat + 1)
                 self.grid_cells.append(cell)
 
-        self.grid_status_label.setText(f"Grid: {bars} bars / {bars * 4} beats")
+        self.grid_status_label.setText(f"Grid: {bars} bars / {bars * 4} beats | chords provisional")
         self._highlight_beat(0)
 
     def _highlight_beat(self, beat_index: int) -> None:
@@ -635,12 +638,18 @@ class MainWindow(QMainWindow):
         self.current_beat_index = beat_index
 
         for i, cell in enumerate(self.grid_cells):
+            bar = i // 4
+            beat = i % 4
+            chords_by_bar = getattr(self.practice_song, "chords_by_bar", None) or []
+            chord_name = chords_by_bar[bar] if bar < len(chords_by_bar) else ""
+            base_text = chord_name if beat == 0 and chord_name else "•"
+
             if i == beat_index:
                 cell.setProperty("active", True)
-                cell.setText("▶")
+                cell.setText(f"▶ {base_text}" if base_text != "•" else "▶")
             else:
                 cell.setProperty("active", False)
-                cell.setText("•")
+                cell.setText(base_text)
             cell.style().unpolish(cell)
             cell.style().polish(cell)
 
@@ -870,10 +879,10 @@ class MainWindow(QMainWindow):
         self.analysis_result = payload
         self.save_library_button.setEnabled(True)
         self.analysis_status.setText(
-            f"Analysis: complete | BPM {payload.bpm} | Bars {payload.estimated_bars}"
+            f"Analysis: complete | BPM {payload.bpm} | Key {payload.key} | Bars {payload.estimated_bars}"
         )
         self.statusBar().showMessage(
-            f"Analysis complete: BPM {payload.bpm}, Bars {payload.estimated_bars}. Use Save Analysis to Library if wanted."
+            f"Analysis complete: BPM {payload.bpm}, Key {payload.key}, Bars {payload.estimated_bars}. Use Save Analysis to Library if wanted."
         )
 
     def _clear_selected_panel(self) -> None:

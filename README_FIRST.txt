@@ -1,5 +1,5 @@
-BANJOFY 006.3.0 MODULE 7 BUILD 001A - BEAT GRID STARTUP FIX
-==========================================================
+BANJOFY 006.3.0 MODULE 8 BUILD 001 - ANALYSIS DATA TO GRID
+=========================================================
 
 Status
 ------
@@ -7,36 +7,42 @@ BUILD COMPLETE
 
 Starting point
 --------------
-Module 7 Build 001.
+Confirmed Module 7 Build 001A.
 
-Precise diagnosis
------------------
-Module 7 Build 001 failed on startup because QGridLayout was used in the Practice
-screen but was not imported correctly.
+Added
+-----
+- Analysis records now include key field.
+- Analysis records now include chords_by_bar field.
+- Library song records now store key and chords_by_bar.
+- Existing saved songs remain backward compatible.
+- Practice screen displays saved key.
+- Beat grid displays chord names on bar starts.
 
-Fix
----
-- Added the missing QGridLayout import.
-- Confirmed QScrollArea/QFrame imports are present.
-- No beat-grid behaviour was changed.
-- Search/download/analysis/library/player code was not changed.
+Important accuracy note
+-----------------------
+This build proves the data plumbing from Analysis -> Library -> Practice Grid.
 
-Validation
-----------
-- Python syntax check passed.
-- Signal target check passed.
-- Required Qt widget import check passed.
-- GUI construction check passed if PySide6 is available in the validation environment.
+It does NOT yet claim accurate chord/key recognition.
+Current key is Unknown.
+Current chord progression is provisional test data.
+The real audio-based BPM/key/chord engine comes next.
+
+Not added yet
+-------------
+- Real chord detection.
+- Real key detection.
+- Beat-accurate timing.
+- NOW/NEXT chord boxes.
+- Banjo chord diagrams.
 
 Acceptance test
 ---------------
 PASS if:
-- App opens.
 - Search/download/analyse/save still work.
-- Send to Practice loads selected Library song.
-- Practice player still works.
-- Beat grid appears.
-- Cursor starts at Beat 1.
-- Cursor moves during playback.
-- Pause holds position.
-- Stop returns cursor to Beat 1.
+- Analysis status includes Key.
+- Save to Library works.
+- Library list shows Key.
+- Send to Practice works.
+- Practice shows Key.
+- Beat grid shows chord names in the first beat of bars.
+- Cursor still moves and scrolls as in Module 7.
