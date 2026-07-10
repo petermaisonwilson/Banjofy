@@ -25,10 +25,10 @@ class AnalysisResult:
     estimated_bars: int
     audio_file: str
     source_url: str
-    key: str = "Not analysed yet"
+    key: str = "Not detected"
     chords_by_bar: list[str] | None = None
     analysis_file: str = ""
-    note: str = "BPM detected from audio. Key and chords are not audio-detected yet."
+    note: str = "BPM and musical key detected from audio. Chords remain provisional."
 
 
 def _safe_filename(text: str) -> str:
@@ -50,7 +50,10 @@ class AnalysisManager:
         if not audio or not audio.file_path:
             raise ValueError("No downloaded audio to analyse")
 
-        bpm, bpm_note = self._detect_bpm(Path(audio.file_path))
+        audio_path = Path(audio.file_path)
+        samples = self._decode_audio(audio_path)
+        bpm, bpm_note = self._detect_bpm_from_samples(samples)
+        key, key_note = self._detect_key_from_samples(samples)
         estimated_bars = self._estimate_bars(audio.duration, bpm)
 
         # Chords remain provisional until a later real chord-recognition module.
@@ -68,9 +71,9 @@ class AnalysisManager:
             estimated_bars=estimated_bars,
             audio_file=str(audio.file_path),
             source_url=audio.source_url,
-            key="Not analysed yet",
+            key=key,
             chords_by_bar=chords_by_bar,
-            note=bpm_note + " Key and chords are not audio-detected yet.",
+            note=bpm_note + " " + key_note + " Chords are not audio-detected yet.",
         )
 
         path = self.save_result(result)
@@ -97,27 +100,78 @@ class AnalysisManager:
         path.write_text(json.dumps(data, indent=2), encoding="utf-8")
         return path
 
-    def _detect_bpm(self, audio_path: Path) -> tuple[int, str]:
-        """Decode audio with bundled FFmpeg and estimate tempo from onset periodicity.
+    def _detect_bpm_from_samples(self, samples: np.ndarray) -> tuple[int, str]:
+        detected, confidence = self._tempo_from_samples(samples, self.SAMPLE_RATE)
+        if detected is None:
+            return self.DEFAULT_BPM, "BPM fallback used because no reliable beat pulse was found."
+        return detected, f"BPM detected from audio ({confidence:.0%} confidence)."
 
-        This is genuine audio-derived BPM detection. It deliberately falls back to
-        the previous safe value when the file is silent, too short, or undecodable.
-        """
-        if not audio_path.exists():
-            return self.DEFAULT_BPM, "BPM fallback used because the audio file was missing."
-
+    def _detect_key_from_samples(self, samples: np.ndarray) -> tuple[str, str]:
+        """Estimate a global major/minor key from a 12-bin chroma profile."""
         try:
-            samples = self._decode_audio(audio_path)
-            detected, confidence = self._tempo_from_samples(samples, self.SAMPLE_RATE)
-            if detected is None:
-                return self.DEFAULT_BPM, "BPM fallback used because no reliable beat pulse was found."
+            chroma = self._chroma_profile(samples, self.SAMPLE_RATE)
+            if chroma is None:
+                return "Not detected", "Key not detected because tonal information was too weak."
 
-            return detected, f"BPM detected from audio ({confidence:.0%} confidence)."
+            major = np.array([6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88], dtype=np.float64)
+            minor = np.array([6.33,2.68,3.52,5.38,2.60,3.53,2.54,4.75,3.98,2.69,3.34,3.17], dtype=np.float64)
+            major = (major - major.mean()) / major.std()
+            minor = (minor - minor.mean()) / minor.std()
+            centred = (chroma - chroma.mean()) / (chroma.std() + 1e-12)
+
+            names = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"]
+            scores = []
+            for root, name in enumerate(names):
+                scores.append((float(np.dot(centred, np.roll(major, root))), f"{name} major"))
+                scores.append((float(np.dot(centred, np.roll(minor, root))), f"{name} minor"))
+
+            scores.sort(reverse=True)
+            best_score, best_key = scores[0]
+            second_score = scores[1][0]
+            spread = float(np.std([score for score, _ in scores])) + 1e-9
+            confidence = max(0.0, min(1.0, (best_score - second_score) / spread))
+            if best_score <= 0 or confidence < 0.05:
+                return "Not detected", "Key not detected because confidence was too low."
+            return best_key, f"Key detected from audio ({confidence:.0%} confidence)."
         except Exception as exc:
             message = str(exc).strip().replace("\n", " ")
-            if len(message) > 120:
-                message = message[:117] + "..."
-            return self.DEFAULT_BPM, f"BPM fallback used because audio decoding failed: {message}"
+            if len(message) > 100:
+                message = message[:97] + "..."
+            return "Not detected", f"Key detection failed safely: {message}"
+
+    def _chroma_profile(self, samples: np.ndarray, sample_rate: int) -> np.ndarray | None:
+        frame_size = 8192
+        hop_size = 4096
+        window = np.hanning(frame_size).astype(np.float32)
+        chroma = np.zeros(12, dtype=np.float64)
+        used = 0
+
+        frequencies = np.fft.rfftfreq(frame_size, d=1.0 / sample_rate)
+        valid = (frequencies >= 55.0) & (frequencies <= 5000.0)
+        valid_freqs = frequencies[valid]
+        midi = 69.0 + 12.0 * np.log2(valid_freqs / 440.0)
+        pitch_classes = np.mod(np.rint(midi).astype(int), 12)
+
+        for start in range(0, max(0, len(samples) - frame_size), hop_size):
+            frame = samples[start:start + frame_size]
+            rms = float(np.sqrt(np.mean(frame * frame)))
+            if rms < 0.01:
+                continue
+            spectrum = np.abs(np.fft.rfft(frame * window))[valid]
+            power = np.sqrt(np.maximum(spectrum, 0.0))
+            frame_chroma = np.bincount(pitch_classes, weights=power, minlength=12).astype(np.float64)
+            total = float(frame_chroma.sum())
+            if total <= 0:
+                continue
+            chroma += frame_chroma / total
+            used += 1
+
+        if used < 8 or float(chroma.sum()) <= 0:
+            return None
+        chroma /= chroma.sum()
+        if float(chroma.max() - chroma.min()) < 0.01:
+            return None
+        return chroma
 
     def _decode_audio(self, audio_path: Path) -> np.ndarray:
         ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()

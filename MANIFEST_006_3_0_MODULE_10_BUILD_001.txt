@@ -1,0 +1,41 @@
+BANJOFY 006.3.0 MODULE 10 BUILD 001 - REAL KEY DETECTION
+==========================================================
+
+Baseline
+--------
+Confirmed-good Module 9A Build 001.
+
+What this build should do
+-------------------------
+- Keep every confirmed-good Module 9A function.
+- Detect BPM from the downloaded audio.
+- Detect one global musical key from the audio.
+- Identify any of 12 major or 12 minor keys.
+- Save the detected key in the Analysis record.
+- Save the detected key in the Library.
+- Show the key in the Library list.
+- Show the key in Practice Studio.
+- Show "Not detected" when confidence is too low.
+- Keep provisional G/C/G/D grid labels clearly provisional.
+- Keep Play, Pause, safe Stop reset and slider seeking working.
+
+Not yet implemented
+-------------------
+- Real chord detection.
+- Key changes within a song.
+- Exact first-downbeat alignment.
+- Banjo chord diagrams.
+
+Acceptance test
+---------------
+PASS only if:
+- Main title says Module 10 Build 001.
+- Practice title says Module 10.
+- No Module 6 or Module 9A wording remains.
+- BPM detection still works.
+- A song with a well-known key shows a plausible major or minor key.
+- The detected key is saved to the Library.
+- The detected key appears in Practice.
+- Play, Pause, Stop and seeking still work.
+- Stop resets time, slider and grid without closing Banjofy.
+- Low-confidence material says Not detected rather than crashing.
