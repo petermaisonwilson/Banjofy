@@ -1,0 +1,47 @@
+BANJOFY 006.3.0 MODULE 9A BUILD 001 - BPM AND PRACTICE STOP FIX
+=================================================================
+
+Status
+------
+CORRECTIVE BUILD - REPLACES FAILED MODULE 9 BUILD 001
+
+Confirmed working from Module 9
+-------------------------------
+- Real audio-derived BPM detection.
+- BPM saved to Analysis and Library.
+- BPM displayed in Practice.
+- Beat-grid speed follows detected BPM.
+- Search, download, analysis and Library work.
+
+Corrected in Module 9A
+----------------------
+- Practice heading now says Practice Studio - Module 9A.
+- Practice explanation no longer says Module 6.
+- Window title identifies Module 9A Build 001.
+- Stop uses a guarded two-stage reset.
+- Slider signals are blocked while Stop resets to zero.
+- Position callbacks are ignored during the Stop reset.
+- Time display and beat grid reset after Qt finishes the media stop event.
+- Repeated Stop clicks during reset are ignored.
+
+Still provisional
+-----------------
+- Key detection is not implemented.
+- Chord detection is not implemented.
+- G/C/G/D labels remain provisional grid data.
+
+Acceptance test
+---------------
+PASS only if:
+- Library window title says Module 9A Build 001.
+- Practice heading says Practice Studio - Module 9A.
+- Practice explanation mentions detected BPM, not Module 6.
+- Search, download, analysis and Library still work.
+- Detected BPM appears in Library and Practice.
+- Play works.
+- Pause works.
+- Stop does not close or crash Banjofy.
+- Stop returns slider and time to 00:00.
+- Stop returns the grid cursor to Beat 1.
+- Play works again after Stop.
+- Slider seeking still works.
