@@ -1,0 +1,47 @@
+BANJOFY 006.3.0 MODULE 9 BUILD 001 - REAL BPM DETECTION
+===========================================================
+
+Status
+------
+READY FOR WINDOWS BUILD AND ACCEPTANCE TEST
+
+Confirmed baseline
+------------------
+Module 8B Build 001.
+
+Added
+-----
+- Genuine BPM detection from downloaded audio.
+- Bundled FFmpeg helper; no separate FFmpeg installation required.
+- Supports YouTube WebM/M4A and other FFmpeg-readable audio.
+- Analyses up to the first 180 seconds.
+- Stores detected BPM in Analysis and Library records.
+- Recalculates estimated bars using the detected BPM.
+- Practice beat-grid timing uses the detected BPM.
+- Safe fallback to 92 BPM when audio cannot be decoded or no reliable beat is found.
+- Analysis note records whether BPM was detected or fallback was used.
+
+Still not claimed
+-----------------
+- No real key detection yet.
+- No real chord detection yet.
+- Provisional G/C/G/D chord labels remain only for grid plumbing.
+- BPM can still be affected by unusual rhythm, rubato, spoken intros, or half/double-time ambiguity.
+
+Acceptance test
+---------------
+PASS if:
+- Existing Module 8B functions still work.
+- A slow and a fast song do not both report 92 BPM.
+- Analysis completes without needing a separate FFmpeg installation.
+- Detected BPM is saved to the Library.
+- Practice displays the detected BPM.
+- Beat-grid cursor speed changes appropriately between slow and fast songs.
+- Undecodable or rhythmically unclear audio falls back safely rather than crashing.
+
+Identity correction
+-------------------
+- Window title displays Module 9 Build 001.
+- Main header describes Module 9 BPM detection.
+- Status bar displays Module 9 ready message.
+- Exact text changes are safely applied during the Windows build.
