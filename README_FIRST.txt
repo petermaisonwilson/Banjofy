@@ -1,5 +1,5 @@
-BANJOFY 006.3.0 MODULE 8A BUILD 001 - PLAYBACK AND KEY DISPLAY FIX
-=================================================================
+BANJOFY 006.3.0 MODULE 8B BUILD 001 - DATA DISPLAY AND SAFE SEEKING
+========================================================================
 
 Status
 ------
@@ -7,28 +7,32 @@ BUILD COMPLETE
 
 Starting point
 --------------
-Module 8 Build 001.
+Confirmed-good Module 7 Build 001A.
 
-Fixes
+Added
 -----
-- Stop now resets audio position, slider, time label and grid cursor to Beat 1.
-- Play safely restarts if position is at the end.
-- Library list shows Key field.
-- Practice info panel shows Key field.
-- Chord names on bar starts are retained.
+- Honest key field: "Not analysed yet".
+- Key shown in analysis status, Library list and Practice info.
+- Provisional chord data stored in Analysis and Library records.
+- Provisional chord names shown at bar starts.
+- Safe slider seeking using press/preview/release.
+- Existing Library files remain backward compatible.
 
-Accuracy note
--------------
-Key Unknown is expected until the real key/chord engine is built.
+Not claimed
+-----------
+- No real audio key detection yet.
+- No real audio chord detection yet.
+- BPM remains the existing placeholder estimate.
 
 Acceptance test
 ---------------
 PASS if:
 - Search/download/analyse/save still work.
-- Library list shows Key.
-- Practice info panel shows Key.
-- Grid shows chord names on bar starts.
-- Play works.
-- Pause holds position.
-- Stop returns audio, slider and cursor to Beat 1.
-- Play works again after Stop.
+- Analysis says Key: Not analysed yet.
+- Library list shows Key: Not analysed yet.
+- Practice info shows Key: Not analysed yet.
+- Play/Pause/Stop behave exactly as Module 7.
+- Stop returns cursor to Beat 1.
+- Play works after Stop.
+- Dragging and releasing slider changes audio position.
+- Grid shows provisional chord names and cursor still moves.

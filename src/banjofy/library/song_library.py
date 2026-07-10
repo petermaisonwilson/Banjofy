@@ -19,7 +19,7 @@ class LibrarySong:
     audio_file: str
     analysis_file: str
     source_url: str
-    key: str = "Unknown"
+    key: str = "Not analysed yet"
     chords_by_bar: list[str] | None = None
 
 
@@ -42,7 +42,7 @@ class LibraryManager:
             audio_file=result.audio_file,
             analysis_file=result.analysis_file,
             source_url=result.source_url,
-            key=getattr(result, "key", "Unknown"),
+            key=getattr(result, "key", "Not analysed yet"),
             chords_by_bar=getattr(result, "chords_by_bar", None),
         )
         path = songs_folder() / f"{_safe_filename(song.title + ' - ' + song.channel)}.song.json"
@@ -55,7 +55,7 @@ class LibraryManager:
         for path in sorted(folder.glob("*.song.json"), key=lambda p: p.stat().st_mtime, reverse=True):
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
-                data.setdefault("key", "Unknown")
+                data.setdefault("key", "Not analysed yet")
                 data.setdefault("chords_by_bar", None)
                 songs.append(LibrarySong(**data))
             except Exception:

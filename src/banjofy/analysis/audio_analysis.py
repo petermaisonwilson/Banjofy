@@ -18,10 +18,10 @@ class AnalysisResult:
     estimated_bars: int
     audio_file: str
     source_url: str
-    key: str = "Unknown"
+    key: str = "Not analysed yet"
     chords_by_bar: list[str] | None = None
     analysis_file: str = ""
-    note: str = "Module 8 provides first chord/key data plumbing. Musical accuracy is still provisional."
+    note: str = "Key and chords are not audio-detected yet. Chord data is provisional for grid plumbing."
 
 
 def _safe_filename(text: str) -> str:
@@ -42,8 +42,9 @@ class AnalysisManager:
 
         bpm = 92
         estimated_bars = self._estimate_bars(audio.duration, bpm)
-        key = self._estimate_key_from_title(audio.title)
-        chords_by_bar = self._provisional_chords_for_key(key, estimated_bars)
+
+        provisional = ["G", "C", "G", "D"]
+        chords_by_bar = [provisional[i % len(provisional)] for i in range(max(1, estimated_bars))]
 
         result = AnalysisResult(
             title=audio.title,
@@ -53,7 +54,7 @@ class AnalysisManager:
             estimated_bars=estimated_bars,
             audio_file=str(audio.file_path),
             source_url=audio.source_url,
-            key=key,
+            key="Not analysed yet",
             chords_by_bar=chords_by_bar,
         )
 
@@ -80,24 +81,6 @@ class AnalysisManager:
         data["analysis_file"] = str(path)
         path.write_text(json.dumps(data, indent=2), encoding="utf-8")
         return path
-
-    def _estimate_key_from_title(self, title: str) -> str:
-        """Temporary key seed.
-
-        This is deliberately conservative. True audio key detection is a later build.
-        Known false claims are worse than Unknown, so default to Unknown unless a future
-        real detector supplies confidence.
-        """
-        return "Unknown"
-
-    def _provisional_chords_for_key(self, key: str, bars: int) -> list[str]:
-        """First chord data plumbing for the Practice grid.
-
-        These are not claimed to be detected chords yet. They allow Module 8 to prove
-        that analysis chord data flows into the Library and Practice grid correctly.
-        """
-        progression = ["G", "C", "G", "D"]
-        return [progression[i % len(progression)] for i in range(max(1, bars))]
 
     def _estimate_bars(self, duration: str, bpm: int) -> int:
         try:

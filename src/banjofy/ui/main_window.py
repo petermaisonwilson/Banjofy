@@ -35,7 +35,7 @@ from banjofy.analysis.audio_analysis import AnalysisManager, AnalysisResult
 from banjofy.library.song_library import LibraryManager, LibrarySong
 
 
-APP_VERSION = "Banjofy 006.3.0 Module 8A Build 001 - Playback and Key Display Fix"
+APP_VERSION = "Banjofy 006.3.0 Module 8B Build 001 - Data Display and Safe Seeking"
 
 
 class MainWindow(QMainWindow):
@@ -55,6 +55,7 @@ class MainWindow(QMainWindow):
         self.grid_cells: list[QLabel] = []
         self.grid_bar_count = 0
         self.current_beat_index = 0
+        self.user_is_seeking = False
         self.search_queue: queue.Queue = queue.Queue()
         self.download_queue: queue.Queue = queue.Queue()
         self.analysis_queue: queue.Queue = queue.Queue()
@@ -84,7 +85,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._refresh_library_status()
         self._refresh_library_list()
-        self.statusBar().showMessage("Ready - Module 8A playback and key display fix loaded")
+        self.statusBar().showMessage("Ready - Module 8B data display and safe seeking loaded")
 
     def _build_ui(self) -> None:
         root = QWidget()
@@ -516,7 +517,9 @@ class MainWindow(QMainWindow):
 
         self.position_slider = QSlider(Qt.Orientation.Horizontal)
         self.position_slider.setRange(0, 0)
-        self.position_slider.sliderMoved.connect(self._practice_seek)
+        self.position_slider.sliderPressed.connect(self._practice_seek_started)
+        self.position_slider.sliderReleased.connect(self._practice_seek_released)
+        self.position_slider.sliderMoved.connect(self._practice_seek_preview)
         right.addWidget(self.position_slider)
 
         self.time_label = QLabel("00:00 / 00:00")
@@ -560,7 +563,7 @@ class MainWindow(QMainWindow):
         self.practice_channel_label.setText(f"Artist/Channel: {song.channel}")
         self.practice_duration_label.setText(f"Duration: {song.duration}")
         self.practice_bpm_label.setText(f"BPM: {song.bpm}")
-        self.practice_key_label.setText(f"Key: {getattr(song, 'key', 'Unknown')}")
+        self.practice_key_label.setText(f"Key: {getattr(song, 'key', 'Not analysed yet')}")
 
         audio_path = Path(song.audio_file)
         if not audio_path.exists():
@@ -598,8 +601,7 @@ class MainWindow(QMainWindow):
         self.grid_bar_count = bars
 
         chords_by_bar = getattr(song, "chords_by_bar", None) or []
-        # Module 8 feeds analysis chord data into the grid.
-        # Accuracy remains provisional until the real chord-recognition module.
+        # These chord names are provisional data plumbing, not detected chords.
         header = QLabel("Bar")
         header.setObjectName("GridHeader")
         self.beat_grid_layout.addWidget(header, 0, 0)
@@ -627,7 +629,7 @@ class MainWindow(QMainWindow):
                 self.beat_grid_layout.addWidget(cell, bar + 1, beat + 1)
                 self.grid_cells.append(cell)
 
-        self.grid_status_label.setText(f"Grid: {bars} bars / {bars * 4} beats | chords provisional")
+        self.grid_status_label.setText(f"Grid: {bars} bars / {bars * 4} beats | provisional chords")
         self._highlight_beat(0)
 
     def _highlight_beat(self, beat_index: int) -> None:
@@ -677,12 +679,6 @@ class MainWindow(QMainWindow):
         if not self.practice_song:
             self.practice_message.setText("Load a Library song into Practice first.")
             return
-        duration = self.media_player.duration()
-        if duration > 0 and self.media_player.position() >= max(0, duration - 250):
-            self.media_player.setPosition(0)
-            self.position_slider.setValue(0)
-            self.current_beat_index = 0
-            self._highlight_beat(0)
         self.media_player.play()
 
     def _practice_pause(self) -> None:
@@ -690,21 +686,24 @@ class MainWindow(QMainWindow):
 
     def _practice_stop(self) -> None:
         self.media_player.stop()
-        self.media_player.setPosition(0)
-        if hasattr(self, "position_slider"):
-            self.position_slider.setValue(0)
+        self.position_slider.setValue(0)
         self.current_beat_index = 0
         self._highlight_beat(0)
-        if hasattr(self, "time_label"):
-            self._update_time_label(0, self.media_player.duration())
-        if hasattr(self, "practice_message") and self.practice_song:
-            self.practice_message.setText(f"Stopped: {self.practice_song.title}")
 
-    def _practice_seek(self, position: int) -> None:
+    def _practice_seek_started(self) -> None:
+        self.user_is_seeking = True
+
+    def _practice_seek_preview(self, position: int) -> None:
+        self._update_time_label(position, self.media_player.duration())
+
+    def _practice_seek_released(self) -> None:
+        position = self.position_slider.value()
         self.media_player.setPosition(position)
+        self.user_is_seeking = False
+        self._update_grid_cursor_from_position(position)
 
     def _player_position_changed(self, position: int) -> None:
-        if hasattr(self, "position_slider") and not self.position_slider.isSliderDown():
+        if hasattr(self, "position_slider") and not self.user_is_seeking:
             self.position_slider.setValue(position)
         if hasattr(self, "time_label"):
             self._update_time_label(position, self.media_player.duration())
