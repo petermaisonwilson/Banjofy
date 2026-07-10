@@ -1,5 +1,5 @@
-BANJOFY 006.3.0 MODULE 8 BUILD 001 - ANALYSIS DATA TO GRID
-=========================================================
+BANJOFY 006.3.0 MODULE 8A BUILD 001 - PLAYBACK AND KEY DISPLAY FIX
+=================================================================
 
 Status
 ------
@@ -7,42 +7,28 @@ BUILD COMPLETE
 
 Starting point
 --------------
-Confirmed Module 7 Build 001A.
+Module 8 Build 001.
 
-Added
+Fixes
 -----
-- Analysis records now include key field.
-- Analysis records now include chords_by_bar field.
-- Library song records now store key and chords_by_bar.
-- Existing saved songs remain backward compatible.
-- Practice screen displays saved key.
-- Beat grid displays chord names on bar starts.
+- Stop now resets audio position, slider, time label and grid cursor to Beat 1.
+- Play safely restarts if position is at the end.
+- Library list shows Key field.
+- Practice info panel shows Key field.
+- Chord names on bar starts are retained.
 
-Important accuracy note
------------------------
-This build proves the data plumbing from Analysis -> Library -> Practice Grid.
-
-It does NOT yet claim accurate chord/key recognition.
-Current key is Unknown.
-Current chord progression is provisional test data.
-The real audio-based BPM/key/chord engine comes next.
-
-Not added yet
+Accuracy note
 -------------
-- Real chord detection.
-- Real key detection.
-- Beat-accurate timing.
-- NOW/NEXT chord boxes.
-- Banjo chord diagrams.
+Key Unknown is expected until the real key/chord engine is built.
 
 Acceptance test
 ---------------
 PASS if:
 - Search/download/analyse/save still work.
-- Analysis status includes Key.
-- Save to Library works.
 - Library list shows Key.
-- Send to Practice works.
-- Practice shows Key.
-- Beat grid shows chord names in the first beat of bars.
-- Cursor still moves and scrolls as in Module 7.
+- Practice info panel shows Key.
+- Grid shows chord names on bar starts.
+- Play works.
+- Pause holds position.
+- Stop returns audio, slider and cursor to Beat 1.
+- Play works again after Stop.

@@ -35,7 +35,7 @@ from banjofy.analysis.audio_analysis import AnalysisManager, AnalysisResult
 from banjofy.library.song_library import LibraryManager, LibrarySong
 
 
-APP_VERSION = "Banjofy 006.3.0 Module 8 Build 001 - Analysis Data to Grid"
+APP_VERSION = "Banjofy 006.3.0 Module 8A Build 001 - Playback and Key Display Fix"
 
 
 class MainWindow(QMainWindow):
@@ -84,7 +84,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self._refresh_library_status()
         self._refresh_library_list()
-        self.statusBar().showMessage("Ready - Module 8 analysis data to grid loaded")
+        self.statusBar().showMessage("Ready - Module 8A playback and key display fix loaded")
 
     def _build_ui(self) -> None:
         root = QWidget()
@@ -677,6 +677,12 @@ class MainWindow(QMainWindow):
         if not self.practice_song:
             self.practice_message.setText("Load a Library song into Practice first.")
             return
+        duration = self.media_player.duration()
+        if duration > 0 and self.media_player.position() >= max(0, duration - 250):
+            self.media_player.setPosition(0)
+            self.position_slider.setValue(0)
+            self.current_beat_index = 0
+            self._highlight_beat(0)
         self.media_player.play()
 
     def _practice_pause(self) -> None:
@@ -684,9 +690,15 @@ class MainWindow(QMainWindow):
 
     def _practice_stop(self) -> None:
         self.media_player.stop()
-        self.position_slider.setValue(0)
+        self.media_player.setPosition(0)
+        if hasattr(self, "position_slider"):
+            self.position_slider.setValue(0)
         self.current_beat_index = 0
         self._highlight_beat(0)
+        if hasattr(self, "time_label"):
+            self._update_time_label(0, self.media_player.duration())
+        if hasattr(self, "practice_message") and self.practice_song:
+            self.practice_message.setText(f"Stopped: {self.practice_song.title}")
 
     def _practice_seek(self, position: int) -> None:
         self.media_player.setPosition(position)
