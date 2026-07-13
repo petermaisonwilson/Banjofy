@@ -1,0 +1,39 @@
+BANJOFY 006.3.0 MODULE 12A BUILD 001 - DOWNLOAD COMPATIBILITY
+================================================================
+
+Status
+------
+Corrective build based on Module 12 Build 001.
+
+Problem corrected
+-----------------
+Some YouTube videos report:
+"Requested format is not available"
+
+What this build should do
+-------------------------
+- Preserve all confirmed Module 11 features.
+- Preserve Module 12 clickable bar and beat seeking.
+- Try the normal best audio-only format first.
+- Retry with any available audio stream.
+- Retry through Android and web YouTube player clients.
+- Fall back to the best combined audio/video stream when necessary.
+- Continue to use the audio track from a combined stream for analysis and playback.
+- Retry with Edge, Chrome and Firefox browser cookies where available.
+- Install the latest yt-dlp during the Windows build.
+- Give a clearer message if YouTube genuinely exposes no usable stream.
+- Keep BPM detection, key detection and BPM correction working.
+- Keep Play, Pause, Stop, slider seeking and grid-click seeking working.
+
+Acceptance test
+---------------
+PASS only if:
+- Main title says Module 12A Build 001.
+- Practice title says Module 12A.
+- The previously failing video downloads successfully, or produces the new clear
+  no-stream message only after all fallback methods have been tried.
+- A normal YouTube song still downloads.
+- Analysis still works on the downloaded file.
+- Library and Practice still work.
+- Clicking bars and beats still jumps playback correctly.
+- Play, Pause, Stop and slider seeking still work.

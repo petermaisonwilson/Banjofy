@@ -31,10 +31,7 @@ def _safe_filename(text: str) -> str:
 
 
 class DownloadManager:
-    """Downloads selected YouTube result audio only.
-
-    It does not analyse, save to library, or open Practice.
-    """
+    """Downloads the best usable audio stream available for a selected result."""
 
     def download(self, result: SearchResult, progress: ProgressCallback | None = None) -> DownloadedAudio:
         if not result or not result.url:
@@ -68,37 +65,66 @@ class DownloadManager:
             elif status == "finished":
                 progress("downloaded", 100, data.get("filename", ""))
 
-        # No FFmpeg/postprocessing in Module 3.
-        # We simply download the best audio file YouTube provides.
-        base_options = {
-            "format": "bestaudio/best",
+        common = {
             "outtmpl": str(folder / (safe + ".%(ext)s")),
             "quiet": True,
             "noplaylist": True,
             "progress_hooks": [hook],
+            "retries": 3,
+            "fragment_retries": 3,
+            "socket_timeout": 30,
         }
 
+        # Try normal audio-only first, then more permissive selections and
+        # alternate YouTube player clients. The final fallback accepts the
+        # best combined stream because FFmpeg later extracts/decodes its audio.
         attempts: list[tuple[str, dict]] = [
-            ("standard", {}),
-            ("edge cookies", {"cookiesfrombrowser": ("edge",)}),
-            ("chrome cookies", {"cookiesfrombrowser": ("chrome",)}),
-            ("firefox cookies", {"cookiesfrombrowser": ("firefox",)}),
+            ("best audio", {
+                "format": "bestaudio/best",
+            }),
+            ("any audio stream", {
+                "format": "bestaudio*",
+            }),
+            ("Android audio", {
+                "format": "bestaudio/best",
+                "extractor_args": {"youtube": {"player_client": ["android"]}},
+            }),
+            ("web audio", {
+                "format": "bestaudio/best",
+                "extractor_args": {"youtube": {"player_client": ["web"]}},
+            }),
+            ("combined fallback", {
+                "format": "best",
+            }),
+            ("Edge cookies", {
+                "format": "bestaudio/best",
+                "cookiesfrombrowser": ("edge",),
+            }),
+            ("Chrome cookies", {
+                "format": "bestaudio/best",
+                "cookiesfrombrowser": ("chrome",),
+            }),
+            ("Firefox cookies", {
+                "format": "bestaudio/best",
+                "cookiesfrombrowser": ("firefox",),
+            }),
         ]
 
         last_error: Exception | None = None
 
-        for label, extra_options in attempts:
+        for label, special in attempts:
             if progress:
                 progress(f"trying {label}", 5, "")
             try:
-                options = dict(base_options)
-                options.update(extra_options)
+                options = dict(common)
+                options.update(special)
+
                 with YoutubeDL(options) as ydl:
                     ydl.download([result.url])
 
                 downloaded = sorted(folder.glob(safe + ".*"))
                 if not downloaded:
-                    raise FileNotFoundError("Download finished but no audio file was found")
+                    raise FileNotFoundError("Download finished but no usable media file was found")
 
                 if progress:
                     progress("complete", 100, str(downloaded[0]))
@@ -115,9 +141,18 @@ class DownloadManager:
                 last_error = exc
 
         message = str(last_error) if last_error else "unknown download error"
-        if "Sign in to confirm" in message or "not a bot" in message or "cookies" in message.lower():
+        lowered = message.lower()
+
+        if "sign in to confirm" in lowered or "not a bot" in lowered or "cookies" in lowered:
             raise RuntimeError(
-                "YouTube needs browser sign-in/cookies. Open YouTube in Edge or Chrome, sign in once, then try again."
+                "YouTube needs browser sign-in/cookies. Open YouTube in Edge or Chrome, "
+                "sign in once, then try the download again."
+            ) from last_error
+
+        if "requested format is not available" in lowered:
+            raise RuntimeError(
+                "YouTube did not expose a downloadable audio or combined stream for this video. "
+                "Try another upload of the same song."
             ) from last_error
 
         raise RuntimeError(message) from last_error
