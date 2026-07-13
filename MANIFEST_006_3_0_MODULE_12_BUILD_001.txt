@@ -1,0 +1,56 @@
+BANJOFY 006.3.0 MODULE 12 BUILD 001 - GRID CLICK SEEKING
+===========================================================
+
+Baseline
+--------
+Confirmed-good Module 11 Build 001.
+
+What this build should do
+-------------------------
+- Keep every confirmed-good Module 11 function.
+- Make each bar number in the Practice grid clickable.
+- Clicking a bar number jumps to Beat 1 of that bar.
+- Make every individual beat cell clickable.
+- Clicking a beat jumps directly to that bar and beat.
+- Move the audio playback position when a grid item is clicked.
+- Move the playback slider to the same position.
+- Update the time display.
+- Highlight the clicked beat.
+- Scroll the grid so the selected beat remains visible.
+- Continue playing if the song was already playing.
+- Remain paused or stopped if it was not playing.
+- Show the selected bar and beat in the Practice message.
+- Use the current corrected BPM, not only the original detected BPM.
+- Keep Half, Double, -1, +1, Tap BPM, Reset and Save BPM working.
+- Keep BPM and key detection working.
+- Keep safe Stop reset and slider seeking working.
+- Keep chord labels explicitly provisional.
+
+Important limitation
+--------------------
+Grid click positions are calculated from BPM beginning at 00:00.
+They are approximate until exact first-downbeat alignment is implemented.
+
+Not yet implemented
+-------------------
+- Selecting a repeat start and repeat end.
+- Looping a selected section.
+- Exact first musical downbeat alignment.
+- Real chord detection.
+- Banjo chord diagrams.
+- Final Practice screen redesign.
+
+Acceptance test
+---------------
+PASS only if:
+- Main title says Module 12 Build 001.
+- Practice title says Module 12.
+- Clicking Bar 1 jumps to the start.
+- Clicking a later bar jumps later in the song.
+- Clicking Beat 1, 2, 3 or 4 in one bar moves to different positions.
+- Slider, time display and highlighted beat move together.
+- Clicking while playing continues playback from the new point.
+- Clicking while paused leaves playback paused.
+- Corrected BPM changes the grid-click timing.
+- Play, Pause, Stop and ordinary slider seeking still work.
+- Module 11 BPM correction and saving still work.
