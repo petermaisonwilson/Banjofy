@@ -1,0 +1,52 @@
+BANJOFY 006.3.0 MODULE 11 BUILD 001 - BPM VERIFICATION
+=======================================================
+
+Baseline
+--------
+Confirmed-good Module 10 Build 001.
+
+What this build should do
+-------------------------
+- Keep confirmed-good BPM and key detection.
+- Show detected BPM and current working BPM separately.
+- Provide Half and Double correction.
+- Provide -1 and +1 fine correction.
+- Provide Tap BPM while listening to the song.
+- Provide Reset Detected.
+- Rebuild the estimated bar/beat grid after a BPM change.
+- Save corrected BPM and recalculated bars to the Library.
+- Preserve the original detected BPM.
+- Reload older Library records safely.
+- Keep Play, Pause, safe Stop and slider seeking working.
+- Keep chord labels explicitly provisional.
+
+Button meanings
+---------------
+- Half: 160 becomes 80.
+- Double: 70 becomes 140.
+- -1 / +1: fine adjustment.
+- Tap BPM: tap once on each audible beat.
+- Reset Detected: return to analysed BPM.
+- Save BPM: persist current BPM in the Library.
+
+Not yet implemented
+-------------------
+- Automatic proof that BPM is musically correct.
+- Exact first-downbeat alignment.
+- Real chord detection.
+- Key changes within a song.
+- Banjo chord diagrams.
+
+Acceptance test
+---------------
+PASS only if:
+- Main title says Module 11 Build 001.
+- Practice title says Module 11.
+- Module 10 BPM and key detection still work.
+- Half, Double, -1 and +1 work correctly.
+- Tap BPM gives a plausible value after steady taps.
+- Reset Detected restores the original BPM.
+- Grid rebuilds after a BPM change.
+- Save BPM persists after restarting Banjofy.
+- Play, Pause, Stop and seeking still work.
+- Stop resets time, slider and grid without closing Banjofy.

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 import json
 import re
 from pathlib import Path
@@ -21,6 +21,7 @@ class LibrarySong:
     source_url: str
     key: str = "Not analysed yet"
     chords_by_bar: list[str] | None = None
+    detected_bpm: int = 0
 
 
 def _safe_filename(text: str) -> str:
@@ -44,10 +45,22 @@ class LibraryManager:
             source_url=result.source_url,
             key=getattr(result, "key", "Not analysed yet"),
             chords_by_bar=getattr(result, "chords_by_bar", None),
+            detected_bpm=result.bpm,
         )
-        path = songs_folder() / f"{_safe_filename(song.title + ' - ' + song.channel)}.song.json"
+        path = self._path_for_song(song)
         path.write_text(json.dumps(asdict(song), indent=2), encoding="utf-8")
         return path
+
+    def update_bpm(self, song: LibrarySong, bpm: int, estimated_bars: int) -> tuple[LibrarySong, Path]:
+        if not song:
+            raise ValueError("No Library song supplied")
+        bpm = max(30, min(300, int(round(bpm))))
+        estimated_bars = max(1, int(estimated_bars))
+        detected = int(getattr(song, "detected_bpm", 0) or song.bpm)
+        updated = replace(song, bpm=bpm, estimated_bars=estimated_bars, detected_bpm=detected)
+        path = self._path_for_song(updated)
+        path.write_text(json.dumps(asdict(updated), indent=2), encoding="utf-8")
+        return updated, path
 
     def load_all(self) -> list[LibrarySong]:
         folder = songs_folder()
@@ -57,7 +70,11 @@ class LibraryManager:
                 data = json.loads(path.read_text(encoding="utf-8"))
                 data.setdefault("key", "Not analysed yet")
                 data.setdefault("chords_by_bar", None)
+                data.setdefault("detected_bpm", int(data.get("bpm", 0) or 0))
                 songs.append(LibrarySong(**data))
             except Exception:
                 continue
         return songs
+
+    def _path_for_song(self, song: LibrarySong) -> Path:
+        return songs_folder() / f"{_safe_filename(song.title + ' - ' + song.channel)}.song.json"
