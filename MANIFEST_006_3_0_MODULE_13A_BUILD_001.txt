@@ -1,0 +1,64 @@
+BANJOFY 006.3.0 MODULE 13A BUILD 001 - COUNT-IN PRACTICE
+=========================================================
+
+Status
+------
+Corrective build replacing Module 13 continuous repeat behaviour.
+
+Baseline
+--------
+Confirmed-good Module 12A plus Module 13 repeat selection.
+
+What this build should do
+-------------------------
+- Keep resilient YouTube downloading.
+- Keep BPM and key detection.
+- Keep BPM correction and saving.
+- Keep slider and grid-click seeking.
+- Keep repeat start/end selection and S/E markers.
+- Add an adjustable count-in of 2, 3, 4 or 5 beats.
+- Default the count-in to 4 beats.
+- Cycle count length by clicking the Count-in button.
+- Show the countdown visibly.
+- Sound a system beep for each count.
+- Run the count-in at the current corrected BPM.
+- Require the count-in before every Play press.
+- Apply the count-in to normal song playback.
+- Apply the count-in to repeat-section playback.
+- Play a repeat section once only.
+- Pause at the repeat start after the selected end beat.
+- Require Play to be pressed again before repeating the section.
+- Run a fresh count-in each time Play is pressed.
+- Keep Repeat Off from stopping ordinary playback.
+- Cancel a pending count-in when Pause, Stop or a grid cell is clicked.
+- Keep Stop safe and reset time, slider and grid.
+- Keep provisional chords clearly provisional.
+
+How repeat now works
+--------------------
+1. Select repeat start and end.
+2. Turn Repeat On.
+3. Choose a count-in length from 2 to 5.
+4. Press Play.
+5. Hear and see the count-in.
+6. The section plays once.
+7. Playback returns to the repeat start and waits.
+8. Press Play again for another counted run.
+
+Acceptance test
+---------------
+PASS only if:
+- Main title says Module 13A Build 001.
+- Practice title says Module 13A.
+- Count-in cycles through 2, 3, 4 and 5.
+- Every Play press starts the chosen countdown.
+- Audible beeps and visible numbers occur.
+- Playback starts only after the final count.
+- Count speed follows corrected BPM.
+- Whole-song playback uses the count-in.
+- Repeat playback uses the count-in.
+- A repeat section plays once, not continuously.
+- At section end it returns to repeat start and waits.
+- Pressing Play again gives another count-in and one repeat run.
+- Pause, Stop and grid clicks cancel a pending count-in.
+- Download, analysis, Library, BPM correction and seeking still work.

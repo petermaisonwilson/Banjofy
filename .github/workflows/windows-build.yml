@@ -37,8 +37,14 @@ jobs:
       - name: Apply Module 12 grid seeking
         run: python tools/apply_module_12.py
 
-      - name: Apply Module 12A identity
+      - name: Apply Module 12A download compatibility
         run: python tools/apply_module_12a.py
+
+      - name: Apply Module 13 repeat selection
+        run: python tools/apply_module_13.py
+
+      - name: Apply Module 13A count-in correction
+        run: python tools/apply_module_13a.py
 
       - name: Build EXE
         run: pyinstaller Banjofy.spec
