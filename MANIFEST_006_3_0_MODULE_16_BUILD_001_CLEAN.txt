@@ -1,0 +1,37 @@
+BANJOFY 006.3.0 MODULE 16 BUILD 001 - RELIABLE TIMING AND METER
+=================================================================
+
+BASELINE
+--------
+Confirmed-good Module 14 Build 001.
+
+BUILD METHOD
+------------
+Clean replacement build. No patch scripts are included or used.
+
+WHAT MODULE 16 CHANGES
+----------------------
+- Replaces the failed librosa timing engine completely.
+- Uses FFmpeg decoding already proven in Banjofy.
+- Uses NumPy/SciPy onset, tempo and beat tracking.
+- Shows Fresh analysis, Cached analysis or BPM fallback.
+- Displays the exact fallback reason.
+- Estimates 2, 3, 4 or 6 beats per bar.
+- Builds meter-aware grids.
+- Adds safe Library deletion with confirmation.
+- Deletes analysis and timing cache.
+- Asks separately before deleting audio.
+
+ACCEPTANCE TEST
+---------------
+1. Main title says Module 16 Build 001.
+2. Practice title says Module 16.
+3. All Module 14 features still work.
+4. A normal song reports Timing source: Fresh analysis.
+5. Reopening it reports Timing source: Cached analysis.
+6. A failure reports BPM fallback and the exact reason.
+7. Timing status shows meter.
+8. A detected 3/4 song has three beat columns.
+9. Grid seeking and repeats use detected timestamps.
+10. Library Delete requires confirmation.
+11. Audio is deleted only after separate confirmation.
