@@ -1,0 +1,68 @@
+BANJOFY 006.3.0 MODULE 14 BUILD 001 - SINGLE AND CONTINUOUS REPEAT
+===================================================================
+
+BASELINE
+--------
+Confirmed-good Module 13 Build 003.
+
+BUILD METHOD
+------------
+Clean replacement build. No patch scripts are used.
+
+NEW MODULE 14 FEATURE
+---------------------
+Repeat mode can now be switched between:
+
+1. Single Run
+   - Press Play.
+   - Count-in runs.
+   - Section plays once.
+   - Playback returns to S and waits.
+
+2. Continuous Practice
+   - Press Play once.
+   - Count-in runs.
+   - Section plays once.
+   - Playback returns to S.
+   - A fresh count-in begins automatically.
+   - The section plays again.
+   - This continues until Pause, Stop, Repeat Off, Clear Repeat or seeking.
+
+WHAT THIS BUILD SHOULD DO
+-------------------------
+- Preserve every passed Module 13 Build 003 feature.
+- Add Mode: Single Run / Mode: Continuous.
+- Default to Single Run.
+- Keep the selected mode visible in repeat status.
+- Use the full selected count-in before every continuous repeat run.
+- Keep Beep On/Off working during continuous practice.
+- Return to S before each new count-in.
+- Stop automatic restarting on Pause.
+- Stop automatic restarting on Stop.
+- Stop automatic restarting when Repeat is turned off.
+- Stop automatic restarting when repeat is cleared.
+- Stop automatic restarting on slider or grid seeking.
+- Preserve one-shot mode exactly as in Module 13.
+- Preserve provisional chord separation.
+
+KNOWN LIMITATION
+----------------
+Grid and repeat timing remains approximate because beat zero is currently assumed
+to begin at audio position 00:00. Exact musical alignment requires a later
+first-downbeat alignment module.
+
+ACCEPTANCE TEST
+---------------
+- Main title says Module 14 Build 001.
+- Practice title says Module 14.
+- All Module 13 Build 003 functions still work.
+- Repeat mode button switches between Single Run and Continuous.
+- Single Run behaves exactly as before.
+- Continuous requires only the first Play press.
+- Continuous uses a fresh one-second count-in before every run.
+- Continuous returns to S between runs.
+- Pause stops continuous restarting.
+- Stop stops continuous restarting.
+- Repeat Off stops continuous restarting.
+- Clear Repeat stops continuous restarting.
+- Slider and grid seeking stop continuous restarting.

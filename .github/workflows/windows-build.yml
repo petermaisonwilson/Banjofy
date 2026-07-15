@@ -31,24 +31,24 @@ jobs:
       - name: Install PyInstaller
         run: python -m pip install pyinstaller
 
-      - name: Verify clean replacement exists
+      - name: Verify clean Module 14 replacement exists
         shell: pwsh
         run: |
-          if (-not (Test-Path "replacements/module13/main_window.py")) {
-            throw "Clean Module 13 replacement file is missing"
+          if (-not (Test-Path "replacements/module14/main_window.py")) {
+            throw "Clean Module 14 replacement file is missing"
           }
 
-      - name: Preserve existing window source
+      - name: Preserve confirmed Module 13 window
         shell: pwsh
         run: |
           Copy-Item "src/banjofy/ui/main_window.py" "src/banjofy/ui/main_window_legacy.py" -Force
 
-      - name: Install clean Module 13 window
+      - name: Install clean Module 14 window
         shell: pwsh
         run: |
-          Copy-Item "replacements/module13/main_window.py" "src/banjofy/ui/main_window.py" -Force
+          Copy-Item "replacements/module14/main_window.py" "src/banjofy/ui/main_window.py" -Force
 
-      - name: Compile-check replacement source
+      - name: Compile-check clean Module 14 source
         run: python -m py_compile src/banjofy/ui/main_window.py
 
       - name: Build EXE
