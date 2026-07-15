@@ -1,0 +1,64 @@
+BANJOFY 006.3.0 MODULE 15 BUILD 001 - AUTOMATIC MUSICAL TIMING
+=================================================================
+
+BASELINE
+--------
+Confirmed-good Module 14 Build 001.
+
+BUILD METHOD
+------------
+Clean replacement build. No patch scripts are included or used.
+
+WHAT MODULE 15 ADDS
+-------------------
+- Automatic full-song beat detection.
+- A timestamp for each detected beat.
+- Automatic estimation of Bar 1 Beat 1.
+- Downbeat grouping into four-beat bars.
+- Timing cache stored in the Library timing folder.
+- Grid seeking based on detected beat timestamps.
+- Repeat Start and End based on detected beat timestamps.
+- Grid highlighting based on detected beat timestamps.
+- Automatic fallback to the existing BPM timing if detection fails.
+- Timing kept separate from chord recognition and instrument diagrams.
+
+PRACTICAL BEHAVIOUR
+-------------------
+- Send a Library song to Practice.
+- Timing analysis starts automatically.
+- No tapping or beat counting is required from the user.
+- The status panel reports detected beats, bars, first downbeat and confidence.
+- Once ready, bar/beat clicks and repeat playback use the detected timeline.
+- The timing result is cached and reused on future loads.
+
+TECHNICAL APPROACH
+------------------
+- librosa detects onset strength and beat pulses.
+- Each beat receives its own timestamp.
+- Four possible downbeat phases are compared.
+- Onset accent, RMS energy and harmonic change contribute to downbeat selection.
+- Beats before the selected first downbeat are treated as intro/pickup beats.
+- Songs that cannot be analysed retain the Module 14 BPM-based fallback.
+
+KNOWN LIMITATIONS
+-----------------
+- Automatic downbeat detection is probabilistic.
+- Unusual metre, rubato, sparse intros and highly syncopated music can be difficult.
+- This first version assumes common four-beat bars.
+- Manual correction is deliberately deferred; the default experience is automatic.
+
+ACCEPTANCE TEST
+---------------
+1. Main title says Module 15 Build 001.
+2. Practice title says Module 15.
+3. All Module 14 features still work.
+4. Loading a song starts automatic timing analysis.
+5. Timing status eventually reports detected beats and bars.
+6. First downbeat is not automatically assumed to be 00:00.
+7. Clicking grid beats follows the detected audio timing more accurately.
+8. Repeat starts and ends on detected beat timestamps.
+9. Single Run repeat still works.
+10. Continuous repeat still works.
+11. Count-in and Beep On/Off still work.
+12. Reopening the same song loads cached timing faster.
+13. If timing detection fails, whole-song playback and BPM fallback remain usable.
