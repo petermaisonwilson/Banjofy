@@ -31,20 +31,25 @@ jobs:
       - name: Install PyInstaller
         run: python -m pip install pyinstaller
 
-      - name: Apply confirmed Module 11 baseline
-        run: python tools/apply_module_11.py
+      - name: Preserve existing window source
+        shell: pwsh
+        run: |
+          Copy-Item "src/banjofy/ui/main_window.py" "src/banjofy/ui/main_window_legacy.py" -Force
 
-      - name: Apply Module 12 grid seeking
-        run: python tools/apply_module_12.py
+      - name: Install clean Module 13 window
+        shell: pwsh
+        run: |
+          Copy-Item "replacements/module13/main_window.py" "src/banjofy/ui/main_window.py" -Force
 
-      - name: Apply Module 12A download compatibility
-        run: python tools/apply_module_12a.py
+      - name: Verify no Module 13 patch scripts are used
+        shell: pwsh
+        run: |
+          if (Select-String -Path ".github/workflows/windows-build.yml" -Pattern "apply_module_13") {
+            throw "Module 13 patch script found in clean workflow"
+          }
 
-      - name: Apply Module 13 repeat selection
-        run: python tools/apply_module_13.py
-
-      - name: Apply Module 13A count-in correction
-        run: python tools/apply_module_13a.py
+      - name: Compile-check replacement source
+        run: python -m py_compile src/banjofy/ui/main_window.py
 
       - name: Build EXE
         run: pyinstaller Banjofy.spec

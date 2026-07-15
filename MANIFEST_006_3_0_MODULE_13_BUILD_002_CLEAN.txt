@@ -1,0 +1,61 @@
+BANJOFY 006.3.0 MODULE 13 BUILD 002 - CLEAN COUNT-IN AND REPEAT
+================================================================
+
+BUILD METHOD
+------------
+This is a clean replacement build.
+
+It does NOT run:
+- apply_module_13.py
+- apply_module_13a.py
+- apply_module_13b.py
+- apply_module_13c.py
+- apply_module_13d.py
+- apply_module_13e.py
+- any other Module 13 patch script
+
+The workflow:
+1. Preserves the existing main_window.py as main_window_legacy.py.
+2. Copies in one complete replacement Module 13 main_window.py.
+3. Compile-checks the replacement.
+4. Builds Banjofy.exe.
+
+WHAT THIS BUILD SHOULD DO
+-------------------------
+- Preserve search, download, analysis and Library behaviour.
+- Preserve resilient YouTube downloading already present in the repository.
+- Show Module 13 Build 002.
+- Show Practice Studio - Module 13.
+- Preserve BPM display and key display.
+- Add BPM Half, -1, +1, Double, Tap, Reset and Save controls.
+- Preserve safe Stop reset.
+- Make bars and individual beats clickable.
+- Allow count-in choices of 2, 3, 4 and 5.
+- Hold every displayed count for exactly one second.
+- Provide Beep On / Beep Off.
+- Apply count-in before every Play press.
+- Apply count-in to whole-song playback.
+- Allow Set Start and Set End from the highlighted beat.
+- Automatically turn Repeat On when both points exist.
+- Mark repeat start with S and repeat end with E.
+- Play a repeat section once per Play press.
+- Return to S and wait after E.
+- Require another Play press and another count-in for another run.
+- Cancel pending countdown/repeat on Pause, Stop or seeking.
+- Keep chords provisional and separate from instrument diagrams.
+
+ACCEPTANCE TEST
+---------------
+1. Main title says Module 13 Build 002.
+2. Practice title says Module 13.
+3. Search, download, analysis and Library still work.
+4. Whole-song Play displays exactly one count per second.
+5. Beep On/Off works.
+6. Whole-song audio begins after the final one-second count.
+7. Clicking bars and beats seeks playback.
+8. Set Start and Set End show S and E.
+9. Setting End turns Repeat On.
+10. Repeat Play counts in, begins at S and plays through E once.
+11. Playback returns to S and waits.
+12. Play again performs another countdown and one repeat run.
+13. Pause, Stop, slider seeking and grid seeking still work.
