@@ -22,31 +22,33 @@ jobs:
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
-      - name: Verify clean Module 16 replacements exist
+      - name: Verify clean Module 17 replacements exist
         shell: pwsh
         run: |
           $required = @(
-            "replacements/module16/main_window.py",
-            "replacements/module16/timing_analyzer.py",
-            "replacements/module16/requirements.txt"
+            "replacements/module17/main_window.py",
+            "replacements/module17/timing_analyzer.py",
+            "replacements/module17/chord_analyzer.py",
+            "replacements/module17/requirements.txt"
           )
           foreach ($file in $required) {
             if (-not (Test-Path $file)) {
-              throw "Clean Module 16 replacement is missing: $file"
+              throw "Clean Module 17 replacement is missing: $file"
             }
           }
 
-      - name: Preserve confirmed Module 14 window
+      - name: Preserve confirmed Module 16 window
         shell: pwsh
         run: |
           Copy-Item "src/banjofy/ui/main_window.py" "src/banjofy/ui/main_window_legacy.py" -Force
 
-      - name: Install clean Module 16 source
+      - name: Install clean Module 17 source
         shell: pwsh
         run: |
-          Copy-Item "replacements/module16/main_window.py" "src/banjofy/ui/main_window.py" -Force
-          Copy-Item "replacements/module16/timing_analyzer.py" "src/banjofy/ui/timing_analyzer.py" -Force
-          Copy-Item "replacements/module16/requirements.txt" "requirements.txt" -Force
+          Copy-Item "replacements/module17/main_window.py" "src/banjofy/ui/main_window.py" -Force
+          Copy-Item "replacements/module17/timing_analyzer.py" "src/banjofy/ui/timing_analyzer.py" -Force
+          Copy-Item "replacements/module17/chord_analyzer.py" "src/banjofy/ui/chord_analyzer.py" -Force
+          Copy-Item "replacements/module17/requirements.txt" "requirements.txt" -Force
 
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
@@ -54,10 +56,11 @@ jobs:
       - name: Install PyInstaller
         run: python -m pip install pyinstaller
 
-      - name: Compile-check clean Module 16 source
+      - name: Compile-check clean Module 17 source
         run: |
           python -m py_compile src/banjofy/ui/main_window.py
           python -m py_compile src/banjofy/ui/timing_analyzer.py
+          python -m py_compile src/banjofy/ui/chord_analyzer.py
 
       - name: Build EXE
         run: pyinstaller Banjofy.spec

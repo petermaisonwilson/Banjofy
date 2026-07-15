@@ -1,0 +1,54 @@
+BANJOFY 006.3.0 MODULE 17 BUILD 001 - REAL CHORD ANALYSIS
+===========================================================
+
+BASELINE
+--------
+Confirmed-good Module 16 Build 002.
+
+BUILD METHOD
+------------
+Clean replacement build. No patch scripts are included or used.
+
+NEW FEATURES
+------------
+- Automatic meter selection restricted to 3/4 or 4/4.
+- Uncertain meter defaults to 4/4.
+- Manual Meter button cycles Auto, 3/4 and 4/4.
+- Manual meter correction is saved in the timing cache.
+- Grid resets and scrolls to Bar 1 Beat 1 whenever a song is loaded.
+- New neutral chord analyser.
+- Major and minor chord labels estimated on each detected beat.
+- Chord labels displayed directly in the beat grid.
+- Chord analysis cached for faster reopening.
+- Chord cache removed when a Library song is deleted.
+
+CHORD SCOPE
+-----------
+This first real chord module recognises:
+- 12 major chords
+- 12 minor chords
+- N for uncertain/no reliable chord
+
+It does not yet recognise:
+- sevenths
+- suspended chords
+- diminished chords
+- slash chords
+- extensions
+
+ACCEPTANCE TEST
+---------------
+1. Main title says Module 17 Build 001.
+2. Practice title says Module 17.
+3. All confirmed Module 16 features still work.
+4. Loading a new song scrolls the grid back to Bar 1 Beat 1.
+5. Auto meter reports only 3/4 or 4/4.
+6. Meter button cycles Auto, 3/4 and 4/4.
+7. Manual meter correction rebuilds the grid immediately.
+8. Reopening the song preserves the saved meter correction.
+9. Chord status reports Fresh analysis or Cached analysis.
+10. Grid shows detected chord names rather than G-C-G-D placeholders.
+11. Chord labels change across the song.
+12. Seeking and repeat still use detected timing.
+13. Single and Continuous repeat still work.
+14. Library Delete removes timing and chord caches.
