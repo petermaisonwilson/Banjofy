@@ -1,0 +1,45 @@
+BANJOFY 006.3.0 MODULE 13C BUILD 001 - COUNT-IN PLAY FIX
+==========================================================
+
+Status
+------
+Corrective build replacing failed Module 13B Build 001.
+
+Fault corrected
+---------------
+Pressing Play failed because the count-in code called QApplication.beep()
+without importing QApplication.
+
+Correction
+----------
+- QApplication is now imported from PySide6.QtWidgets.
+- Existing Module 13B startup correction is retained.
+- Existing adjustable count-in is retained.
+- Existing one-shot repeat behaviour is retained.
+
+What this build should do
+-------------------------
+- Open without an error.
+- Allow count-in selection of 2, 3, 4 or 5.
+- Begin a visible and audible count-in whenever Play is pressed.
+- Start whole-song playback after the final count.
+- Start repeat-section playback after the final count.
+- Play a repeat section once.
+- Return to repeat start and wait.
+- Require Play again for another counted run.
+- Preserve Pause, Stop, slider seeking and grid-click seeking.
+- Preserve download, analysis, Library, BPM correction and key detection.
+
+Acceptance test
+---------------
+- Banjofy opens normally.
+- Main title says Module 13C Build 001.
+- Practice title says Module 13C.
+- Count-in cycles through 2, 3, 4 and 5.
+- Pressing Play visibly counts down.
+- A beep sounds for each count.
+- Whole-song audio begins after the countdown.
+- Repeat audio begins after the countdown.
+- Repeat section plays once and waits at its start.
+- Play again starts a new countdown and another single run.
+- Pause, Stop, slider seeking and grid-click seeking work.
