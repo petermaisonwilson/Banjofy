@@ -1,0 +1,42 @@
+BANJOFY 006.3.0 MODULE 13 BUILD 003 - CLEAN WORKFLOW FIX
+=========================================================
+
+STATUS
+------
+Clean replacement build. No Module 13 patch scripts are used.
+
+WHAT WAS WRONG IN BUILD 002
+---------------------------
+The GitHub workflow searched its own text for "apply_module_13".
+That phrase appeared inside the verification command itself, causing a false failure.
+
+WHAT BUILD 003 CHANGES
+----------------------
+- Removes the self-matching verification command.
+- Verifies that the clean replacement file exists.
+- Preserves the current source as main_window_legacy.py.
+- Copies in the complete clean Module 13 replacement file.
+- Compile-checks the replacement.
+- Builds Banjofy.exe.
+
+SOFTWARE BEHAVIOUR
+------------------
+Unchanged from Build 002:
+- Exact one-second count-in.
+- Count choices 2, 3, 4 and 5.
+- Beep On / Beep Off.
+- Whole-song count-in.
+- Clickable bar and beat seeking.
+- BPM verification controls.
+- One-shot repeat sections.
+- Return to S and wait.
+- No Module 13 patch scripts.
+
+ACCEPTANCE TEST
+---------------
+1. GitHub Actions passes the replacement-file verification step.
+2. Compile-check runs.
+3. Build EXE runs.
+4. Banjofy-Windows artifact is uploaded.
+5. Main title says Module 13 Build 003.
+6. Continue with the Module 13 functional acceptance tests.

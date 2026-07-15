@@ -11,7 +11,7 @@ from banjofy.ui.main_window_legacy import MainWindow as LegacyMainWindow
 from banjofy.library.song_library import LibrarySong
 
 
-APP_VERSION = "Banjofy 006.3.0 Module 13 Build 002 - Clean Count-In and Repeat"
+APP_VERSION = "Banjofy 006.3.0 Module 13 Build 003 - Clean Count-In and Repeat"
 
 
 class MainWindow(LegacyMainWindow):
