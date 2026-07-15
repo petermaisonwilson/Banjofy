@@ -1,0 +1,26 @@
+BANJOFY 006.3.0 MODULE 13B BUILD 001 - COUNT-IN STARTUP FIX
+================================================================
+
+Corrects the Module 13A startup crash:
+AttributeError: 'MainWindow' object has no attribute 'count_in_token'
+
+What this build should do
+-------------------------
+- Start normally without the count_in_token exception.
+- Show Module 13B Build 001.
+- Preserve adjustable 2-5 beat count-in.
+- Preserve visible countdown and audible beeps.
+- Require count-in before every Play.
+- Preserve one-shot repeat sections.
+- Return to repeat start and wait after each run.
+- Preserve downloads, analysis, Library, BPM correction and seeking.
+
+Acceptance test
+---------------
+- Banjofy opens normally.
+- Search and Practice screens open.
+- Count-in cycles through 2, 3, 4 and 5.
+- Whole-song Play uses count-in.
+- Repeat Play uses count-in.
+- Repeat section plays once and waits.
+- Play, Pause, Stop and seeking still work.
