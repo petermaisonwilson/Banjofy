@@ -25,7 +25,7 @@ from banjofy.library.song_library import LibrarySong
 from banjofy.ui.timing_analyzer import TimingAnalysis, TimingAnalyzer
 
 
-APP_VERSION = "Banjofy 006.3.0 Module 16 Build 001 - Reliable Timing and Meter"
+APP_VERSION = "Banjofy 006.3.0 Module 16 Build 002 - Reliable Timing and Meter"
 
 
 class MainWindow(LegacyMainWindow):

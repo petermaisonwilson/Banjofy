@@ -1,0 +1,32 @@
+BANJOFY 006.3.0 MODULE 16 BUILD 002 - WORKFLOW CORRECTION
+================================================================
+
+STATUS
+------
+Clean Module 16 replacement. No software patch scripts are used.
+
+WHY BUILD 001 FAILED
+--------------------
+PyInstaller was called with:
+
+pyinstaller --collect-all scipy Banjofy.spec
+
+PyInstaller does not allow the --collect-all makespec option when an existing
+.spec file is supplied.
+
+BUILD 002 CORRECTION
+--------------------
+The workflow now uses:
+
+pyinstaller Banjofy.spec
+
+The Module 16 software source and functionality are otherwise unchanged.
+
+ACCEPTANCE TEST
+---------------
+1. Verify clean Module 16 replacements exists passes.
+2. Compile-check clean Module 16 source passes.
+3. Build EXE runs past the previous option error.
+4. Upload EXE produces Banjofy-Windows.
+5. Main title says Module 16 Build 002.
+6. Continue with the full Module 16 functional acceptance tests.
