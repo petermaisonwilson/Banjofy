@@ -39,6 +39,8 @@ jobs:
         run: python tools/apply_module_13b.py
       - name: Apply Module 13C Play fix
         run: python tools/apply_module_13c.py
+      - name: Apply Module 13D repeat-run fix
+        run: python tools/apply_module_13d.py
       - name: Build EXE
         run: pyinstaller Banjofy.spec
       - name: Upload EXE

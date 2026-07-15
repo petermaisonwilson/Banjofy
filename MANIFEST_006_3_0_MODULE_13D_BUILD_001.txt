@@ -1,0 +1,23 @@
+BANJOFY 006.3.0 MODULE 13D BUILD 001 - REPEAT RUN FIX
+========================================================
+
+- Adds Beep On / Beep Off.
+- Keeps visible countdown when beep is off.
+- Explicitly arms repeat playback after the count-in.
+- Plays the selected repeat section once.
+- Returns to repeat start and waits.
+- Requires Play again for another counted run.
+- Preserves whole-song count-in and earlier confirmed features.
+
+ACCEPTANCE TEST
+---------------
+- Main title says Module 13D Build 001.
+- Practice title says Module 13D.
+- Count-in cycles through 2, 3, 4 and 5.
+- Beep button switches between Beep On and Beep Off.
+- Countdown remains visible with beeps off.
+- Whole-song playback starts after countdown.
+- Repeat playback starts after countdown.
+- Repeat starts at S, reaches E, returns to S and waits.
+- Play again starts another countdown and one repeat run.
+- Pause, Stop, Clear Repeat and grid seeking still work.
