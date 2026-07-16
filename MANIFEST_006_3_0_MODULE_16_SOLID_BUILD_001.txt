@@ -1,0 +1,56 @@
+BANJOFY 006.3.0 MODULE 16 SOLID BUILD 001
+============================================
+
+PURPOSE
+-------
+A dependable new foundation, separated from experimental Modules 13-17.
+
+BUILD METHOD
+------------
+Clean complete replacement files. No patch scripts are included or used.
+
+INCLUDED
+--------
+- Search and audio download
+- Audio analysis and Library
+- Global key estimate retained as advisory information
+- Fresh/Cached/BPM-fallback timing diagnostics
+- Automatic beat timestamps
+- Grid seeking using detected timing
+- Single Run repeat
+- Continuous Practice repeat
+- One-second count-in
+- Beep On/Off
+- Automatic metre restricted to 3/4 or 4/4
+- Manual 3/4 or 4/4 correction
+- Saved meter correction
+- Grid resets and scrolls to Bar 1 Beat 1 whenever songs change
+- Complete Library deletion
+- Active Practice audio unloaded before deletion
+- Separate confirmation before deleting downloaded audio
+
+NOT INCLUDED
+------------
+- Experimental chord recognition
+- Online chord lookup
+- Chord consensus
+- Capo or instrument diagrams
+- Claims that provisional grid chords are accurate
+
+ACCEPTANCE TEST
+---------------
+1. Main title says Module 16 Solid Build 001.
+2. Practice title says Module 16 Solid.
+3. Search, download, analysis and Library work.
+4. A song reports Fresh analysis or Cached analysis.
+5. Timing failures report the exact fallback reason.
+6. Auto meter reports only 3/4 or 4/4.
+7. Meter button cycles Auto, 3/4 and 4/4.
+8. Manual meter correction rebuilds the grid.
+9. Loading another song makes Bar 1 Beat 1 visible.
+10. Grid seeking uses detected timestamps.
+11. Single Run and Continuous Practice work.
+12. Count-in and Beep On/Off work.
+13. Library deletion removes the song after Refresh.
+14. A song loaded in Practice can be fully deleted.
+15. Audio deletion remains a separate confirmation.
