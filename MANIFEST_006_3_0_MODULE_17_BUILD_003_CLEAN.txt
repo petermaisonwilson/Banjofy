@@ -1,0 +1,7 @@
+BANJOFY 006.3.0 MODULE 17 BUILD 003 - SEGMENT-ALIGNED CHORDS
+
+Clean replacement; no patch scripts.
+
+Adds exact beat-boundary half-bar/bar chord analysis, saved tonal-centre correction, Build 003 chord-cache invalidation, and preserves timing, grid reset and Library deletion.
+
+Acceptance: titles Build 003; Auto meter 3/4 or 4/4; tonal-centre button Auto/C-B; Thunderstruck correctable to B; B/A/E-dominant stable changes throughout; continuing cells dots; timing/repeat/delete preserved.
