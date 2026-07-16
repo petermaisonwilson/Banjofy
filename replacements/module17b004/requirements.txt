@@ -1,0 +1,7 @@
+PySide6
+yt-dlp
+numpy
+imageio-ffmpeg
+scipy>=1.12
+requests>=2.32
+beautifulsoup4>=4.12

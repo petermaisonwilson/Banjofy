@@ -2,69 +2,57 @@ name: Build Windows EXE
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 jobs:
   build-windows:
     runs-on: windows-latest
-
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
-
-      - name: Verify clean Module 17 Build 003 replacements exist
+      - name: Verify clean Module 17 Build 004 replacements exist
         shell: pwsh
         run: |
           $required = @(
-            "replacements/module17b003/main_window.py",
-            "replacements/module17b003/timing_analyzer.py",
-            "replacements/module17b003/chord_analyzer.py",
-            "replacements/module17b003/requirements.txt"
+            "replacements/module17b004/main_window.py",
+            "replacements/module17b004/timing_analyzer.py",
+            "replacements/module17b004/chord_analyzer.py",
+            "replacements/module17b004/online_chord_resolver.py",
+            "replacements/module17b004/requirements.txt"
           )
           foreach ($file in $required) {
-            if (-not (Test-Path $file)) {
-              throw "Clean Module 17 Build 003 replacement is missing: $file"
-            }
+            if (-not (Test-Path $file)) { throw "Missing: $file" }
           }
-
       - name: Preserve current repository window
         shell: pwsh
-        run: |
-          Copy-Item "src/banjofy/ui/main_window.py" "src/banjofy/ui/main_window_legacy.py" -Force
-
-      - name: Install clean Module 17 Build 003 source
+        run: Copy-Item "src/banjofy/ui/main_window.py" "src/banjofy/ui/main_window_legacy.py" -Force
+      - name: Install clean Module 17 Build 004 source
         shell: pwsh
         run: |
-          Copy-Item "replacements/module17b003/main_window.py" "src/banjofy/ui/main_window.py" -Force
-          Copy-Item "replacements/module17b003/timing_analyzer.py" "src/banjofy/ui/timing_analyzer.py" -Force
-          Copy-Item "replacements/module17b003/chord_analyzer.py" "src/banjofy/ui/chord_analyzer.py" -Force
-          Copy-Item "replacements/module17b003/requirements.txt" "requirements.txt" -Force
-
+          Copy-Item "replacements/module17b004/main_window.py" "src/banjofy/ui/main_window.py" -Force
+          Copy-Item "replacements/module17b004/timing_analyzer.py" "src/banjofy/ui/timing_analyzer.py" -Force
+          Copy-Item "replacements/module17b004/chord_analyzer.py" "src/banjofy/ui/chord_analyzer.py" -Force
+          Copy-Item "replacements/module17b004/online_chord_resolver.py" "src/banjofy/ui/online_chord_resolver.py" -Force
+          Copy-Item "replacements/module17b004/requirements.txt" "requirements.txt" -Force
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
-
       - name: Install PyInstaller
         run: python -m pip install pyinstaller
-
-      - name: Compile-check clean Module 17 Build 003 source
+      - name: Compile-check clean Module 17 Build 004 source
         run: |
           python -m py_compile src/banjofy/ui/main_window.py
           python -m py_compile src/banjofy/ui/timing_analyzer.py
           python -m py_compile src/banjofy/ui/chord_analyzer.py
-
+          python -m py_compile src/banjofy/ui/online_chord_resolver.py
       - name: Build EXE
         run: pyinstaller Banjofy.spec
-
       - name: Upload EXE
         uses: actions/upload-artifact@v4
         with:

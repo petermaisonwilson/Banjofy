@@ -1,0 +1,16 @@
+BANJOFY 006.3.0 MODULE 17 BUILD 004
+ONLINE CHORD CONSENSUS AND CONSTRAINED ALIGNMENT
+==================================================
+
+Clean replacement build. No patch scripts.
+
+- Searches several chord-related sources through public search-result metadata.
+- Collects limited key and chord facts; no lyrics, tabs or full charts.
+- Displays consensus key, sources and candidate chord vocabulary.
+- Restricts audio alignment to candidate chords.
+- Displays candidate chords and chords actually placed in the grid.
+- Falls back safely to audio-only analysis when online lookup fails.
+- Preserves timing, metre, repeat, grid reset and Library deletion.
+
+This is a prototype connector. Public search-result HTML can change or block
+automated requests. The source connector is replaceable by an approved API later.
