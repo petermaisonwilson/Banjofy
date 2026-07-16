@@ -42,7 +42,7 @@ class TimingAnalysis:
 
 
 class TimingAnalyzer:
-    CACHE_VERSION = 4
+    CACHE_VERSION = 5
     SAMPLE_RATE = 22050
     HOP_SIZE = 512
     FRAME_SIZE = 2048
@@ -295,43 +295,44 @@ class TimingAnalyzer:
                     second = score
         confidence = max(0.0, min(1.0, (best[0] - second) / 1.5))
         meter, phase = best[1], best[2]
-
-        # Beginner-friendly default: uncertain songs are treated as 4/4.
         if meter == 3 and confidence < 0.12:
-            meter = 4
-            phase = 0
-
+            meter, phase = 4, 0
         return meter, phase, confidence
 
-    def save_meter_override(self, audio_path: Path, meter_numerator: int) -> None:
+    def save_meter_override(
+        self,
+        audio_path: Path,
+        meter_numerator: int,
+        current_result: TimingAnalysis,
+    ) -> TimingAnalysis:
         if meter_numerator not in (3, 4):
             raise ValueError("Meter override must be 3 or 4")
 
+        updated = TimingAnalysis(
+            beat_times_ms=current_result.beat_times_ms,
+            downbeat_indices=tuple(
+                range(0, len(current_result.beat_times_ms), meter_numerator)
+            ),
+            estimated_bpm=current_result.estimated_bpm,
+            first_downbeat_ms=current_result.first_downbeat_ms,
+            confidence=current_result.confidence,
+            source_audio=current_result.source_audio,
+            meter_numerator=meter_numerator,
+            meter_denominator=4,
+            source_kind="Manual meter correction",
+            diagnostic=f"User selected {meter_numerator}/4",
+        )
+        self.save_cached(audio_path, updated)
         cache = self.cache_path_for(audio_path)
-        payload = {}
-        if cache.exists():
-            try:
-                payload = json.loads(cache.read_text(encoding="utf-8"))
-            except Exception:
-                payload = {}
-
-        stat = audio_path.stat()
-        payload["cache_version"] = self.CACHE_VERSION
-        payload["audio_size"] = stat.st_size
-        payload["audio_mtime"] = int(stat.st_mtime)
-        payload["meter_override"] = int(meter_numerator)
+        payload = json.loads(cache.read_text(encoding="utf-8"))
+        payload["meter_override"] = meter_numerator
         cache.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        return updated
 
     def clear_meter_override(self, audio_path: Path) -> None:
         cache = self.cache_path_for(audio_path)
-        if not cache.exists():
-            return
-        try:
-            payload = json.loads(cache.read_text(encoding="utf-8"))
-        except Exception:
-            return
-        payload.pop("meter_override", None)
-        cache.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        if cache.exists():
+            cache.unlink()
 
     def analyse(self, audio_path: Path, progress: ProgressCallback | None = None) -> TimingAnalysis:
         cached = self.load_cached(audio_path)

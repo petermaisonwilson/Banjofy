@@ -9,20 +9,16 @@ on:
 jobs:
   build-windows:
     runs-on: windows-latest
-
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
-
-      - name: Verify Module 16 Solid replacements exist
+      - name: Verify Module 16 Solid Build 003 replacements
         shell: pwsh
         run: |
           $required = @(
@@ -31,37 +27,27 @@ jobs:
             "replacements/module16solid/requirements.txt"
           )
           foreach ($file in $required) {
-            if (-not (Test-Path $file)) {
-              throw "Module 16 Solid replacement is missing: $file"
-            }
+            if (-not (Test-Path $file)) { throw "Missing: $file" }
           }
-
       - name: Preserve current repository window
         shell: pwsh
-        run: |
-          Copy-Item "src/banjofy/ui/main_window.py" "src/banjofy/ui/main_window_legacy.py" -Force
-
-      - name: Install Module 16 Solid source
+        run: Copy-Item "src/banjofy/ui/main_window.py" "src/banjofy/ui/main_window_legacy.py" -Force
+      - name: Install Module 16 Solid Build 003 source
         shell: pwsh
         run: |
           Copy-Item "replacements/module16solid/main_window.py" "src/banjofy/ui/main_window.py" -Force
           Copy-Item "replacements/module16solid/timing_analyzer.py" "src/banjofy/ui/timing_analyzer.py" -Force
           Copy-Item "replacements/module16solid/requirements.txt" "requirements.txt" -Force
-
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
-
       - name: Install PyInstaller
         run: python -m pip install pyinstaller
-
-      - name: Compile-check Module 16 Solid source
+      - name: Compile-check Module 16 Solid Build 003
         run: |
           python -m py_compile src/banjofy/ui/main_window.py
           python -m py_compile src/banjofy/ui/timing_analyzer.py
-
       - name: Build EXE
         run: pyinstaller Banjofy.spec
-
       - name: Upload EXE
         uses: actions/upload-artifact@v4
         with:

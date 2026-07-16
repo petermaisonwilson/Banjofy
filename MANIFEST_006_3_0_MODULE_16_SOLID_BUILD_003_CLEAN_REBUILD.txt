@@ -1,0 +1,22 @@
+BANJOFY 006.3.0 MODULE 16 SOLID BUILD 003
+FULL CLEAN REBUILD
+
+Complete replacement build from Module 16 Build 002. No patches.
+
+Included:
+- Search, download, analysis and Library
+- Fresh/Cached/Fallback timing diagnostics
+- Strict Auto meter: 3/4 or 4/4
+- Fully integrated Auto/3/4/4/4 Meter control
+- Saved manual meter correction
+- Fresh reanalysis when returning to Auto
+- Reliable Bar 1 Beat 1 grid reset
+- Detected-timestamp seeking
+- Single and Continuous repeat
+- Count-in and Beep
+- Complete Library deletion and media unload
+
+Excluded:
+- Experimental chord recognition
+- Online lookup
+- Capo and instrument diagrams

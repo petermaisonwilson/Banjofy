@@ -26,11 +26,11 @@ from banjofy.library.song_library import LibrarySong
 from banjofy.ui.timing_analyzer import TimingAnalysis, TimingAnalyzer
 
 
-APP_VERSION = "Banjofy 006.3.0 Module 16 Solid Build 002"
+APP_VERSION = "Banjofy 006.3.0 Module 16 Solid Build 003 - Clean Rebuild"
 
 
 class MainWindow(LegacyMainWindow):
-    """Module 16 Solid: stable timing and Practice foundation.
+    """Clean Module 16 window built on the confirmed Module 14 foundation.
 
     This file is a complete replacement entry window. It does not modify the
     preserved legacy source and does not depend on any Module 13 patch scripts.
@@ -97,8 +97,8 @@ class MainWindow(LegacyMainWindow):
         for label in hints:
             if label.objectName() == "Hint":
                 label.setText(
-                    "Module 16 Solid: dependable timing, repeat practice, strict 3/4 or 4/4 "
-                    "meter and reliable Library management."
+                    "Module 16 clean build: FFmpeg-based timing, metre detection, diagnostics "
+                    "and safe Library deletion."
                 )
                 break
 
@@ -111,7 +111,7 @@ class MainWindow(LegacyMainWindow):
         labels = page.findChildren(QLabel)
         for label in labels:
             if label.objectName() == "Title":
-                label.setText("Practice Studio - Module 16 Solid")
+                label.setText("Practice Studio - Module 16")
             elif label.objectName() == "Hint":
                 label.setText(
                     "Timing source is shown as Fresh, Cached or BPM fallback. Detected metre "
@@ -213,6 +213,24 @@ class MainWindow(LegacyMainWindow):
 
         return page
 
+    def _force_grid_to_start(self) -> None:
+        if not hasattr(self, "grid_scroll"):
+            return
+        vertical = self.grid_scroll.verticalScrollBar()
+        horizontal = self.grid_scroll.horizontalScrollBar()
+        vertical.setValue(vertical.minimum())
+        horizontal.setValue(horizontal.minimum())
+        if self.grid_cells:
+            self._highlight_beat(0)
+            self.grid_scroll.ensureWidgetVisible(self.grid_cells[0], 0, 0)
+            vertical.setValue(vertical.minimum())
+            horizontal.setValue(horizontal.minimum())
+
+    def _schedule_grid_reset(self) -> None:
+        QTimer.singleShot(0, self._force_grid_to_start)
+        QTimer.singleShot(120, self._force_grid_to_start)
+        QTimer.singleShot(300, self._force_grid_to_start)
+
     # ---------- Song loading and grid ----------
 
     def _load_selected_song_into_practice(self) -> None:
@@ -260,8 +278,8 @@ class MainWindow(LegacyMainWindow):
                     cell.setToolTip("No detected musical beat at this position")
 
         for beat_index, cell in enumerate(self.grid_cells):
-            bar = beat_index // 4 + 1
-            beat = beat_index % 4 + 1
+            bar = beat_index // beats_per_bar + 1
+            beat = beat_index % beats_per_bar + 1
             cell.setToolTip(f"Jump to Bar {bar}, Beat {beat}")
             cell.setCursor(Qt.CursorShape.PointingHandCursor)
             cell.mousePressEvent = (
@@ -770,18 +788,15 @@ class MainWindow(LegacyMainWindow):
             f"{song.title} - {song.channel}",
         ).strip()
         safe = re.sub(r"\s+", " ", safe)[:140] or "song"
-
         analysis_path = Path(song.analysis_file)
-        roots = [
+        for root in (
             analysis_path.parent.parent,
             analysis_path.parent,
             Path(song.audio_file).parent.parent,
-        ]
-        for root in roots:
+        ):
             candidate = root / "songs" / f"{safe}.song.json"
             if candidate.exists():
                 return candidate
-
         return analysis_path.parent.parent / "songs" / f"{safe}.song.json"
 
     def _delete_selected_library_song(self) -> None:
@@ -802,8 +817,8 @@ class MainWindow(LegacyMainWindow):
         if answer != QMessageBox.StandardButton.Yes:
             return
 
+        errors = []
         audio_path = Path(song.audio_file)
-        errors: list[str] = []
 
         try:
             self._practice_stop()
@@ -816,7 +831,7 @@ class MainWindow(LegacyMainWindow):
             self.practice_song = None
             self.timing_analysis = None
             self.practice_message.setText(
-                "The deleted Library song was unloaded from Practice."
+                "The deleted song was unloaded from Practice."
             )
 
         record_path = self._library_song_record_path(song)
@@ -857,11 +872,10 @@ class MainWindow(LegacyMainWindow):
         self.selected_library_song = None
         self._refresh_library_list()
 
-        remains = any(
+        if any(
             existing.title == song.title and existing.channel == song.channel
             for existing in self.library_songs
-        )
-        if remains:
+        ):
             errors.append("Library record still appears after refresh")
 
         if errors:
@@ -869,9 +883,7 @@ class MainWindow(LegacyMainWindow):
                 "Deletion completed with details: " + "; ".join(errors)
             )
         else:
-            self._set_library_message(
-                f"Fully deleted from Library: {song.title}"
-            )
+            self._set_library_message(f"Fully deleted from Library: {song.title}")
 
     # ---------- Automatic musical timing ----------
 
@@ -952,44 +964,61 @@ class MainWindow(LegacyMainWindow):
     # ---------- Meter correction ----------
 
     def _cycle_meter_override(self) -> None:
-        if not self.practice_song or self.timing_analysis is None:
+        if not self.practice_song:
             self.practice_message.setText(
-                "Load a song and complete timing analysis first."
+                "Load a Library song into Practice first."
+            )
+            return
+
+        if self.timing_analysis is None or not self.timing_analysis.usable:
+            self.practice_message.setText(
+                "Complete automatic timing analysis before changing meter."
             )
             return
 
         current = self.meter_button.text()
         if current == "Meter: Auto":
-            chosen = 3
+            new_meter = 3
             self.meter_button.setText("Meter: 3/4")
         elif current == "Meter: 3/4":
-            chosen = 4
+            new_meter = 4
             self.meter_button.setText("Meter: 4/4")
         else:
-            chosen = None
+            new_meter = None
             self.meter_button.setText("Meter: Auto")
 
         audio_path = Path(self.practice_song.audio_file)
 
-        if chosen is None:
+        if new_meter is None:
             self.timing_analyzer.clear_meter_override(audio_path)
+            self.timing_analysis = None
             self.practice_message.setText(
-                "Meter returned to automatic detection. Reanalysing timing..."
+                "Meter returned to Auto. Running fresh timing analysis..."
             )
             self._start_automatic_timing_analysis()
             return
 
-        self.timing_analyzer.save_meter_override(audio_path, chosen)
-        self.timing_analysis = replace(
+        self.timing_analysis = self.timing_analyzer.save_meter_override(
+            audio_path,
+            new_meter,
             self.timing_analysis,
-            meter_numerator=chosen,
-            source_kind="Manual meter correction",
-            diagnostic=f"User selected {chosen}/4",
         )
         self._build_beat_grid(self.practice_song)
         self._schedule_grid_reset()
+        bars = max(
+            1,
+            (
+                len(self.timing_analysis.beat_times_ms)
+                + new_meter - 1
+            ) // new_meter,
+        )
+        self.timing_status_label.setText(
+            f"Timing source: Manual meter correction | "
+            f"{len(self.timing_analysis.beat_times_ms)} beats / {bars} bars | "
+            f"meter {new_meter}/4 | detected timestamps retained"
+        )
         self.practice_message.setText(
-            f"Meter corrected to {chosen}/4 and saved."
+            f"Meter changed to {new_meter}/4, saved and grid rebuilt."
         )
 
     # ---------- BPM verification ----------
