@@ -1,0 +1,30 @@
+BANJOFY 006.3.0 MODULE 16 SOLID BUILD 002
+TARGETED METER HANDLER PATCH
+==========================================
+
+PATCH AUTHORISATION
+-------------------
+Explicit user permission received before applying this patch.
+
+WHY THIS PATCH WAS APPROPRIATE
+------------------------------
+Build 001 crashed at startup because the Practice screen connected the Meter
+button to _cycle_meter_override(), but that method was absent from the final
+replacement file.
+
+PATCH SCOPE
+-----------
+Only the missing _cycle_meter_override() method was added.
+The displayed build number was updated to Build 002.
+No other Module 16 Solid behaviour was changed.
+
+ACCEPTANCE TEST
+---------------
+1. Application opens without the previous AttributeError.
+2. Main title says Module 16 Solid Build 002.
+3. Practice title says Module 16 Solid.
+4. Meter button is visible.
+5. Meter button cycles Auto, 3/4 and 4/4.
+6. Manual meter correction rebuilds the grid.
+7. Returning to Auto starts timing analysis again.
+8. All other Module 16 Solid acceptance tests remain unchanged.

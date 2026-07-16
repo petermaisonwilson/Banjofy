@@ -26,7 +26,7 @@ from banjofy.library.song_library import LibrarySong
 from banjofy.ui.timing_analyzer import TimingAnalysis, TimingAnalyzer
 
 
-APP_VERSION = "Banjofy 006.3.0 Module 16 Solid Build 001"
+APP_VERSION = "Banjofy 006.3.0 Module 16 Solid Build 002"
 
 
 class MainWindow(LegacyMainWindow):
@@ -948,6 +948,49 @@ class MainWindow(LegacyMainWindow):
             self._update_grid_cursor_from_position(self.media_player.position())
             self._schedule_grid_reset()
             return
+
+    # ---------- Meter correction ----------
+
+    def _cycle_meter_override(self) -> None:
+        if not self.practice_song or self.timing_analysis is None:
+            self.practice_message.setText(
+                "Load a song and complete timing analysis first."
+            )
+            return
+
+        current = self.meter_button.text()
+        if current == "Meter: Auto":
+            chosen = 3
+            self.meter_button.setText("Meter: 3/4")
+        elif current == "Meter: 3/4":
+            chosen = 4
+            self.meter_button.setText("Meter: 4/4")
+        else:
+            chosen = None
+            self.meter_button.setText("Meter: Auto")
+
+        audio_path = Path(self.practice_song.audio_file)
+
+        if chosen is None:
+            self.timing_analyzer.clear_meter_override(audio_path)
+            self.practice_message.setText(
+                "Meter returned to automatic detection. Reanalysing timing..."
+            )
+            self._start_automatic_timing_analysis()
+            return
+
+        self.timing_analyzer.save_meter_override(audio_path, chosen)
+        self.timing_analysis = replace(
+            self.timing_analysis,
+            meter_numerator=chosen,
+            source_kind="Manual meter correction",
+            diagnostic=f"User selected {chosen}/4",
+        )
+        self._build_beat_grid(self.practice_song)
+        self._schedule_grid_reset()
+        self.practice_message.setText(
+            f"Meter corrected to {chosen}/4 and saved."
+        )
 
     # ---------- BPM verification ----------
 
