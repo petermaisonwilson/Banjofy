@@ -1,0 +1,56 @@
+BANJOFY 006.3.0 MODULE 17 BUILD 002
+STABLE CHORDS, TONAL CENTRE AND CLEAN DELETION
+================================================
+
+BASELINE
+--------
+Confirmed-good fallback baseline: Module 16 Build 002.
+Module 17 Build 001 was a partial pass.
+
+BUILD METHOD
+------------
+Clean complete replacement files. No patch scripts are included or used.
+
+CORRECTIONS
+-----------
+- Chord name appears only when the detected chord changes.
+- Continuing chord cells show a dot.
+- Chord windows span more audio than one isolated beat.
+- Global tonal centre and likely mode guide chord choices.
+- Power-chord and tonally ambiguous rock material is supported.
+- Weak one-beat chord excursions are removed.
+- Most chord changes must persist for at least two beats.
+- Uncertain evidence retains the previous stable chord or shows no new change.
+- Thunderstruck is a fixed test case for B tonal centre and stable B/E/A harmony.
+- Timing cache version increased, invalidating old 2/4 and 6/4 results.
+- Auto meter accepts only 3/4 or 4/4.
+- Grid reset is delayed until Qt completes layout.
+- Song changes force Bar 1 Beat 1 into view.
+- Actual *.song.json Library record is deleted.
+- Media player is stopped and unloaded before deletion.
+- Deletion is verified after Library refresh.
+
+CHORD SCOPE
+-----------
+Recognises major, minor and power/ambiguous root harmony.
+Sevenths, suspended chords, diminished chords, slash chords and extensions
+remain future work.
+
+ACCEPTANCE TEST
+---------------
+1. Main title says Module 17 Build 002.
+2. Practice title says Module 17 Build 002.
+3. Existing Module 16 functions still work.
+4. Auto meter never displays 2/4 or 6/4.
+5. Old cached 6/4 song is reanalysed as 3/4 or 4/4.
+6. Loading another song scrolls Bar 1 Beat 1 into view.
+7. Grid shows a chord name only where the chord changes.
+8. Continuing beats display dots.
+9. Chord status shows tonal centre and mode.
+10. Thunderstruck reports tonal centre B or a clearly stated B-centred result.
+11. Thunderstruck no longer changes chord on nearly every beat.
+12. Thunderstruck is dominated by B with plausible E/A changes.
+13. Timing seeking and repeats remain accurate.
+14. Library Delete removes the song after Refresh.
+15. A song loaded in Practice can still be fully deleted.
+16. Audio deletion remains a separate confirmation.

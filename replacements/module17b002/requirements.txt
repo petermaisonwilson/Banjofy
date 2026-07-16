@@ -1,0 +1,5 @@
+PySide6
+yt-dlp
+numpy
+imageio-ffmpeg
+scipy>=1.12
