@@ -1,10 +1,11 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 002
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 003
 MANIFEST
 
 .github/workflows/windows-build.yml
 replacements/module17integration/main_window.py
 replacements/module17integration/timing_analyzer.py
 replacements/module17integration/chord_engine.py
+replacements/module17integration/audio_downloader.py
 replacements/module17integration/requirements.txt
 replacements/module17integration/Banjofy_Module17.spec
 README_FIRST.txt

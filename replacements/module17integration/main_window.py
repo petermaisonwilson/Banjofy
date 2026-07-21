@@ -27,7 +27,7 @@ from banjofy.ui.timing_analyzer import TimingAnalysis, TimingAnalyzer
 from banjofy.analysis.chord_engine import AnalysisResult, analyse_audio
 
 
-APP_VERSION = "Banjofy 006.4.0 Module 17 Integration Build 002"
+APP_VERSION = "Banjofy 006.4.0 Module 17 Integration Build 003"
 
 
 class MainWindow(LegacyMainWindow):
@@ -96,7 +96,7 @@ class MainWindow(LegacyMainWindow):
         )
 
         self.statusBar().showMessage(
-            "Ready - Module 17 chord analysis and verified grid timing loaded"
+            "Ready - Module 17 download repair and meter verification loaded"
         )
 
     def _set_visible_titles(self) -> None:

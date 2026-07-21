@@ -1,4 +1,4 @@
-name: Build Banjofy 006.4.0 Module 17 Integration Build 002
+name: Build Banjofy 006.4.0 Module 17 Integration Build 003
 
 on:
   push:
@@ -25,6 +25,7 @@ jobs:
             "replacements/module17integration/main_window.py",
             "replacements/module17integration/timing_analyzer.py",
             "replacements/module17integration/chord_engine.py",
+            "replacements/module17integration/audio_downloader.py",
             "replacements/module17integration/requirements.txt",
             "replacements/module17integration/Banjofy_Module17.spec"
           )
@@ -44,7 +45,7 @@ jobs:
         shell: pwsh
         run: Copy-Item "src/banjofy/ui/main_window.py" "src/banjofy/ui/main_window_legacy.py" -Force
 
-      - name: Install Module 17 Integration Build 002 source
+      - name: Install Module 17 Integration Build 003 source
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force "src/banjofy/analysis" | Out-Null
@@ -52,6 +53,7 @@ jobs:
           Copy-Item "replacements/module17integration/main_window.py" "src/banjofy/ui/main_window.py" -Force
           Copy-Item "replacements/module17integration/timing_analyzer.py" "src/banjofy/ui/timing_analyzer.py" -Force
           Copy-Item "replacements/module17integration/chord_engine.py" "src/banjofy/analysis/chord_engine.py" -Force
+          Copy-Item "replacements/module17integration/audio_downloader.py" "src/banjofy/download/audio_downloader.py" -Force
           Copy-Item "replacements/module17integration/requirements.txt" "requirements.txt" -Force
           Copy-Item "replacements/module17integration/Banjofy_Module17.spec" "Banjofy_Module17.spec" -Force
 
@@ -67,12 +69,15 @@ jobs:
           python -c "import PySide6, torch, librosa, numpy, scipy.signal, mir_eval, imageio_ffmpeg, seaborn, pandas, matplotlib, tqdm, soundfile, yaml; print('All runtime imports available')"
           python -c "from src.evaluation.utils import quality_analysis; from src.models import load_model; print('ChordMini imports available')"
           python -c "from banjofy.analysis import chord_engine as c; print('\n'.join(c.run_internal_self_audit()))"
+          python -c "from banjofy.ui import timing_analyzer as t; print('\n'.join(t.run_internal_timing_audit()))"
+          python -c "from banjofy.download.audio_downloader import DownloadManager; import yt_dlp; print('Downloader import available:', yt_dlp.version.__version__)"
 
       - name: Compile-check integrated sources
         run: |
           python -m py_compile src/banjofy/ui/main_window.py
           python -m py_compile src/banjofy/ui/timing_analyzer.py
           python -m py_compile src/banjofy/analysis/chord_engine.py
+          python -m py_compile src/banjofy/download/audio_downloader.py
 
       - name: Verify packaged FFmpeg
         run: python -c "import imageio_ffmpeg, os; p=imageio_ffmpeg.get_ffmpeg_exe(); assert os.path.exists(p); print('FFmpeg available:', p)"
@@ -88,5 +93,5 @@ jobs:
       - name: Upload integrated EXE
         uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-006.4.0-Module-17-Integration-Build-002-Windows
+          name: Banjofy-006.4.0-Module-17-Integration-Build-003-Windows
           path: dist/Banjofy.exe

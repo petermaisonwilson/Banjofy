@@ -1,5 +1,5 @@
 PySide6
-yt-dlp
+yt-dlp>=2026.1.29
 numpy==1.26.4
 imageio-ffmpeg>=0.5
 scipy==1.13.1

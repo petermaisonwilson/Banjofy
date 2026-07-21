@@ -1,69 +1,60 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 002
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 003
 RELEASE AUDIT
 
 BUILD TYPE
-Complete clean rebuild. No patch script is included or required.
+Complete clean rebuild from the full Build 002 package. No patch script.
 
-BASELINE
-- Module 17 Integration Build 001 — confirmed by the user.
-- Laboratory 016 analysis behaviour preserved without alteration.
-- Earlier confirmed baselines remain untouched.
+CONTROLLED CHANGES
+- Complete audio_downloader.py replacement.
+- Current yt-dlp minimum and explicit bundled FFmpeg path.
+- Audio-only, combined-audio, TV/mobile and web extraction routes.
+- FFmpeg normalisation to M4A.
+- Complete timing_analyzer.py replacement.
+- Librosa onset and beat tracking.
+- Accent profile combines onset, bass energy and RMS energy.
+- 3/4 and 4/4 compared without the previous automatic 4/4 bias.
+- Beat 1 phase is estimated for automatic and manual meter selection.
+- Timing cache version raised to 6, forcing old timing decisions to be rebuilt.
+- Build 002 30 ms media-position cursor polling preserved.
+- Laboratory 016 chord engine unchanged.
 
-CONTROLLED CHANGE
-- Added a precise 30 ms grid-cursor refresh timer.
-- Cursor position is read from QMediaPlayer's actual current position.
-- Beat selection continues to use detected beat timestamps.
-- Timer runs only while playing and stops on pause/stop.
-- Pause, stop and seek states force an immediate cursor refresh.
-- Bar-label seeking now uses the active meter numerator rather than a fixed
-  four-beat multiplier.
-
-PRESERVED
-- Search, download, Library and Practice functions.
-- Fresh/Cached/BPM fallback timing.
-- Detected beat timestamps and beat-cell seeking.
-- Laboratory 016 chord analysis.
-- Beginner, Intermediate and Professional presentation.
-- Key, raw tempo and Practice tempo.
-- TXT, CSV and JSON reports.
-- Single Run and Continuous Practice.
-- Count-in and Beep controls.
-- Complete Library deletion.
-- Windows hidden-console build configuration.
-
-STATIC AUDIT RESULTS
+STATIC AND SYNTHETIC AUDIT
 - Python compilation: passed.
-- Build 002 version identification: passed.
-- Precise timer creation: passed.
-- 30 ms timer interval: passed.
-- Playback-state start/stop control: passed.
-- Actual media-position polling: passed.
-- Detected-beat search mapping retained: passed.
-- 3/4 and 4/4 bar-label calculation: passed.
-- No chord-engine source change: passed.
-- No timing-analyzer source change: passed.
-- Workflow artifact naming: passed.
+- Synthetic 3/4 meter test: passed.
+- Synthetic 4/4 meter test: passed.
+- Synthetic shifted Beat 1 test: passed.
+- Downloader import and format selector inspection: passed.
+- yt-dlp hidden imports included: passed.
+- FFmpeg path supplied to yt-dlp: passed.
+- Workflow replacement paths: passed.
+- Chord engine byte-for-byte unchanged from Build 002: passed.
+- Build 002 precise cursor timer retained: passed.
+- Windows hidden-console setting retained: passed.
 - ZIP integrity: passed.
+- Checksums regenerated: passed.
 
-WORKFLOW-ENFORCED CHECKS
-- ChordMini checkpoint/config/inference files.
-- Full runtime imports and dependencies.
-- Laboratory 016 internal self-audit.
-- Python source compilation.
-- Bundled FFmpeg availability.
-- PyInstaller Windows EXE production.
-- Hidden-console configuration.
-- Output EXE existence.
+WORKFLOW AUDIT
+GitHub Actions additionally checks:
+- full runtime imports;
+- installed yt-dlp version;
+- downloader import;
+- timing synthetic self-audit;
+- Laboratory 016 chord-engine self-audit;
+- ChordMini model files;
+- Python compilation;
+- packaged FFmpeg;
+- PyInstaller EXE production;
+- Banjofy.exe existence.
 
 KNOWN LIMITATIONS
-- Real-world cursor quality depends partly on the Windows multimedia backend and
-  the accuracy of the detected beat timestamps.
-- Build 002 does not attempt speculative interpolation or alter musical beat
-  positions.
-- Timing can be refined in later builds when chord timeline, meter and musical
-  section presentation are connected.
-- Chord letters and active-chord highlighting are not yet displayed.
+- No live YouTube request can be validated in this offline package build.
+- No exact user song audio was available for acoustic acceptance.
+- Some recordings with weak percussion or ambiguous compound meter may still
+  require manual meter selection.
+- Manual meter selection improves downbeat phase but does not invent missing
+  beats.
+- Chord letters and active-chord grid highlighting remain outside Build 003.
 
 CLEAN REBUILD CONFIRMATION
-Build 002 was created in a new empty directory from the complete Build 001
-package. The Build 001 ZIP and all earlier confirmed baselines were untouched.
+Build 003 was created in a new empty directory from the complete Build 002 ZIP.
+Build 002 and every earlier baseline were left untouched.

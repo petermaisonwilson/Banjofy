@@ -10,6 +10,7 @@ import wave
 from typing import Callable
 
 import imageio_ffmpeg
+import librosa
 import numpy as np
 from scipy.signal import find_peaks
 
@@ -31,6 +32,7 @@ class TimingAnalysis:
     meter_denominator: int
     source_kind: str
     diagnostic: str
+    beat_strengths: tuple[float, ...] = ()
 
     @property
     def usable(self) -> bool:
@@ -42,7 +44,7 @@ class TimingAnalysis:
 
 
 class TimingAnalyzer:
-    CACHE_VERSION = 5
+    CACHE_VERSION = 6
     SAMPLE_RATE = 22050
     HOP_SIZE = 512
     FRAME_SIZE = 2048
@@ -82,6 +84,7 @@ class TimingAnalyzer:
                 return None
             if int(payload.get("audio_mtime", 0)) != int(stat.st_mtime):
                 return None
+            meter = int(payload.get("meter_override", payload["meter_numerator"]))
             result = TimingAnalysis(
                 beat_times_ms=tuple(int(v) for v in payload["beat_times_ms"]),
                 downbeat_indices=tuple(int(v) for v in payload["downbeat_indices"]),
@@ -89,14 +92,11 @@ class TimingAnalyzer:
                 first_downbeat_ms=int(payload["first_downbeat_ms"]),
                 confidence=float(payload.get("confidence", 0.0)),
                 source_audio=str(audio_path),
-                meter_numerator=(
-                    int(payload.get("meter_override", payload.get("meter_numerator", 4)))
-                    if int(payload.get("meter_override", payload.get("meter_numerator", 4))) in (3, 4)
-                    else 4
-                ),
-                meter_denominator=int(payload.get("meter_denominator", 4)),
+                meter_numerator=meter if meter in (3, 4) else 4,
+                meter_denominator=4,
                 source_kind="Cached analysis",
                 diagnostic=str(payload.get("diagnostic", "Cached timing loaded")),
+                beat_strengths=tuple(float(v) for v in payload.get("beat_strengths", [])),
             )
             return result if result.usable else None
         except Exception:
@@ -114,8 +114,9 @@ class TimingAnalyzer:
             "first_downbeat_ms": result.first_downbeat_ms,
             "confidence": result.confidence,
             "meter_numerator": result.meter_numerator,
-            "meter_denominator": result.meter_denominator,
+            "meter_denominator": 4,
             "diagnostic": result.diagnostic,
+            "beat_strengths": list(result.beat_strengths),
         }
         path = self.cache_path_for(audio_path)
         path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -145,10 +146,8 @@ class TimingAnalyzer:
                 width = wav_file.getsampwidth()
                 rate = wav_file.getframerate()
                 channels = wav_file.getnchannels()
-            if width != 2:
-                raise RuntimeError("Decoded audio was not 16-bit PCM")
-            if rate != self.SAMPLE_RATE:
-                raise RuntimeError(f"Unexpected decoded sample rate: {rate}")
+            if width != 2 or rate != self.SAMPLE_RATE:
+                raise RuntimeError("Decoded audio format was not the expected PCM format")
             samples = np.frombuffer(frames, dtype=np.int16).astype(np.float32)
             if channels > 1:
                 samples = samples.reshape(-1, channels).mean(axis=1)
@@ -161,142 +160,159 @@ class TimingAnalyzer:
         return samples / peak
 
     def _onset_envelope(self, samples: np.ndarray) -> np.ndarray:
-        usable = 1 + (len(samples) - self.FRAME_SIZE) // self.HOP_SIZE
-        if usable < 100:
-            raise RuntimeError("Not enough audio frames for timing analysis")
-        window = np.hanning(self.FRAME_SIZE).astype(np.float32)
-        onset = np.zeros(usable, dtype=np.float32)
-        previous = None
-        for index in range(usable):
-            start = index * self.HOP_SIZE
-            spectrum = np.abs(np.fft.rfft(
-                samples[start:start + self.FRAME_SIZE] * window
-            ))
-            spectrum = np.log1p(spectrum)
-            if previous is not None:
-                flux = spectrum - previous
-                flux[flux < 0] = 0
-                onset[index] = float(np.sum(flux))
-            previous = spectrum
-        radius = 16
-        padded = np.pad(onset, (radius, radius), mode="edge")
-        kernel = np.ones(radius * 2 + 1, dtype=np.float32) / (radius * 2 + 1)
-        local_mean = np.convolve(padded, kernel, mode="valid")
-        centred = onset - local_mean
-        centred[centred < 0] = 0
-        std = float(np.std(centred))
-        if std < 1e-6:
+        onset = librosa.onset.onset_strength(
+            y=samples,
+            sr=self.SAMPLE_RATE,
+            hop_length=self.HOP_SIZE,
+            aggregate=np.median,
+        ).astype(np.float32)
+        if onset.size < 100 or float(np.std(onset)) < 1e-6:
             raise RuntimeError("No reliable onset pattern was found")
-        return centred / std
+        onset -= float(np.median(onset))
+        onset[onset < 0] = 0
+        scale = float(np.std(onset))
+        return onset / max(scale, 1e-6)
 
     def _estimate_tempo(self, onset: np.ndarray) -> tuple[float, float]:
-        envelope_rate = self.SAMPLE_RATE / self.HOP_SIZE
-        min_lag = max(1, int(envelope_rate * 60.0 / self.MAX_BPM))
-        max_lag = min(len(onset) - 2, int(envelope_rate * 60.0 / self.MIN_BPM))
-        if max_lag <= min_lag:
-            raise RuntimeError("Audio window was too short for tempo estimation")
-        autocorr = np.correlate(onset, onset, mode="full")[len(onset) - 1:]
-        search = autocorr[min_lag:max_lag + 1].astype(np.float64)
-        lags = np.arange(min_lag, max_lag + 1, dtype=np.float64)
-        bpms = 60.0 * envelope_rate / lags
-        preference = np.exp(-0.5 * (np.log2(bpms / 110.0) / 0.95) ** 2)
-        scores = search * (0.78 + 0.22 * preference)
-        best = int(np.argmax(scores))
-        positive = scores[scores > 0]
-        if positive.size == 0:
-            raise RuntimeError("Tempo autocorrelation had no positive peak")
-        bpm = float(bpms[best])
-        median = float(np.median(positive))
-        confidence = max(
-            0.0,
-            min(1.0, (float(scores[best]) / (median + 1e-9) - 1.0) / 8.0),
+        tempo = librosa.feature.tempo(
+            onset_envelope=onset,
+            sr=self.SAMPLE_RATE,
+            hop_length=self.HOP_SIZE,
+            aggregate=np.median,
         )
+        bpm = float(np.atleast_1d(tempo)[0])
+        while bpm < self.MIN_BPM:
+            bpm *= 2.0
+        while bpm > self.MAX_BPM:
+            bpm /= 2.0
+        if not math.isfinite(bpm) or bpm <= 0:
+            raise RuntimeError("Tempo estimation did not return a usable value")
+
+        frame_rate = self.SAMPLE_RATE / self.HOP_SIZE
+        lag = max(1, int(round(frame_rate * 60.0 / bpm)))
+        corr = np.correlate(onset, onset, mode="full")[len(onset) - 1:]
+        peak = float(corr[lag]) if lag < len(corr) else 0.0
+        baseline = float(np.median(corr[1:])) if len(corr) > 2 else 0.0
+        confidence = max(0.0, min(1.0, (peak / (baseline + 1e-9) - 1.0) / 8.0))
         return bpm, confidence
 
-    def _track_beats(self, onset: np.ndarray, bpm: float) -> tuple[np.ndarray, np.ndarray]:
-        envelope_rate = self.SAMPLE_RATE / self.HOP_SIZE
-        expected = envelope_rate * 60.0 / bpm
-        peaks, _ = find_peaks(
-            onset,
-            distance=max(1, int(round(expected * 0.55))),
-            prominence=max(0.15, float(np.std(onset)) * 0.20),
+    def _track_beats(self, onset: np.ndarray, bpm: float) -> np.ndarray:
+        _, beats = librosa.beat.beat_track(
+            onset_envelope=onset,
+            sr=self.SAMPLE_RATE,
+            hop_length=self.HOP_SIZE,
+            bpm=bpm,
+            tightness=90,
+            trim=False,
+            sparse=True,
         )
-        if peaks.size < 8:
-            raise RuntimeError(f"Only {peaks.size} onset peaks were found")
-        strengths = onset[peaks]
-        anchor = int(peaks[int(np.argmax(strengths[: min(len(strengths), 80)]))])
-        beats = [anchor]
-        current = float(anchor)
-        while True:
-            target = current + expected
-            if target >= len(onset):
-                break
-            window = max(2, int(round(expected * 0.30)))
-            candidates = peaks[
-                (peaks >= max(0, int(round(target - window))))
-                & (peaks < min(len(onset), int(round(target + window + 1))))
-            ]
-            if candidates.size:
-                score = onset[candidates] - 0.35 * (
-                    np.abs(candidates - target) / max(1.0, window)
-                )
-                chosen = int(candidates[int(np.argmax(score))])
-            else:
-                chosen = int(round(target))
-            if chosen <= beats[-1]:
-                chosen = beats[-1] + max(1, int(round(expected)))
-            beats.append(chosen)
-            current = float(chosen)
-        backwards = []
-        current = float(anchor)
-        while True:
-            target = current - expected
-            if target < 0:
-                break
-            window = max(2, int(round(expected * 0.30)))
-            candidates = peaks[
-                (peaks >= max(0, int(round(target - window))))
-                & (peaks < min(len(onset), int(round(target + window + 1))))
-            ]
-            if candidates.size:
-                score = onset[candidates] - 0.35 * (
-                    np.abs(candidates - target) / max(1.0, window)
-                )
-                chosen = int(candidates[int(np.argmax(score))])
-            else:
-                chosen = int(round(target))
-            backwards.append(chosen)
-            current = float(chosen)
-        all_beats = np.unique(np.asarray(list(reversed(backwards)) + beats, dtype=int))
-        if all_beats.size < 8:
-            raise RuntimeError("Beat tracking produced too few beats")
-        return all_beats, onset[np.clip(all_beats, 0, len(onset) - 1)]
+        beats = np.asarray(beats, dtype=int)
+        beats = beats[(beats >= 0) & (beats < len(onset))]
+        beats = np.unique(beats)
+        if beats.size < 8:
+            raise RuntimeError(f"Beat tracking produced only {beats.size} beats")
+        return beats
 
-    def _estimate_meter_and_phase(self, strengths: np.ndarray) -> tuple[int, int, float]:
-        values = np.asarray(strengths, dtype=np.float64)
-        values = (values - values.mean()) / (values.std() + 1e-9)
-        best = (-math.inf, 4, 0)
-        second = -math.inf
-        for meter in (3, 4):
-            complete = (len(values) // meter) * meter
-            if complete < meter * 4:
+    @staticmethod
+    def _normalise(values: np.ndarray) -> np.ndarray:
+        values = np.asarray(values, dtype=np.float64)
+        median = float(np.median(values))
+        mad = float(np.median(np.abs(values - median))) + 1e-9
+        return np.clip((values - median) / (1.4826 * mad), -3.0, 3.0)
+
+    def _beat_accents(
+        self,
+        samples: np.ndarray,
+        onset: np.ndarray,
+        beat_frames: np.ndarray,
+    ) -> np.ndarray:
+        onset_values = onset[np.clip(beat_frames, 0, len(onset) - 1)]
+        half = int(round(self.SAMPLE_RATE * 0.09))
+        rms_values = []
+        bass_values = []
+        window = np.hanning(max(32, half * 2)).astype(np.float32)
+
+        for frame in beat_frames:
+            centre = int(frame * self.HOP_SIZE)
+            start = max(0, centre - half)
+            stop = min(len(samples), centre + half)
+            clip = samples[start:stop]
+            if clip.size < 32:
+                rms_values.append(0.0)
+                bass_values.append(0.0)
                 continue
-            matrix = values[:complete].reshape(-1, meter)
+            rms_values.append(float(np.sqrt(np.mean(clip * clip))))
+            padded = np.zeros(len(window), dtype=np.float32)
+            padded[: min(len(clip), len(padded))] = clip[: len(padded)]
+            spectrum = np.abs(np.fft.rfft(padded * window))
+            freqs = np.fft.rfftfreq(len(padded), 1.0 / self.SAMPLE_RATE)
+            bass_values.append(float(np.sum(spectrum[(freqs >= 45) & (freqs <= 260)])))
+
+        accent = (
+            0.45 * self._normalise(onset_values)
+            + 0.35 * self._normalise(np.asarray(bass_values))
+            + 0.20 * self._normalise(np.asarray(rms_values))
+        )
+        return accent.astype(np.float64)
+
+    def _score_meter_phase(
+        self,
+        accents: np.ndarray,
+        meter: int,
+        phase: int,
+    ) -> float:
+        shifted = accents[phase:]
+        complete = (len(shifted) // meter) * meter
+        if complete < meter * 6:
+            return -math.inf
+        bars = shifted[:complete].reshape(-1, meter)
+        position_medians = np.median(bars, axis=0)
+        position_means = np.mean(bars, axis=0)
+
+        if meter == 3:
+            template = np.asarray([1.0, -0.45, -0.25])
+        else:
+            template = np.asarray([1.0, -0.45, 0.25, -0.45])
+
+        template -= template.mean()
+        profile = 0.65 * position_medians + 0.35 * position_means
+        profile -= profile.mean()
+        correlation = float(
+            np.dot(profile, template)
+            / ((np.linalg.norm(profile) * np.linalg.norm(template)) + 1e-9)
+        )
+        downbeat_margin = float(profile[0] - np.mean(profile[1:]))
+        bar_consistency = float(
+            np.mean(bars[:, 0] > np.median(bars[:, 1:], axis=1))
+        )
+        return 0.55 * correlation + 0.30 * downbeat_margin + 0.15 * bar_consistency
+
+    def _estimate_meter_and_phase(
+        self,
+        accents: np.ndarray,
+        forced_meter: int | None = None,
+    ) -> tuple[int, int, float]:
+        candidates = []
+        meters = (forced_meter,) if forced_meter in (3, 4) else (3, 4)
+        for meter in meters:
             for phase in range(meter):
-                down = matrix[:, phase]
-                others = np.delete(matrix, phase, axis=1)
-                score = float(np.mean(down) - 0.35 * np.mean(others))
-                if meter == 4:
-                    score += 0.05
-                if score > best[0]:
-                    second = best[0]
-                    best = (score, meter, phase)
-                elif score > second:
-                    second = score
-        confidence = max(0.0, min(1.0, (best[0] - second) / 1.5))
+                score = self._score_meter_phase(accents, meter, phase)
+                if math.isfinite(score):
+                    candidates.append((score, meter, phase))
+        if not candidates:
+            return (forced_meter or 4), 0, 0.0
+
+        candidates.sort(reverse=True)
+        best = candidates[0]
+        second_score = candidates[1][0] if len(candidates) > 1 else best[0] - 0.5
+        margin = best[0] - second_score
+        confidence = max(0.0, min(1.0, 0.25 + margin / 1.2))
+
+        # Automatic 3/4 is accepted only when it wins positively. This removes
+        # the former built-in 4/4 preference while still avoiding weak guesses.
         meter, phase = best[1], best[2]
-        if meter == 3 and confidence < 0.12:
-            meter, phase = 4, 0
+        if forced_meter is None and best[0] < 0.18:
+            meter, phase, confidence = 4, 0, min(confidence, 0.20)
         return meter, phase, confidence
 
     def save_meter_override(
@@ -308,19 +324,35 @@ class TimingAnalyzer:
         if meter_numerator not in (3, 4):
             raise ValueError("Meter override must be 3 or 4")
 
+        strengths = np.asarray(current_result.beat_strengths, dtype=np.float64)
+        phase = 0
+        if strengths.size == len(current_result.beat_times_ms):
+            _, phase, _ = self._estimate_meter_and_phase(
+                strengths,
+                forced_meter=meter_numerator,
+            )
+
+        times = current_result.beat_times_ms[phase:]
+        aligned_strengths = current_result.beat_strengths[phase:]
+        if len(times) < 8:
+            times = current_result.beat_times_ms
+            aligned_strengths = current_result.beat_strengths
+            phase = 0
+
         updated = TimingAnalysis(
-            beat_times_ms=current_result.beat_times_ms,
-            downbeat_indices=tuple(
-                range(0, len(current_result.beat_times_ms), meter_numerator)
-            ),
+            beat_times_ms=tuple(times),
+            downbeat_indices=tuple(range(0, len(times), meter_numerator)),
             estimated_bpm=current_result.estimated_bpm,
-            first_downbeat_ms=current_result.first_downbeat_ms,
+            first_downbeat_ms=int(times[0]),
             confidence=current_result.confidence,
             source_audio=current_result.source_audio,
             meter_numerator=meter_numerator,
             meter_denominator=4,
             source_kind="Manual meter correction",
-            diagnostic=f"User selected {meter_numerator}/4",
+            diagnostic=(
+                f"User selected {meter_numerator}/4; strongest downbeat phase {phase}"
+            ),
+            beat_strengths=tuple(aligned_strengths),
         )
         self.save_cached(audio_path, updated)
         cache = self.cache_path_for(audio_path)
@@ -340,27 +372,32 @@ class TimingAnalyzer:
             if progress:
                 progress("Loaded cached timing")
             return cached
+
         if progress:
             progress("Decoding audio with FFmpeg")
         samples = self._decode_audio(audio_path)
         if progress:
-            progress("Calculating onset strength")
+            progress("Calculating onset and bass accents")
         onset = self._onset_envelope(samples)
         if progress:
             progress("Estimating tempo")
         bpm, tempo_confidence = self._estimate_tempo(onset)
         if progress:
             progress("Tracking individual beats")
-        beat_frames, strengths = self._track_beats(onset, bpm)
+        beat_frames = self._track_beats(onset, bpm)
+        accents = self._beat_accents(samples, onset, beat_frames)
         if progress:
-            progress("Detecting metre and downbeat phase")
-        meter, phase, meter_confidence = self._estimate_meter_and_phase(strengths)
-        aligned = beat_frames[phase:]
-        if aligned.size < 8:
-            raise RuntimeError("Metre alignment left too few usable beats")
+            progress("Detecting 3/4 or 4/4 and locating Beat 1")
+        meter, phase, meter_confidence = self._estimate_meter_and_phase(accents)
+
+        aligned_frames = beat_frames[phase:]
+        aligned_accents = accents[phase:]
+        if aligned_frames.size < 8:
+            raise RuntimeError("Meter alignment left too few usable beats")
+
         beat_times_ms = tuple(
             int(round(frame * self.HOP_SIZE * 1000.0 / self.SAMPLE_RATE))
-            for frame in aligned
+            for frame in aligned_frames
         )
         result = TimingAnalysis(
             beat_times_ms=beat_times_ms,
@@ -376,11 +413,34 @@ class TimingAnalyzer:
             meter_denominator=4,
             source_kind="Fresh analysis",
             diagnostic=(
-                f"FFmpeg decode OK; {len(beat_times_ms)} beats tracked; "
-                f"meter {meter}/4; tempo {bpm:.1f} BPM"
+                f"FFmpeg decode OK; librosa tracked {len(beat_times_ms)} beats; "
+                f"meter {meter}/4; Beat 1 phase {phase}; tempo {bpm:.1f} BPM"
             ),
+            beat_strengths=tuple(float(v) for v in aligned_accents),
         )
         self.save_cached(audio_path, result)
         if progress:
             progress("Automatic timing complete")
         return result
+
+
+def run_internal_timing_audit() -> list[str]:
+    analyzer = TimingAnalyzer()
+
+    three = np.tile(np.asarray([2.8, -0.8, -0.3]), 24)
+    meter, phase, confidence = analyzer._estimate_meter_and_phase(three)
+    assert meter == 3 and phase == 0 and confidence > 0
+
+    four = np.tile(np.asarray([2.8, -0.8, 0.7, -0.7]), 24)
+    meter, phase, confidence = analyzer._estimate_meter_and_phase(four)
+    assert meter == 4 and phase == 0 and confidence > 0
+
+    shifted_three = np.concatenate([np.asarray([-0.4]), three])
+    meter, phase, _ = analyzer._estimate_meter_and_phase(shifted_three)
+    assert meter == 3 and phase == 1
+
+    return [
+        "Synthetic 3/4 detection passed",
+        "Synthetic 4/4 detection passed",
+        "Synthetic downbeat phase alignment passed",
+    ]

@@ -1,37 +1,42 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 002
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 003
 ACCEPTANCE TEST
 
-BUILD
-1. GitHub Actions produces Banjofy.exe with no console window.
-2. The app title shows Module 17 Integration Build 002.
+A. BUILD
+1. GitHub Actions completes successfully.
+2. The artifact is Build 003 and contains Banjofy.exe.
+3. The application title identifies Build 003.
 
-TIMING VERIFICATION
-1. Load a previously tested Library song into Practice.
-2. Allow automatic timing to finish.
-3. Play from the beginning and watch the cursor for at least two minutes.
-4. Confirm it follows the music without progressive drift.
-5. Pause: the cursor must stop immediately.
-6. Resume: the cursor must continue from the current position.
-7. Seek with the playback slider: the cursor must relocate immediately.
-8. Click several individual beat cells: playback and cursor must jump to the
-   selected detected beat.
-9. Stop: the cursor must return to the start.
-10. Repeat a short section in Single Run and Continuous modes.
+B. DOWNLOAD REPAIR
+1. Search for It's a Long Way to the Top.
+2. Select one result and download it.
+3. Confirm a usable audio file appears and Analyse Downloaded Audio becomes active.
+4. Repeat with a second unrelated song.
+5. Confirm failed attempts show the detailed technical reason rather than the
+   former misleading "try another upload" message.
 
-METER VERIFICATION
-1. Select 3/4 meter.
-2. Click several bar-number labels.
-3. Each bar label must jump to Beat 1 of that three-beat bar.
-4. Repeat in 4/4 meter.
+C. TENNESSEE WALTZ
+1. Remove its old timing cache by selecting Meter Auto, or delete the timing
+   JSON for that song before the first Build 003 test.
+2. Load Tennessee Waltz.
+3. Confirm Auto reports 3/4.
+4. Confirm the highlighted Beat 1 follows the strong first beat of each bar.
+5. Let it play for at least two minutes and assess drift.
+6. Select manual 3/4 and confirm Banjofy chooses the strongest available
+   downbeat phase rather than blindly treating the first stored beat as Beat 1.
 
-REGRESSION
-- Chord analysis still completes.
-- Beginner, Intermediate and Professional lists remain unchanged.
-- Key and Practice tempo remain unchanged.
-- TXT, CSV and JSON reports still save.
-- Count-in and Beep controls still work.
-- Library deletion still works.
+D. 4/4 REGRESSION
+Test Stand By Me and Knockin' on Heaven's Door.
+Confirm 4/4 grouping and existing cursor controls remain usable.
 
-EXPECTED LIMITATION
-Chord letters and active-chord highlighting are not included in Build 002.
-They remain the next controlled user-facing stage.
+E. CHORD REGRESSION
+Confirm the previously accepted Beginner, Intermediate and Professional chord
+sets remain unchanged for the four agreed songs.
+
+F. GENERAL REGRESSION
+Search, Library, Practice, pause, resume, seek, repeat, count-in, Beep, timing
+reports, chord reports and Library deletion must remain functional.
+
+KNOWN LIMITATION
+Real-song 3/4 detection and YouTube downloading require acceptance on the
+Windows build because the clean package audit cannot contact YouTube or hear
+the user's exact local song files.
