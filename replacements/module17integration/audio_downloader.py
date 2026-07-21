@@ -116,10 +116,10 @@ class DownloadManager:
         # combined stream containing audio. Alternate player clients are tried
         # only when the normal extraction route cannot expose a usable stream.
         attempts: list[tuple[str, dict]] = [
-            ("standard audio", {
+            ("standard anonymous audio", {
                 "format": "ba/b[acodec!=none]/best*[acodec!=none]",
             }),
-            ("TV and mobile audio", {
+            ("anonymous TV and mobile audio", {
                 "format": "ba/b[acodec!=none]/best*[acodec!=none]",
                 "extractor_args": {
                     "youtube": {
@@ -127,13 +127,28 @@ class DownloadManager:
                     }
                 },
             }),
-            ("web family audio", {
+            ("anonymous web family audio", {
                 "format": "ba/b[acodec!=none]/best*[acodec!=none]",
                 "extractor_args": {
                     "youtube": {
                         "player_client": ["web", "web_safari", "web_embedded"],
                     }
                 },
+            }),
+            # Authentication fallbacks use the browser's local cookie database
+            # directly. Cookies are never copied into the Banjofy Library,
+            # repository, reports or build package.
+            ("Firefox signed-in session", {
+                "format": "ba/b[acodec!=none]/best*[acodec!=none]",
+                "cookiesfrombrowser": ("firefox",),
+            }),
+            ("Edge signed-in session", {
+                "format": "ba/b[acodec!=none]/best*[acodec!=none]",
+                "cookiesfrombrowser": ("edge",),
+            }),
+            ("Chrome signed-in session", {
+                "format": "ba/b[acodec!=none]/best*[acodec!=none]",
+                "cookiesfrombrowser": ("chrome",),
             }),
         ]
 
@@ -175,9 +190,10 @@ class DownloadManager:
         lowered = combined.lower()
         if "sign in to confirm" in lowered or "not a bot" in lowered:
             raise RuntimeError(
-                "YouTube asked for sign-in verification. Open YouTube in your "
-                "normal browser, confirm it works there, then retry. Technical "
-                f"detail: {combined}"
+                "YouTube requires a signed-in browser session. Banjofy tried "
+                "Firefox, Edge and Chrome cookies but could not use one. Sign in "
+                "to YouTube in Firefox, close Firefox completely, then retry. "
+                f"Technical detail: {combined}"
             )
         raise RuntimeError(
             "Banjofy could not obtain a usable audio stream after standard, TV/mobile "

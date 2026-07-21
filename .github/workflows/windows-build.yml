@@ -1,4 +1,4 @@
-name: Build Banjofy 006.4.0 Module 17 Integration Build 003
+name: Build Banjofy 006.4.0 Module 17 Integration Build 004
 
 on:
   push:
@@ -45,7 +45,7 @@ jobs:
         shell: pwsh
         run: Copy-Item "src/banjofy/ui/main_window.py" "src/banjofy/ui/main_window_legacy.py" -Force
 
-      - name: Install Module 17 Integration Build 003 source
+      - name: Install Module 17 Integration Build 004 source
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force "src/banjofy/analysis" | Out-Null
@@ -93,5 +93,5 @@ jobs:
       - name: Upload integrated EXE
         uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-006.4.0-Module-17-Integration-Build-003-Windows
+          name: Banjofy-006.4.0-Module-17-Integration-Build-004-Windows
           path: dist/Banjofy.exe

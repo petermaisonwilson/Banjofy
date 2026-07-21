@@ -1,60 +1,48 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 003
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 004
 RELEASE AUDIT
 
 BUILD TYPE
-Complete clean rebuild from the full Build 002 package. No patch script.
+Complete clean rebuild from confirmed Build 002. No patch script.
 
-CONTROLLED CHANGES
-- Complete audio_downloader.py replacement.
-- Current yt-dlp minimum and explicit bundled FFmpeg path.
-- Audio-only, combined-audio, TV/mobile and web extraction routes.
-- FFmpeg normalisation to M4A.
-- Complete timing_analyzer.py replacement.
-- Librosa onset and beat tracking.
-- Accent profile combines onset, bass energy and RMS energy.
-- 3/4 and 4/4 compared without the previous automatic 4/4 bias.
-- Beat 1 phase is estimated for automatic and manual meter selection.
-- Timing cache version raised to 6, forcing old timing decisions to be rebuilt.
-- Build 002 30 ms media-position cursor polling preserved.
+CORRECTIONS
+- Removed unsupported sparse argument from librosa.beat.beat_track.
+- Pinned a compatible Librosa range.
+- Restored full automatic meter and downbeat analysis.
+- Added Firefox, Edge and Chrome cookiesfrombrowser attempts after anonymous
+  YouTube extraction attempts.
+- Browser cookies are not exported, saved or included in the repository.
+- Detailed technical failure reporting retained.
+- Build 002 30 ms cursor polling retained.
 - Laboratory 016 chord engine unchanged.
 
-STATIC AND SYNTHETIC AUDIT
+STATIC/SYNTHETIC AUDIT
 - Python compilation: passed.
-- Synthetic 3/4 meter test: passed.
-- Synthetic 4/4 meter test: passed.
-- Synthetic shifted Beat 1 test: passed.
-- Downloader import and format selector inspection: passed.
+- Sparse argument absent: passed.
+- Synthetic 3/4 detection: passed.
+- Synthetic 4/4 detection: passed.
+- Synthetic shifted Beat 1 detection: passed.
+- Firefox cookie fallback present: passed.
+- Edge cookie fallback present: passed.
+- Chrome cookie fallback present: passed.
+- Anonymous download remains first: passed.
+- Bundled FFmpeg supplied to yt-dlp: passed.
 - yt-dlp hidden imports included: passed.
-- FFmpeg path supplied to yt-dlp: passed.
-- Workflow replacement paths: passed.
 - Chord engine byte-for-byte unchanged from Build 002: passed.
-- Build 002 precise cursor timer retained: passed.
-- Windows hidden-console setting retained: passed.
-- ZIP integrity: passed.
-- Checksums regenerated: passed.
+- Hidden-console setting retained: passed.
+- Workflow replacement and test steps: passed.
+- ZIP integrity and checksums: passed.
 
-WORKFLOW AUDIT
-GitHub Actions additionally checks:
-- full runtime imports;
-- installed yt-dlp version;
-- downloader import;
-- timing synthetic self-audit;
-- Laboratory 016 chord-engine self-audit;
-- ChordMini model files;
-- Python compilation;
-- packaged FFmpeg;
-- PyInstaller EXE production;
-- Banjofy.exe existence.
+RUNTIME ACCEPTANCE STILL REQUIRED
+The offline build cannot contact YouTube, unlock a real Firefox cookie database,
+hear Tennessee Waltz or build the final Windows executable. GitHub Actions and
+the user's Windows acceptance test remain mandatory.
 
 KNOWN LIMITATIONS
-- No live YouTube request can be validated in this offline package build.
-- No exact user song audio was available for acoustic acceptance.
-- Some recordings with weak percussion or ambiguous compound meter may still
-  require manual meter selection.
-- Manual meter selection improves downbeat phase but does not invent missing
-  beats.
-- Chord letters and active-chord grid highlighting remain outside Build 003.
+- Firefox should be fully closed while Banjofy reads its cookie database.
+- YouTube can change authentication requirements without notice.
+- Some ambiguous recordings may still require manual meter selection.
+- Chord letters are not yet added to the grid.
 
 CLEAN REBUILD CONFIRMATION
-Build 003 was created in a new empty directory from the complete Build 002 ZIP.
-Build 002 and every earlier baseline were left untouched.
+The package was created in a new empty directory from the complete Build 002
+ZIP. Build 002 and earlier baselines were untouched.

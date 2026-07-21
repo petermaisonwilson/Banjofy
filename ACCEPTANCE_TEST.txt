@@ -1,42 +1,26 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 003
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 004
 ACCEPTANCE TEST
 
-A. BUILD
-1. GitHub Actions completes successfully.
-2. The artifact is Build 003 and contains Banjofy.exe.
-3. The application title identifies Build 003.
+DOWNLOAD
+1. Sign in to YouTube in Firefox and verify the selected song plays.
+2. Close Firefox completely.
+3. Search for It's a Long Way to the Top in Banjofy.
+4. Download the selected audio.
+5. Confirm Banjofy either succeeds anonymously or reports that it is trying
+   the Firefox signed-in session.
+6. Confirm a usable audio file is created and Analyse Downloaded Audio enables.
+7. Repeat with one unrelated song.
 
-B. DOWNLOAD REPAIR
-1. Search for It's a Long Way to the Top.
-2. Select one result and download it.
-3. Confirm a usable audio file appears and Analyse Downloaded Audio becomes active.
-4. Repeat with a second unrelated song.
-5. Confirm failed attempts show the detailed technical reason rather than the
-   former misleading "try another upload" message.
+TIMING
+1. Load Tennessee Waltz.
+2. Build 004 must perform fresh timing rather than show the sparse-argument error.
+3. Confirm Auto selects 3/4.
+4. Confirm Beat 1 is aligned with the strong first beat of the bar.
+5. Play for at least two minutes and assess drift.
+6. Select manual 3/4 and check the downbeat phase.
+7. Test Stand By Me and Knockin' on Heaven's Door as 4/4 regressions.
 
-C. TENNESSEE WALTZ
-1. Remove its old timing cache by selecting Meter Auto, or delete the timing
-   JSON for that song before the first Build 003 test.
-2. Load Tennessee Waltz.
-3. Confirm Auto reports 3/4.
-4. Confirm the highlighted Beat 1 follows the strong first beat of each bar.
-5. Let it play for at least two minutes and assess drift.
-6. Select manual 3/4 and confirm Banjofy chooses the strongest available
-   downbeat phase rather than blindly treating the first stored beat as Beat 1.
-
-D. 4/4 REGRESSION
-Test Stand By Me and Knockin' on Heaven's Door.
-Confirm 4/4 grouping and existing cursor controls remain usable.
-
-E. CHORD REGRESSION
-Confirm the previously accepted Beginner, Intermediate and Professional chord
-sets remain unchanged for the four agreed songs.
-
-F. GENERAL REGRESSION
-Search, Library, Practice, pause, resume, seek, repeat, count-in, Beep, timing
-reports, chord reports and Library deletion must remain functional.
-
-KNOWN LIMITATION
-Real-song 3/4 detection and YouTube downloading require acceptance on the
-Windows build because the clean package audit cannot contact YouTube or hear
-the user's exact local song files.
+CHORD AND GENERAL REGRESSION
+Confirm accepted chord sets, Practice controls, seeking, repeat, count-in,
+Beep, reports, Library save/list/delete and Build 002 cursor behaviour remain
+functional.

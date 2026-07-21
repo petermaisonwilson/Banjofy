@@ -204,7 +204,6 @@ class TimingAnalyzer:
             bpm=bpm,
             tightness=90,
             trim=False,
-            sparse=True,
         )
         beats = np.asarray(beats, dtype=int)
         beats = beats[(beats >= 0) & (beats < len(onset))]
