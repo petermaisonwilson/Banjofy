@@ -1,38 +1,32 @@
-BANJOFY 006.3.0 MODULE 8B BUILD 001 - DATA DISPLAY AND SAFE SEEKING
-========================================================================
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 001
+COMPLETE CLEAN REBUILD
 
-Status
-------
-BUILD COMPLETE
+PURPOSE
+This is the first controlled main-program integration of the confirmed
+Laboratory 016 chord-analysis engine into the untouched Module 16 Solid
+Build 003 interface and Practice foundation.
 
-Starting point
---------------
-Confirmed-good Module 7 Build 001A.
+INSTALLATION
+1. Extract this ZIP into the root of the Banjofy GitHub repository.
+2. Allow the included .github/workflows/windows-build.yml file to replace the
+   current workflow.
+3. Commit and push with GitHub Desktop.
+4. GitHub Actions will build the Windows executable.
 
-Added
------
-- Honest key field: "Not analysed yet".
-- Key shown in analysis status, Library list and Practice info.
-- Provisional chord data stored in Analysis and Library records.
-- Provisional chord names shown at bar starts.
-- Safe slider seeking using press/preview/release.
-- Existing Library files remain backward compatible.
+EXPECTED GITHUB ACTIONS OUTPUT
+Banjofy.exe
+Artifact name:
+Banjofy-006.4.0-Module-17-Integration-Build-001-Windows
 
-Not claimed
------------
-- No real audio key detection yet.
-- No real audio chord detection yet.
-- BPM remains the existing placeholder estimate.
+GITHUB DESKTOP SUMMARY
+Banjofy 006.4.0 Module 17 Integration Build 001
 
-Acceptance test
----------------
-PASS if:
-- Search/download/analyse/save still work.
-- Analysis says Key: Not analysed yet.
-- Library list shows Key: Not analysed yet.
-- Practice info shows Key: Not analysed yet.
-- Play/Pause/Stop behave exactly as Module 7.
-- Stop returns cursor to Beat 1.
-- Play works after Stop.
-- Dragging and releasing slider changes audio position.
-- Grid shows provisional chord names and cursor still moves.
+GITHUB DESKTOP DESCRIPTION
+Complete clean integration build from the confirmed Module 16 Solid Build 003
+main-program baseline and Laboratory 016 chord-analysis baseline. Adds one
+instrument-neutral full-song analysis with Beginner, Intermediate and
+Professional chord presentation, confirmed key detection, raw and Practice
+tempo, beat-aligned chord timeline, confidence-gated recovered major roots,
+restricted detector-only minor chords and clean TXT/CSV/JSON reports. Preserves
+all established Module 16 Practice, timing, repeat, count-in, meter and Library
+behaviour. Module 16 Solid Build 003 and Laboratory 016 remain untouched.

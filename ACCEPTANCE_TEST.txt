@@ -1,0 +1,45 @@
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 001
+ACCEPTANCE TEST
+
+GENERAL
+1. Build produces Banjofy.exe with no console window.
+2. Existing Search, Download, Analysis, Library and Practice functions open.
+3. Load one Library song into Practice.
+4. Existing automatic timing completes first.
+5. Confirm the chord-analysis status then progresses through the Laboratory 016 engine.
+6. Confirm a single completed analysis can be switched between Beginner,
+   Intermediate and Professional without analysing again.
+7. Confirm TXT, CSV and JSON chord reports are saved under the song analysis
+   folder in chord_reports.
+
+SONG TESTS
+
+I'LL FLY AWAY
+- Key: D major
+- Beginner: D, G, A
+- Intermediate: D, G, A
+- Professional: D, G, A, F#m
+
+TENNESSEE WALTZ
+- Key: F major
+- Beginner: F, C, A#
+- Intermediate: F, C7, A#, F7, A7
+- Professional: F, C7, A#, Am, F7, A7
+- No zero-duration detector disagreement
+
+STAND BY ME
+- Key: A major
+- All levels retain A, F#m, E, D
+
+KNOCKIN' ON HEAVEN'S DOOR
+- Key: G major
+- Raw tempo approximately 143.6 BPM
+- Practice tempo approximately 71.8 BPM
+- Beginner: G, D, Am, C
+
+REGRESSION
+- Single Run and Continuous Practice still work.
+- Count-in and Beep controls still work.
+- Auto, 3/4 and 4/4 meter behaviour still works.
+- Beat-grid seeking and grid reset still work.
+- Library deletion still removes the complete song record safely.

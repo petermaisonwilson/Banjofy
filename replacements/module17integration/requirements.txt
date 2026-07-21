@@ -1,0 +1,17 @@
+PySide6
+yt-dlp
+numpy==1.26.4
+imageio-ffmpeg>=0.5
+scipy==1.13.1
+PyYAML==6.0.2
+setuptools==80.9.0
+torch==2.9.1
+librosa==0.10.1
+soundfile==0.12.1
+tqdm==4.67.1
+matplotlib==3.10.1
+seaborn==0.13.2
+mir_eval==0.8.2
+scikit-learn==1.6.1
+pandas>=2.2
+pyinstaller>=6.10
