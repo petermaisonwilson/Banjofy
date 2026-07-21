@@ -1,4 +1,4 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 001
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 002
 MANIFEST
 
 .github/workflows/windows-build.yml
@@ -7,7 +7,8 @@ replacements/module17integration/timing_analyzer.py
 replacements/module17integration/chord_engine.py
 replacements/module17integration/requirements.txt
 replacements/module17integration/Banjofy_Module17.spec
-README_FIRST_006_4_0_MODULE_17_INTEGRATION_BUILD_001.txt
-ACCEPTANCE_TEST_MODULE_17_INTEGRATION_BUILD_001.txt
-RELEASE_AUDIT_MODULE_17_INTEGRATION_BUILD_001.txt
-MANIFEST_006_4_0_MODULE_17_INTEGRATION_BUILD_001.txt
+README_FIRST.txt
+ACCEPTANCE_TEST.txt
+RELEASE_AUDIT.txt
+MANIFEST.txt
+SHA256SUMS.txt

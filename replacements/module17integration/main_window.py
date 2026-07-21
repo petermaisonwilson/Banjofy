@@ -27,7 +27,7 @@ from banjofy.ui.timing_analyzer import TimingAnalysis, TimingAnalyzer
 from banjofy.analysis.chord_engine import AnalysisResult, analyse_audio
 
 
-APP_VERSION = "Banjofy 006.4.0 Module 17 Integration Build 001"
+APP_VERSION = "Banjofy 006.4.0 Module 17 Integration Build 002"
 
 
 class MainWindow(LegacyMainWindow):
@@ -84,7 +84,20 @@ class MainWindow(LegacyMainWindow):
         self.chord_poll_timer.setInterval(100)
         self.chord_poll_timer.timeout.connect(self._poll_chord_analysis)
 
-        self.statusBar().showMessage("Ready - Module 17 integrated chord analysis loaded")
+        # Build 002: keep the visible grid cursor tied to the media player's
+        # current playback position at a finer refresh interval. The musical
+        # beat boundaries still come from the detected beat timestamps.
+        self.grid_cursor_timer = QTimer(self)
+        self.grid_cursor_timer.setTimerType(Qt.TimerType.PreciseTimer)
+        self.grid_cursor_timer.setInterval(30)
+        self.grid_cursor_timer.timeout.connect(self._poll_grid_cursor)
+        self.media_player.playbackStateChanged.connect(
+            self._on_playback_state_for_grid_cursor
+        )
+
+        self.statusBar().showMessage(
+            "Ready - Module 17 chord analysis and verified grid timing loaded"
+        )
 
     def _set_visible_titles(self) -> None:
         for label in self.findChildren(QLabel):
@@ -325,7 +338,7 @@ class MainWindow(LegacyMainWindow):
                 label.setToolTip(f"Jump to Bar {bar + 1}, Beat 1")
                 label.setCursor(Qt.CursorShape.PointingHandCursor)
                 label.mousePressEvent = (
-                    lambda event, target=bar * 4: self._grid_cell_clicked(event, target)
+                    lambda event, target=bar * beats_per_bar: self._grid_cell_clicked(event, target)
                 )
 
         self._refresh_repeat_markers()
@@ -716,13 +729,40 @@ class MainWindow(LegacyMainWindow):
         timing = self.timing_analysis
         if timing is not None and timing.usable and self.grid_cells:
             times = timing.beat_times_ms
-            index = int(np.searchsorted(times, position_ms, side="right") - 1)
+            index = int(np.searchsorted(times, int(position_ms), side="right") - 1)
             index = max(0, min(index, min(len(times), len(self.grid_cells)) - 1))
             if index != self.current_beat_index:
                 self._highlight_beat(index)
             return
 
         super()._update_grid_cursor_from_position(position_ms)
+
+    def _poll_grid_cursor(self) -> None:
+        """Refresh the grid from the media player's actual clock.
+
+        This does not invent or smooth beat times. It simply checks the current
+        playback position more frequently than the platform positionChanged
+        signal may arrive, then maps that position to the confirmed detected
+        beat timestamp list.
+        """
+        if not self.practice_song or not getattr(self, "grid_cells", None):
+            return
+        if getattr(self, "user_is_seeking", False):
+            return
+        position = int(self.media_player.position())
+        if position >= 0:
+            self._update_grid_cursor_from_position(position)
+
+    def _on_playback_state_for_grid_cursor(self, state) -> None:
+        if state == QMediaPlayer.PlaybackState.PlayingState:
+            if not self.grid_cursor_timer.isActive():
+                self.grid_cursor_timer.start()
+            self._poll_grid_cursor()
+            return
+
+        if self.grid_cursor_timer.isActive():
+            self.grid_cursor_timer.stop()
+        self._poll_grid_cursor()
 
     # ---------- Playback ----------
 

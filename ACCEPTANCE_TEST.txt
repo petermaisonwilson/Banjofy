@@ -1,45 +1,37 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 001
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 002
 ACCEPTANCE TEST
 
-GENERAL
-1. Build produces Banjofy.exe with no console window.
-2. Existing Search, Download, Analysis, Library and Practice functions open.
-3. Load one Library song into Practice.
-4. Existing automatic timing completes first.
-5. Confirm the chord-analysis status then progresses through the Laboratory 016 engine.
-6. Confirm a single completed analysis can be switched between Beginner,
-   Intermediate and Professional without analysing again.
-7. Confirm TXT, CSV and JSON chord reports are saved under the song analysis
-   folder in chord_reports.
+BUILD
+1. GitHub Actions produces Banjofy.exe with no console window.
+2. The app title shows Module 17 Integration Build 002.
 
-SONG TESTS
+TIMING VERIFICATION
+1. Load a previously tested Library song into Practice.
+2. Allow automatic timing to finish.
+3. Play from the beginning and watch the cursor for at least two minutes.
+4. Confirm it follows the music without progressive drift.
+5. Pause: the cursor must stop immediately.
+6. Resume: the cursor must continue from the current position.
+7. Seek with the playback slider: the cursor must relocate immediately.
+8. Click several individual beat cells: playback and cursor must jump to the
+   selected detected beat.
+9. Stop: the cursor must return to the start.
+10. Repeat a short section in Single Run and Continuous modes.
 
-I'LL FLY AWAY
-- Key: D major
-- Beginner: D, G, A
-- Intermediate: D, G, A
-- Professional: D, G, A, F#m
-
-TENNESSEE WALTZ
-- Key: F major
-- Beginner: F, C, A#
-- Intermediate: F, C7, A#, F7, A7
-- Professional: F, C7, A#, Am, F7, A7
-- No zero-duration detector disagreement
-
-STAND BY ME
-- Key: A major
-- All levels retain A, F#m, E, D
-
-KNOCKIN' ON HEAVEN'S DOOR
-- Key: G major
-- Raw tempo approximately 143.6 BPM
-- Practice tempo approximately 71.8 BPM
-- Beginner: G, D, Am, C
+METER VERIFICATION
+1. Select 3/4 meter.
+2. Click several bar-number labels.
+3. Each bar label must jump to Beat 1 of that three-beat bar.
+4. Repeat in 4/4 meter.
 
 REGRESSION
-- Single Run and Continuous Practice still work.
+- Chord analysis still completes.
+- Beginner, Intermediate and Professional lists remain unchanged.
+- Key and Practice tempo remain unchanged.
+- TXT, CSV and JSON reports still save.
 - Count-in and Beep controls still work.
-- Auto, 3/4 and 4/4 meter behaviour still works.
-- Beat-grid seeking and grid reset still work.
-- Library deletion still removes the complete song record safely.
+- Library deletion still works.
+
+EXPECTED LIMITATION
+Chord letters and active-chord highlighting are not included in Build 002.
+They remain the next controlled user-facing stage.

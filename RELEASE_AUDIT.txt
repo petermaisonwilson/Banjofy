@@ -1,82 +1,69 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 001
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 002
 RELEASE AUDIT
 
 BUILD TYPE
 Complete clean rebuild. No patch script is included or required.
 
-BASELINES
-- Main application: Module 16 Solid Build 003 — untouched.
-- Chord analysis: Laboratory 016 — untouched.
+BASELINE
+- Module 17 Integration Build 001 — confirmed by the user.
+- Laboratory 016 analysis behaviour preserved without alteration.
+- Earlier confirmed baselines remain untouched.
 
-INTEGRATED SCOPE
-- ChordMini ChordNet primary detector.
-- Independent chroma detector.
-- Confidence-gated repeated major-root recovery.
-- Detector-only minor restriction from Beginner and Intermediate.
-- Key inference.
-- Raw and Practice tempo.
-- Beat-aligned chord timeline.
-- Beginner, Intermediate and Professional presentation from one analysis.
-- Clean TXT, CSV and JSON report generation.
-- Zero-duration timeline and disagreement cleanup.
+CONTROLLED CHANGE
+- Added a precise 30 ms grid-cursor refresh timer.
+- Cursor position is read from QMediaPlayer's actual current position.
+- Beat selection continues to use detected beat timestamps.
+- Timer runs only while playing and stops on pause/stop.
+- Pause, stop and seek states force an immediate cursor refresh.
+- Bar-label seeking now uses the active meter numerator rather than a fixed
+  four-beat multiplier.
 
-PRESERVED SCOPE
-- Search, download, existing analysis and Library.
-- Automatic musical timing and Fresh/Cached/BPM fallback diagnostics.
-- Detected-beat seeking.
+PRESERVED
+- Search, download, Library and Practice functions.
+- Fresh/Cached/BPM fallback timing.
+- Detected beat timestamps and beat-cell seeking.
+- Laboratory 016 chord analysis.
+- Beginner, Intermediate and Professional presentation.
+- Key, raw tempo and Practice tempo.
+- TXT, CSV and JSON reports.
 - Single Run and Continuous Practice.
 - Count-in and Beep controls.
-- Auto, 3/4 and 4/4 meter controls.
-- Grid reset to Bar 1 Beat 1.
 - Complete Library deletion.
+- Windows hidden-console build configuration.
 
-AUDIT RESULTS
+STATIC AUDIT RESULTS
 - Python compilation: passed.
-- Laboratory 016 internal self-audit: passed.
-- SciPy compatibility: passed.
-- Chord cleanup: passed.
-- Key inference: passed.
-- Beat alignment: passed.
-- Trailing artefact exclusion: passed.
-- Minor/root-pattern key inference: passed.
-- Contextual chord-quality stabilisation: passed.
-- Three-level presentation: passed.
-- Beginner importance filtering: passed.
-- Dual-detector repeated-root fusion: passed.
-- Detector-only minor confidence gating: passed.
-- Recovered major-root promotion: passed.
-- Microscopic boundary cleanup: passed.
-- Zero-duration diagnostic cleanup: passed.
-- Report generation: passed.
-- Windows hidden-console build configuration: passed by specification audit.
-- ChordMini checkpoint/config/inference verification: enforced by workflow.
-- FFmpeg runtime verification: enforced by workflow.
-- Runtime import chain: enforced by workflow.
-- Output EXE existence: enforced by workflow.
+- Build 002 version identification: passed.
+- Precise timer creation: passed.
+- 30 ms timer interval: passed.
+- Playback-state start/stop control: passed.
+- Actual media-position polling: passed.
+- Detected-beat search mapping retained: passed.
+- 3/4 and 4/4 bar-label calculation: passed.
+- No chord-engine source change: passed.
+- No timing-analyzer source change: passed.
+- Workflow artifact naming: passed.
+- ZIP integrity: passed.
 
-DEPENDENCIES
-PySide6, yt-dlp, NumPy 1.26.4, SciPy 1.13.1, imageio-ffmpeg,
-PyTorch 2.9.1, librosa 0.10.1, SoundFile, PyYAML, tqdm, matplotlib,
-seaborn, mir_eval, scikit-learn, pandas and PyInstaller.
-
-PATHS AND OUTPUTS
-- ChordMini is cloned and bundled into the EXE build.
-- Reports are written beneath the selected song's analysis directory in
-  chord_reports.
-- Empty or failed chord results leave existing Practice functions available
-  and display a clear failure message.
+WORKFLOW-ENFORCED CHECKS
+- ChordMini checkpoint/config/inference files.
+- Full runtime imports and dependencies.
+- Laboratory 016 internal self-audit.
+- Python source compilation.
+- Bundled FFmpeg availability.
+- PyInstaller Windows EXE production.
+- Hidden-console configuration.
+- Output EXE existence.
 
 KNOWN LIMITATIONS
-- Dedicated chord analysis can take several minutes, especially on first use.
-- Meter remains supplied by the existing timing system; Laboratory 016 reports
-  meter as Unknown.
-- This build presents the three chord vocabularies but does not yet animate the
-  current chord or chord diagram during playback. That is the next controlled
-  user-facing stage.
-- Chord reports use sharp spellings such as A# rather than contextual flat
-  spellings such as Bb.
+- Real-world cursor quality depends partly on the Windows multimedia backend and
+  the accuracy of the detected beat timestamps.
+- Build 002 does not attempt speculative interpolation or alter musical beat
+  positions.
+- Timing can be refined in later builds when chord timeline, meter and musical
+  section presentation are connected.
+- Chord letters and active-chord highlighting are not yet displayed.
 
 CLEAN REBUILD CONFIRMATION
-No files inside the confirmed Module 16 Solid Build 003 ZIP or Laboratory 016
-ZIP were altered. All Module 17 Integration Build 001 files were created in a
-new empty build directory.
+Build 002 was created in a new empty directory from the complete Build 001
+package. The Build 001 ZIP and all earlier confirmed baselines were untouched.
