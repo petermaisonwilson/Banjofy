@@ -116,39 +116,19 @@ class DownloadManager:
         # combined stream containing audio. Alternate player clients are tried
         # only when the normal extraction route cannot expose a usable stream.
         attempts: list[tuple[str, dict]] = [
-            ("standard anonymous audio", {
-                "format": "ba/b[acodec!=none]/best*[acodec!=none]",
-            }),
-            ("anonymous TV and mobile audio", {
-                "format": "ba/b[acodec!=none]/best*[acodec!=none]",
-                "extractor_args": {
-                    "youtube": {
-                        "player_client": ["tv", "mweb", "android_vr"],
-                    }
-                },
-            }),
-            ("anonymous web family audio", {
-                "format": "ba/b[acodec!=none]/best*[acodec!=none]",
-                "extractor_args": {
-                    "youtube": {
-                        "player_client": ["web", "web_safari", "web_embedded"],
-                    }
-                },
-            }),
-            # Authentication fallbacks use the browser's local cookie database
-            # directly. Cookies are never copied into the Banjofy Library,
-            # repository, reports or build package.
             ("Firefox signed-in session", {
-                "format": "ba/b[acodec!=none]/best*[acodec!=none]",
+                "format": "ba/b[acodec!=none]/best*[acodec!=none]/best",
                 "cookiesfrombrowser": ("firefox",),
+                "http_headers": {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"},
             }),
-            ("Edge signed-in session", {
-                "format": "ba/b[acodec!=none]/best*[acodec!=none]",
-                "cookiesfrombrowser": ("edge",),
+            ("Firefox signed-in web session", {
+                "format": "best*[acodec!=none]/b[acodec!=none]/ba/best",
+                "cookiesfrombrowser": ("firefox",),
+                "http_headers": {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"},
+                "extractor_args": {"youtube": {"player_client": ["web", "web_safari", "web_embedded"]}},
             }),
-            ("Chrome signed-in session", {
-                "format": "ba/b[acodec!=none]/best*[acodec!=none]",
-                "cookiesfrombrowser": ("chrome",),
+            ("single anonymous fallback", {
+                "format": "best*[acodec!=none]/b[acodec!=none]/ba/best",
             }),
         ]
 

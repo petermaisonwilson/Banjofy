@@ -1,6 +1,4 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 004
-MANIFEST
-
+M17_B005 MANIFEST
 .github/workflows/windows-build.yml
 replacements/module17integration/main_window.py
 replacements/module17integration/timing_analyzer.py

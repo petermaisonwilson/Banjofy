@@ -27,7 +27,7 @@ from banjofy.ui.timing_analyzer import TimingAnalysis, TimingAnalyzer
 from banjofy.analysis.chord_engine import AnalysisResult, analyse_audio
 
 
-APP_VERSION = "Banjofy 006.4.0 Module 17 Integration Build 004"
+APP_VERSION = "Banjofy 006.4.0 Module 17 Integration Build 005"
 
 
 class MainWindow(LegacyMainWindow):
@@ -96,7 +96,7 @@ class MainWindow(LegacyMainWindow):
         )
 
         self.statusBar().showMessage(
-            "Ready - Module 17 authenticated download and meter analysis loaded"
+            "Ready - Module 17 Firefox-first download and meter analysis loaded"
         )
 
     def _set_visible_titles(self) -> None:

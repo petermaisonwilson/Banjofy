@@ -1,26 +1,9 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 004
-ACCEPTANCE TEST
+BUILD 005 ACCEPTANCE TEST
 
-DOWNLOAD
-1. Sign in to YouTube in Firefox and verify the selected song plays.
+1. Sign into YouTube in Firefox and confirm the video plays.
 2. Close Firefox completely.
-3. Search for It's a Long Way to the Top in Banjofy.
-4. Download the selected audio.
-5. Confirm Banjofy either succeeds anonymously or reports that it is trying
-   the Firefox signed-in session.
-6. Confirm a usable audio file is created and Analyse Downloaded Audio enables.
-7. Repeat with one unrelated song.
-
-TIMING
-1. Load Tennessee Waltz.
-2. Build 004 must perform fresh timing rather than show the sparse-argument error.
-3. Confirm Auto selects 3/4.
-4. Confirm Beat 1 is aligned with the strong first beat of the bar.
-5. Play for at least two minutes and assess drift.
-6. Select manual 3/4 and check the downbeat phase.
-7. Test Stand By Me and Knockin' on Heaven's Door as 4/4 regressions.
-
-CHORD AND GENERAL REGRESSION
-Confirm accepted chord sets, Practice controls, seeking, repeat, count-in,
-Beep, reports, Library save/list/delete and Build 002 cursor behaviour remain
-functional.
+3. Download the same song in Banjofy.
+4. Confirm Firefox signed-in session is attempted first.
+5. On failure, record the visible technical error text.
+6. Load Tennessee Waltz; confirm no sparse error and test Auto 3/4 plus Beat 1.
+7. Re-test known 4/4 songs and all chord/Practice/Library controls.

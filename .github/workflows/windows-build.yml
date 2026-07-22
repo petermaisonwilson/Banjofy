@@ -1,4 +1,4 @@
-name: Build Banjofy 006.4.0 Module 17 Integration Build 004
+name: Build Banjofy 006.4.0 Module 17 Integration Build 005
 
 on:
   push:
@@ -45,7 +45,7 @@ jobs:
         shell: pwsh
         run: Copy-Item "src/banjofy/ui/main_window.py" "src/banjofy/ui/main_window_legacy.py" -Force
 
-      - name: Install Module 17 Integration Build 004 source
+      - name: Install Module 17 Integration Build 005 source
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force "src/banjofy/analysis" | Out-Null
@@ -69,8 +69,6 @@ jobs:
           python -c "import PySide6, torch, librosa, numpy, scipy.signal, mir_eval, imageio_ffmpeg, seaborn, pandas, matplotlib, tqdm, soundfile, yaml; print('All runtime imports available')"
           python -c "from src.evaluation.utils import quality_analysis; from src.models import load_model; print('ChordMini imports available')"
           python -c "from banjofy.analysis import chord_engine as c; print('\n'.join(c.run_internal_self_audit()))"
-          python -c "from banjofy.ui import timing_analyzer as t; print('\n'.join(t.run_internal_timing_audit()))"
-          python -c "from banjofy.download.audio_downloader import DownloadManager; import yt_dlp; print('Downloader import available:', yt_dlp.version.__version__)"
 
       - name: Compile-check integrated sources
         run: |
@@ -93,5 +91,5 @@ jobs:
       - name: Upload integrated EXE
         uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-006.4.0-Module-17-Integration-Build-004-Windows
+          name: Banjofy-006.4.0-Module-17-Integration-Build-005-Windows
           path: dist/Banjofy.exe

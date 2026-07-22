@@ -1,48 +1,6 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 004
-RELEASE AUDIT
+BUILD 005 RELEASE AUDIT
 
-BUILD TYPE
-Complete clean rebuild from confirmed Build 002. No patch script.
+Complete clean rebuild from confirmed Build 002. No patch.
+Firefox-first order, exact Firefox 152 User-Agent, two Firefox cookie attempts and one anonymous fallback added. Corrected Build 004 timing retained. Build 002 cursor timing retained. Laboratory 016 chord engine unchanged.
 
-CORRECTIONS
-- Removed unsupported sparse argument from librosa.beat.beat_track.
-- Pinned a compatible Librosa range.
-- Restored full automatic meter and downbeat analysis.
-- Added Firefox, Edge and Chrome cookiesfrombrowser attempts after anonymous
-  YouTube extraction attempts.
-- Browser cookies are not exported, saved or included in the repository.
-- Detailed technical failure reporting retained.
-- Build 002 30 ms cursor polling retained.
-- Laboratory 016 chord engine unchanged.
-
-STATIC/SYNTHETIC AUDIT
-- Python compilation: passed.
-- Sparse argument absent: passed.
-- Synthetic 3/4 detection: passed.
-- Synthetic 4/4 detection: passed.
-- Synthetic shifted Beat 1 detection: passed.
-- Firefox cookie fallback present: passed.
-- Edge cookie fallback present: passed.
-- Chrome cookie fallback present: passed.
-- Anonymous download remains first: passed.
-- Bundled FFmpeg supplied to yt-dlp: passed.
-- yt-dlp hidden imports included: passed.
-- Chord engine byte-for-byte unchanged from Build 002: passed.
-- Hidden-console setting retained: passed.
-- Workflow replacement and test steps: passed.
-- ZIP integrity and checksums: passed.
-
-RUNTIME ACCEPTANCE STILL REQUIRED
-The offline build cannot contact YouTube, unlock a real Firefox cookie database,
-hear Tennessee Waltz or build the final Windows executable. GitHub Actions and
-the user's Windows acceptance test remain mandatory.
-
-KNOWN LIMITATIONS
-- Firefox should be fully closed while Banjofy reads its cookie database.
-- YouTube can change authentication requirements without notice.
-- Some ambiguous recordings may still require manual meter selection.
-- Chord letters are not yet added to the grid.
-
-CLEAN REBUILD CONFIRMATION
-The package was created in a new empty directory from the complete Build 002
-ZIP. Build 002 and earlier baselines were untouched.
+Runtime YouTube and song-audio acceptance still required on Windows.
