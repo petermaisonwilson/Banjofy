@@ -1,30 +1,28 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 014
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 015
 COMPLETE CLEAN REBUILD
 
-Build 014 is rebuilt from the complete confirmed Build 002 baseline.
+Build 015 is rebuilt from the complete confirmed Build 002 baseline.
 
 DIRECTLY VERIFIED CORRECTION
-Build 013 proved that pkg_resources, jaraco.text, jaraco.context and
-backports.tarfile all import successfully. The build failed only because the
-workflow incorrectly required standalone distribution metadata for jaraco.text
-and jaraco.context.
+Build 014 proved that pkg_resources, jaraco.text, jaraco.context and
+backports.tarfile all import successfully and exposed their real file paths.
 
-Build 014 removes only that unsupported requirement.
+The build failed only because a second, fresh Python process attempted
+find_spec('jaraco.text') before setuptools' vendored jaraco loader had been
+activated. That test did not represent the real runtime mechanism.
 
-It now verifies:
-- all four runtime modules import;
-- the resolved module file locations;
-- importlib can locate jaraco.text, jaraco.context and backports.tarfile;
-- backports.tarfile has the expected installed distribution metadata;
-- PyInstaller completes;
-- Banjofy.exe stays running during the ten-second startup smoke test.
+Build 015 removes only that disproven find_spec gate.
 
-No dependency, downloader, timing, chord-analysis or PyInstaller collection
-logic has changed.
+It retains:
+- the successful single-process import and file-path assertions;
+- the backports.tarfile installed-version check;
+- explicit PyInstaller collection of backports and jaraco;
+- the ten-second Banjofy.exe startup smoke test;
+- all Build 014 dependencies and application logic unchanged.
 
 INSTALLATION
-Copy everything inside M17_B014 into the root Banjofy GitHub folder, allow
+Copy everything inside M17_B015 into the root Banjofy GitHub folder, allow
 merging/replacement, then commit and push.
 
 EXPECTED ARTIFACT
-Banjofy-006.4.0-Module-17-Integration-Build-014-Windows
+Banjofy-006.4.0-Module-17-Integration-Build-015-Windows

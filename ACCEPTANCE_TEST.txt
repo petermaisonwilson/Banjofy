@@ -1,21 +1,20 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 014
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 015
 ACCEPTANCE TEST
 
 GITHUB ACTIONS
-1. Build 013 dependency, ChordMini, Deno and provider gates pass.
-2. pkg_resources, jaraco.text, jaraco.context and backports.tarfile import.
-3. The workflow prints the resolved file path for each runtime module.
-4. importlib finds jaraco.text, jaraco.context and backports.tarfile.
-5. backports.tarfile package metadata is present.
-6. PyInstaller builds Banjofy.exe.
-7. Banjofy.exe remains running for the ten-second startup smoke test.
-8. Complete runtime artifact uploads.
+1. All dependency, ChordMini, Deno and provider gates pass.
+2. pkg_resources, jaraco.text, jaraco.context and backports.tarfile import in
+   one real runtime process and expose valid file paths.
+3. backports.tarfile metadata/version check passes.
+4. PyInstaller builds Banjofy.exe.
+5. Banjofy.exe remains running during the ten-second startup smoke test.
+6. Complete runtime artifact uploads.
 
 WINDOWS
-1. Extract the artifact to a short path such as C:\B14.
+1. Extract to a short path such as C:\B15.
 2. Keep runtime beside Banjofy.exe.
-3. Confirm Banjofy starts without a backports or PyInstaller runtime error.
-4. Test the AC/DC download and full diagnostic window.
+3. Confirm startup without a PyInstaller/backports error.
+4. Test AC/DC download and full diagnostics.
 5. Run ChordMini analysis.
 6. Test Tennessee Waltz 3/4 and two known 4/4 songs.
 7. Confirm established Practice and Library behaviour.

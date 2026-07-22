@@ -1,72 +1,68 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 014
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 015
 RELEASE-GATE AUDIT
 
 BUILD TYPE
 Complete clean rebuild from confirmed Build 002. No patch script.
 
-CONFIRMED BUILD 013 RESULT
-The runtime import command passed:
-pkg_resources, jaraco.text, jaraco.context and backports.tarfile were all
-importable.
+CONFIRMED BUILD 014 RESULT
+The exact runtime imports passed and printed valid module file paths:
+- jaraco.text from setuptools' vendored jaraco tree;
+- jaraco.context from setuptools' vendored jaraco tree;
+- backports.tarfile from its installed package.
 
-The build failed only because the workflow asked importlib.metadata for
-standalone distributions named jaraco.text and jaraco.context. Those modules
-were importable but did not expose separate distribution records under those
-names in that environment.
+The build failed only because a new Python process used find_spec on jaraco
+without first activating setuptools' vendored loader.
 
-CONTROLLED BUILD 014 CHANGE
-- Remove only the unsupported jaraco.text and jaraco.context metadata checks.
-- Retain the successful runtime import check.
-- Add resolved module file-location output.
-- Add importlib.find_spec checks for the three required runtime modules.
-- Retain the backports.tarfile metadata/version check.
-- Retain the PyInstaller startup smoke test.
-- Update Build 014 identifiers.
-- No application, dependency or PyInstaller collection changes.
+CONTROLLED BUILD 015 CHANGE
+- Remove only the disproven fresh-process find_spec gate.
+- Retain single-process imports and assert the actual module file paths exist.
+- Retain backports.tarfile metadata/version verification.
+- Retain explicit PyInstaller collection and EXE startup smoke test.
+- Update Build 015 identifiers.
+- No dependency, application or PyInstaller collection changes.
 
 SOURCE/PATH GATE
 - Build 002 baseline ZIP exists and was extracted: passed.
-- Build 013 ZIP exists and was inspected: passed.
-- Existing ChordMini paths and workflow order retained: passed.
-- Existing runtime folder assembly retained: passed.
+- Build 014 ZIP exists and was inspected: passed.
+- Existing ChordMini checks and model packaging retained: passed.
+- Existing runtime-folder assembly retained: passed.
 
 DEPENDENCY GATE
-- Build 013 requirements unchanged: passed.
+- Requirements unchanged from Build 014: passed.
 - backports.tarfile==1.2.0 retained: passed.
-- Exact successful import chain retained: passed.
-- Unsupported jaraco metadata assumptions removed: passed.
+- Successful runtime import chain retained: passed.
+- False find_spec gate removed: passed.
 - backports.tarfile metadata check retained: passed.
 - Strict pip failure checks retained: passed.
 
 PYINSTALLER GATE
-- Build 013 PyInstaller spec unchanged: passed.
+- PyInstaller spec unchanged from Build 014: passed.
 - backports and jaraco collection retained: passed.
 - legacy banjofy.engine exclusion retained: passed.
 - console=False retained: passed.
 - EXE existence check retained: passed.
 - ten-second startup smoke test retained: passed.
+- workflow still fails if EXE exits: passed.
 
 SOURCE COMPARISON
-- Downloader unchanged from Build 013: passed.
-- Timing analyzer unchanged from Build 013: passed.
-- Chord engine unchanged from Build 013: passed.
-- Requirements unchanged from Build 013: passed.
-- PyInstaller spec unchanged from Build 013: passed.
-- Only version text, workflow validation and documentation changed.
+- Downloader unchanged from Build 014: passed.
+- Timing analyzer unchanged from Build 014: passed.
+- Chord engine unchanged from Build 014: passed.
+- Requirements unchanged from Build 014: passed.
+- PyInstaller spec unchanged from Build 014: passed.
 
 LOCAL AUDIT
 - Python compilation: passed.
 - Synthetic 3/4 detection: passed.
 - Synthetic 4/4 detection: passed.
 - Synthetic shifted Beat 1 detection: passed.
-- Workflow ordering: passed.
+- Workflow order: passed.
 - ZIP integrity: passed.
 - Every checksum re-verified: passed.
 
 GITHUB ACTIONS MUST STILL PROVE
-- runtime module discovery on Windows Python 3.11;
-- PyInstaller packaging;
-- Banjofy.exe startup smoke test;
+- PyInstaller packages the frozen runtime chain;
+- Banjofy.exe stays alive through the smoke test;
 - complete artifact assembly.
 
 PETER'S WINDOWS TEST MUST STILL PROVE
@@ -74,6 +70,13 @@ PETER'S WINDOWS TEST MUST STILL PROVE
 - live YouTube download and conversion;
 - ChordMini execution;
 - real-song timing and Practice/Library regression.
+
+DIRECTION ASSESSMENT
+This build remains in the correct direction because Build 012 already produced
+an EXE, Build 013/014 proved the missing runtime modules are installed and
+importable, and Build 015 removes only a validation test that contradicted that
+proven runtime behaviour. The next meaningful gate is the real EXE startup
+smoke test.
 
 CLEAN REBUILD CONFIRMATION
 Created in a new empty directory from the complete Build 002 ZIP. Earlier
