@@ -1,15 +1,17 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 008
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 009
 ACCEPTANCE TEST
 
 GITHUB ACTIONS
-1. Install complete Build 008 source passes.
-2. Install pinned Python dependencies completes before the import gate.
-3. Early application import gate passes all five imports.
-4. Deno setup runs after the import gate.
-5. Internal audits and modern downloader component verification pass.
-6. PyInstaller builds Banjofy.exe.
-7. Complete runtime package uploads.
+1. Install pinned Python dependencies must stop immediately on any failed pip
+   command.
+2. Verify installed Python dependencies must pass for:
+   numpy, imageio-ffmpeg, librosa, scipy, yt-dlp, curl-cffi and PySide6.
+3. Early application import gate must pass all five application imports.
+4. Deno and the PO-token provider must prepare successfully.
+5. Internal audits and modern downloader verification must pass.
+6. PyInstaller must build Banjofy.exe.
+7. The complete runtime artifact must upload.
 
 WINDOWS
 Test the AC/DC download, full diagnostic window, Tennessee Waltz 3/4 timing,
-two known 4/4 songs, and all established Practice/Library/chord behaviours.
+two known 4/4 songs and all established Practice, Library and chord behaviour.

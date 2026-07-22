@@ -1,36 +1,47 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 008
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 009
 RELEASE AUDIT
 
 BUILD TYPE
 Complete clean rebuild from confirmed Build 002. No patch script.
 
-CONFIRMED BUILD 007 FAILURE
-The banjofy package import passed, proving PYTHONPATH was corrected. Imports of
-main window, timing, chord and downloader failed because third-party
-dependencies had not yet been installed.
+CONFIRMED BUILD 008 FAILURE
+requirements.txt included chord-extractor==0.1.2. No Python 3.12-compatible
+distribution exists. pip therefore aborted the full requirements transaction,
+so numpy and imageio-ffmpeg were never installed. A later successful
+PyInstaller command hid the earlier failure from the workflow step result.
 
-CONTROLLED BUILD 008 CHANGE
-- Dependency installation moved before the application import gate.
-- Job-wide PYTHONPATH retained.
-- Import gate remains before Deno/provider preparation.
-- All workflow labels and artifact paths updated to Build 008.
-- Downloader, timing and chord logic unchanged.
+SOURCE INSPECTION
+The confirmed Laboratory 016 chord engine imports imageio_ffmpeg, librosa,
+numpy and scipy. It does not import chord_extractor.
+
+CONTROLLED BUILD 009 CHANGES
+- Remove unused chord-extractor requirement.
+- Add explicit PowerShell exit checks after every pip command.
+- Add a separate dependency verification gate.
+- Keep dependency verification before application import gate.
+- Update Build 009 labels and artifact names.
+- No downloader, timing or chord-engine logic changes.
 
 STATIC AUDIT
-- Dependency installation before import gate: passed.
-- Import gate before Deno: passed.
-- Five-part import gate retained: passed.
-- Job-wide PYTHONPATH retained: passed.
-- Build 008 labels and artifact naming: passed.
+- Complete Build 002 baseline extracted into a new directory: passed.
+- chord-extractor removed: passed.
+- numpy, imageio-ffmpeg, librosa and scipy retained: passed.
+- yt-dlp, curl-cffi and PySide6 retained: passed.
+- pip failure checks present: passed.
+- dependency import/version gate present: passed.
+- dependency gate before application import gate: passed.
+- application import gate before Deno: passed.
+- downloader unchanged from Build 008: passed.
+- timing analyzer unchanged from Build 008: passed.
+- chord engine unchanged from Build 008: passed.
+- synthetic 3/4, 4/4 and shifted Beat 1 tests: passed.
+- hidden-console configuration retained: passed.
 - Python compilation: passed.
-- Synthetic 3/4, 4/4 and shifted Beat 1 tests: passed.
-- Downloader, timing and chord engine unchanged from Build 007: passed.
-- Hidden-console configuration retained: passed.
 - ZIP integrity and checksums: passed.
 
 RUNTIME PROOF STILL REQUIRED
 GitHub Actions must prove dependency installation, imports, Deno/provider,
-PyInstaller and package assembly. Peter's Windows test must prove live YouTube
+PyInstaller and artifact assembly. Peter's Windows test must prove live YouTube
 download and real-song timing.
 
 CLEAN REBUILD CONFIRMATION

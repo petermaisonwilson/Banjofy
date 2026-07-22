@@ -1,24 +1,28 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 008
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 009
 COMPLETE CLEAN REBUILD
 
-Build 008 is rebuilt from the complete confirmed Build 002 package.
+Build 009 is rebuilt from the complete confirmed Build 002 package.
 
 ROOT-CAUSE CORRECTION
-Build 007 proved that job-wide PYTHONPATH works because the banjofy package
-import passed. The remaining imports failed because the import gate ran before
-third-party dependencies such as numpy and imageio-ffmpeg were installed.
+Build 008's dependency installation failed on chord-extractor==0.1.2, which has
+no compatible distribution for Python 3.12. The confirmed Laboratory 016 chord
+engine does not import or use chord-extractor.
 
-Build 008 corrects only the workflow order:
-1. install complete Build 008 source;
-2. install pinned Python dependencies;
-3. run the early five-part application import gate;
-4. continue to Deno, provider, audits and PyInstaller.
+Because pip resolves the requirements as one transaction, numpy,
+imageio-ffmpeg and the other dependencies were never installed. The following
+PyInstaller command then succeeded, causing the whole PowerShell step to appear
+successful.
 
-No downloader, timing or chord-analysis logic has changed.
+Build 009:
+- removes only the unused incompatible chord-extractor dependency;
+- checks every pip command's exit code;
+- adds a dedicated dependency import/version gate before the application import
+  gate;
+- leaves downloader, timing and chord logic unchanged.
 
 INSTALLATION
-Copy everything inside M17_B008 into the root Banjofy GitHub folder, allow
+Copy everything inside M17_B009 into the root Banjofy GitHub folder, allow
 merging/replacement, then commit and push.
 
 EXPECTED ARTIFACT
-Banjofy-006.4.0-Module-17-Integration-Build-008-Windows
+Banjofy-006.4.0-Module-17-Integration-Build-009-Windows
