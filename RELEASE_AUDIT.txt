@@ -1,59 +1,58 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 013
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 014
 RELEASE-GATE AUDIT
 
 BUILD TYPE
 Complete clean rebuild from confirmed Build 002. No patch script.
 
-CONFIRMED BUILD 012 FAILURE
-The GitHub build and PyInstaller stage passed. The Windows EXE failed at startup
-inside PyInstaller's pkg_resources runtime hook with:
-ModuleNotFoundError: No module named 'backports'
+CONFIRMED BUILD 013 RESULT
+The runtime import command passed:
+pkg_resources, jaraco.text, jaraco.context and backports.tarfile were all
+importable.
 
-The traceback directly identified:
-pkg_resources -> jaraco.text -> jaraco.context -> backports.tarfile
+The build failed only because the workflow asked importlib.metadata for
+standalone distributions named jaraco.text and jaraco.context. Those modules
+were importable but did not expose separate distribution records under those
+names in that environment.
 
-CONTROLLED BUILD 013 CHANGES
-- Add backports.tarfile==1.2.0, which supports Python >=3.8.
-- Verify the exact failing runtime import and metadata chain.
-- Collect backports.tarfile, backports namespace and jaraco namespace.
-- Add a ten-second post-PyInstaller startup smoke test.
-- Update Build 013 identifiers.
-- No application algorithm changes.
+CONTROLLED BUILD 014 CHANGE
+- Remove only the unsupported jaraco.text and jaraco.context metadata checks.
+- Retain the successful runtime import check.
+- Add resolved module file-location output.
+- Add importlib.find_spec checks for the three required runtime modules.
+- Retain the backports.tarfile metadata/version check.
+- Retain the PyInstaller startup smoke test.
+- Update Build 014 identifiers.
+- No application, dependency or PyInstaller collection changes.
 
 SOURCE/PATH GATE
 - Build 002 baseline ZIP exists and was extracted: passed.
-- Build 012 ZIP exists and was inspected: passed.
-- Existing ChordMini physical checks retained: passed.
-- Existing model-aware PyInstaller data and pathex retained: passed.
-- Existing legacy banjofy.engine exclusion retained: passed.
+- Build 013 ZIP exists and was inspected: passed.
+- Existing ChordMini paths and workflow order retained: passed.
 - Existing runtime folder assembly retained: passed.
 
 DEPENDENCY GATE
-- Python 3.11 retained: passed.
-- backports.tarfile==1.2.0 explicit: passed.
-- Exact pkg_resources/jaraco/backports import gate present: passed.
-- Exact package metadata gate present: passed.
+- Build 013 requirements unchanged: passed.
+- backports.tarfile==1.2.0 retained: passed.
+- Exact successful import chain retained: passed.
+- Unsupported jaraco metadata assumptions removed: passed.
+- backports.tarfile metadata check retained: passed.
 - Strict pip failure checks retained: passed.
-- Full Laboratory 016 dependency environment retained: passed.
-- Module 17 downloader dependencies retained: passed.
 
 PYINSTALLER GATE
-- backports.tarfile collect_all present: passed.
-- jaraco.context collect_all present: passed.
-- jaraco.text collect_all present: passed.
-- backports namespace hidden collection present: passed.
-- jaraco namespace hidden collection present: passed.
+- Build 013 PyInstaller spec unchanged: passed.
+- backports and jaraco collection retained: passed.
+- legacy banjofy.engine exclusion retained: passed.
 - console=False retained: passed.
 - EXE existence check retained: passed.
-- ten-second EXE startup smoke test present: passed.
-- workflow fails if EXE exits during startup: passed.
+- ten-second startup smoke test retained: passed.
 
 SOURCE COMPARISON
-- Downloader unchanged from Build 012: passed.
-- Timing analyzer unchanged from Build 012: passed.
-- Chord engine unchanged from Build 012: passed.
-- Only requirements, PyInstaller runtime collection, workflow gates, version
-  text and documentation changed.
+- Downloader unchanged from Build 013: passed.
+- Timing analyzer unchanged from Build 013: passed.
+- Chord engine unchanged from Build 013: passed.
+- Requirements unchanged from Build 013: passed.
+- PyInstaller spec unchanged from Build 013: passed.
+- Only version text, workflow validation and documentation changed.
 
 LOCAL AUDIT
 - Python compilation: passed.
@@ -65,9 +64,9 @@ LOCAL AUDIT
 - Every checksum re-verified: passed.
 
 GITHUB ACTIONS MUST STILL PROVE
-- backports/jaraco chain installs on Windows Python 3.11;
-- PyInstaller includes the runtime chain;
-- Banjofy.exe stays running through the smoke test;
+- runtime module discovery on Windows Python 3.11;
+- PyInstaller packaging;
+- Banjofy.exe startup smoke test;
 - complete artifact assembly.
 
 PETER'S WINDOWS TEST MUST STILL PROVE

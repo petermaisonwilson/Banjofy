@@ -1,28 +1,30 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 013
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 014
 COMPLETE CLEAN REBUILD
 
-Build 013 is rebuilt from the complete confirmed Build 002 baseline.
+Build 014 is rebuilt from the complete confirmed Build 002 baseline.
 
 DIRECTLY VERIFIED CORRECTION
-Build 012 successfully built an EXE, but Windows startup failed with:
+Build 013 proved that pkg_resources, jaraco.text, jaraco.context and
+backports.tarfile all import successfully. The build failed only because the
+workflow incorrectly required standalone distribution metadata for jaraco.text
+and jaraco.context.
 
-ModuleNotFoundError: No module named 'backports'
+Build 014 removes only that unsupported requirement.
 
-The traceback proved the exact frozen runtime chain:
-pkg_resources -> jaraco.text -> jaraco.context -> backports.tarfile
+It now verifies:
+- all four runtime modules import;
+- the resolved module file locations;
+- importlib can locate jaraco.text, jaraco.context and backports.tarfile;
+- backports.tarfile has the expected installed distribution metadata;
+- PyInstaller completes;
+- Banjofy.exe stays running during the ten-second startup smoke test.
 
-Build 013 therefore:
-- installs backports.tarfile==1.2.0;
-- verifies pkg_resources, jaraco.text, jaraco.context and backports.tarfile;
-- explicitly collects that exact chain in PyInstaller;
-- launches the newly built Banjofy.exe for ten seconds before uploading it;
-- fails GitHub Actions if the EXE exits during startup.
-
-No downloader, timing or chord-analysis algorithm has changed.
+No dependency, downloader, timing, chord-analysis or PyInstaller collection
+logic has changed.
 
 INSTALLATION
-Copy everything inside M17_B013 into the root Banjofy GitHub folder, allow
+Copy everything inside M17_B014 into the root Banjofy GitHub folder, allow
 merging/replacement, then commit and push.
 
 EXPECTED ARTIFACT
-Banjofy-006.4.0-Module-17-Integration-Build-013-Windows
+Banjofy-006.4.0-Module-17-Integration-Build-014-Windows
