@@ -1,4 +1,4 @@
-name: Build Banjofy Module 17 Build 011
+name: Build Banjofy Module 17 Build 012
 
 on:
   push:
@@ -21,9 +21,9 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.11"
 
-      - name: Verify Build 011 clean-rebuild files
+      - name: Verify Build 012 clean-rebuild files
         shell: pwsh
         run: |
           $required = @(
@@ -36,14 +36,14 @@ jobs:
             "replacements/module17integration/RUNTIME_VERSIONS.json"
           )
           foreach ($file in $required) {
-            if (-not (Test-Path $file)) { throw "Missing Build 011 file: $file" }
+            if (-not (Test-Path $file)) { throw "Missing Build 012 file: $file" }
           }
 
       - name: Preserve repository window
         shell: pwsh
         run: Copy-Item "src/banjofy/ui/main_window.py" "src/banjofy/ui/main_window_legacy.py" -Force
 
-      - name: Install complete Build 011 source
+      - name: Install complete Build 012 source
         shell: pwsh
         run: |
           Copy-Item "replacements/module17integration/main_window.py" "src/banjofy/ui/main_window.py" -Force
@@ -67,8 +67,8 @@ jobs:
       - name: Install pinned Python dependencies
         shell: pwsh
         run: |
-          python -m pip install --upgrade pip
-          if ($LASTEXITCODE -ne 0) { throw "pip upgrade failed" }
+          python -m pip install --upgrade pip wheel
+          if ($LASTEXITCODE -ne 0) { throw "pip and wheel upgrade failed" }
 
           python -m pip install -r requirements.txt
           if ($LASTEXITCODE -ne 0) { throw "requirements installation failed" }
@@ -76,20 +76,11 @@ jobs:
           python -m pip install pyinstaller==6.14.2
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller installation failed" }
 
-      - name: Verify installed Python dependencies
+      - name: Verify confirmed Laboratory 016 and Module 17 dependencies
         shell: pwsh
         run: |
-          python -c "import numpy; print('numpy', numpy.__version__)"
-          if ($LASTEXITCODE -ne 0) { throw "numpy import failed" }
-
-          python -c "import imageio_ffmpeg; print('imageio-ffmpeg', imageio_ffmpeg.__version__)"
-          if ($LASTEXITCODE -ne 0) { throw "imageio-ffmpeg import failed" }
-
-          python -c "import librosa; print('librosa', librosa.__version__)"
-          if ($LASTEXITCODE -ne 0) { throw "librosa import failed" }
-
-          python -c "import scipy; print('scipy', scipy.__version__)"
-          if ($LASTEXITCODE -ne 0) { throw "scipy import failed" }
+          python -c "import torch, librosa, numpy, scipy.signal, mir_eval, imageio_ffmpeg, seaborn, pandas, matplotlib, tqdm, soundfile, yaml; print('Confirmed Laboratory 016 runtime imports available')"
+          if ($LASTEXITCODE -ne 0) { throw "Laboratory 016 runtime import chain failed" }
 
           python -c "import yt_dlp; print('yt-dlp', yt_dlp.version.__version__)"
           if ($LASTEXITCODE -ne 0) { throw "yt-dlp import failed" }
@@ -99,6 +90,9 @@ jobs:
 
           python -c "import PySide6; print('PySide6', PySide6.__version__)"
           if ($LASTEXITCODE -ne 0) { throw "PySide6 import failed" }
+
+          python -c "import importlib.metadata as m; print('bgutil', m.version('bgutil-ytdlp-pot-provider')); print('yt-dlp-ejs', m.version('yt-dlp-ejs'))"
+          if ($LASTEXITCODE -ne 0) { throw "Modern downloader package metadata verification failed" }
 
       - name: Early application import gate
         shell: pwsh
@@ -184,18 +178,18 @@ jobs:
       - name: Assemble complete Windows package
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build011/runtime" | Out-Null
-          Copy-Item "dist/Banjofy.exe" "dist/Banjofy-Module17-Build011/Banjofy.exe" -Force
-          Copy-Item "runtime/deno.exe" "dist/Banjofy-Module17-Build011/runtime/deno.exe" -Force
-          Copy-Item "runtime/bgutil-ytdlp-pot-provider" "dist/Banjofy-Module17-Build011/runtime/bgutil-ytdlp-pot-provider" -Recurse -Force
-          Copy-Item "BUILD_DEPENDENCY_LOCK.txt" "dist/Banjofy-Module17-Build011/BUILD_DEPENDENCY_LOCK.txt" -Force
-          Copy-Item "replacements/module17integration/RUNTIME_VERSIONS.json" "dist/Banjofy-Module17-Build011/RUNTIME_VERSIONS.json" -Force
-          if (-not (Test-Path "dist/Banjofy-Module17-Build011/Banjofy.exe")) { throw "Banjofy.exe missing" }
-          if (-not (Test-Path "dist/Banjofy-Module17-Build011/runtime/deno.exe")) { throw "Packaged Deno missing" }
+          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build012/runtime" | Out-Null
+          Copy-Item "dist/Banjofy.exe" "dist/Banjofy-Module17-Build012/Banjofy.exe" -Force
+          Copy-Item "runtime/deno.exe" "dist/Banjofy-Module17-Build012/runtime/deno.exe" -Force
+          Copy-Item "runtime/bgutil-ytdlp-pot-provider" "dist/Banjofy-Module17-Build012/runtime/bgutil-ytdlp-pot-provider" -Recurse -Force
+          Copy-Item "BUILD_DEPENDENCY_LOCK.txt" "dist/Banjofy-Module17-Build012/BUILD_DEPENDENCY_LOCK.txt" -Force
+          Copy-Item "replacements/module17integration/RUNTIME_VERSIONS.json" "dist/Banjofy-Module17-Build012/RUNTIME_VERSIONS.json" -Force
+          if (-not (Test-Path "dist/Banjofy-Module17-Build012/Banjofy.exe")) { throw "Banjofy.exe missing" }
+          if (-not (Test-Path "dist/Banjofy-Module17-Build012/runtime/deno.exe")) { throw "Packaged Deno missing" }
 
       - name: Upload complete Windows package
         uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-006.4.0-Module-17-Integration-Build-011-Windows
-          path: dist/Banjofy-Module17-Build011
+          name: Banjofy-006.4.0-Module-17-Integration-Build-012-Windows
+          path: dist/Banjofy-Module17-Build012
           if-no-files-found: error
