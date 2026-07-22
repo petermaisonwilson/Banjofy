@@ -13,6 +13,9 @@ from PySide6.QtCore import Qt, QTimer, QUrl
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtWidgets import (
     QApplication,
+    QDialog,
+    QFileDialog,
+    QTextEdit,
     QHBoxLayout,
     QLabel,
     QMessageBox,
@@ -27,7 +30,7 @@ from banjofy.ui.timing_analyzer import TimingAnalysis, TimingAnalyzer
 from banjofy.analysis.chord_engine import AnalysisResult, analyse_audio
 
 
-APP_VERSION = "Banjofy 006.4.0 Module 17 Integration Build 005"
+APP_VERSION = "Banjofy 006.4.0 Module 17 Integration Build 006"
 
 
 class MainWindow(LegacyMainWindow):
@@ -94,9 +97,26 @@ class MainWindow(LegacyMainWindow):
         self.media_player.playbackStateChanged.connect(
             self._on_playback_state_for_grid_cursor
         )
+        self.download_diagnostic_button = QPushButton("View Full Download Diagnostic")
+        self.download_diagnostic_button.setEnabled(False)
+        self.download_diagnostic_button.clicked.connect(
+            self._show_download_diagnostic
+        )
+        diagnostic_parent = self.download_status.parentWidget()
+        diagnostic_layout = diagnostic_parent.layout() if diagnostic_parent else None
+        if diagnostic_layout is not None:
+            status_index = diagnostic_layout.indexOf(self.download_status)
+            diagnostic_layout.insertWidget(status_index + 1, self.download_diagnostic_button)
+
+        self.download_diagnostic_timer = QTimer(self)
+        self.download_diagnostic_timer.setInterval(500)
+        self.download_diagnostic_timer.timeout.connect(
+            self._refresh_download_diagnostic_button
+        )
+        self.download_diagnostic_timer.start()
 
         self.statusBar().showMessage(
-            "Ready - Module 17 Firefox-first download and meter analysis loaded"
+            "Ready - Module 17 modern YouTube stack and meter analysis loaded"
         )
 
     def _set_visible_titles(self) -> None:
@@ -763,6 +783,69 @@ class MainWindow(LegacyMainWindow):
         if self.grid_cursor_timer.isActive():
             self.grid_cursor_timer.stop()
         self._poll_grid_cursor()
+
+    def _refresh_download_diagnostic_button(self) -> None:
+        try:
+            from banjofy.download.audio_downloader import DownloadManager
+            self.download_diagnostic_button.setEnabled(
+                DownloadManager.latest_log_path() is not None
+            )
+        except Exception:
+            self.download_diagnostic_button.setEnabled(False)
+
+    def _show_download_diagnostic(self) -> None:
+        from banjofy.download.audio_downloader import DownloadManager
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Banjofy Download Diagnostic")
+        dialog.resize(1050, 700)
+        layout = QVBoxLayout(dialog)
+
+        path = DownloadManager.latest_log_path()
+        path_label = QLabel(
+            f"Diagnostic file: {path}" if path else "No diagnostic file is available."
+        )
+        path_label.setWordWrap(True)
+        layout.addWidget(path_label)
+
+        text_box = QTextEdit()
+        text_box.setReadOnly(True)
+        text_box.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+        text_box.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        text_box.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        text_box.setPlainText(DownloadManager.latest_log_text())
+        layout.addWidget(text_box, 1)
+
+        buttons = QHBoxLayout()
+        copy_button = QPushButton("Copy Full Diagnostic")
+        save_button = QPushButton("Save Diagnostic As")
+        close_button = QPushButton("Close")
+
+        def copy_text() -> None:
+            QApplication.clipboard().setText(text_box.toPlainText())
+
+        def save_text() -> None:
+            destination, _ = QFileDialog.getSaveFileName(
+                dialog,
+                "Save Download Diagnostic",
+                "banjofy_download_diagnostic.txt",
+                "Text files (*.txt)",
+            )
+            if destination:
+                Path(destination).write_text(
+                    text_box.toPlainText(),
+                    encoding="utf-8",
+                )
+
+        copy_button.clicked.connect(copy_text)
+        save_button.clicked.connect(save_text)
+        close_button.clicked.connect(dialog.accept)
+        buttons.addWidget(copy_button)
+        buttons.addWidget(save_button)
+        buttons.addStretch()
+        buttons.addWidget(close_button)
+        layout.addLayout(buttons)
+        dialog.exec()
 
     # ---------- Playback ----------
 

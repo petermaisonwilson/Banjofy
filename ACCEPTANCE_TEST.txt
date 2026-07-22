@@ -1,9 +1,39 @@
-BUILD 005 ACCEPTANCE TEST
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 006
+ACCEPTANCE TEST
 
-1. Sign into YouTube in Firefox and confirm the video plays.
-2. Close Firefox completely.
-3. Download the same song in Banjofy.
-4. Confirm Firefox signed-in session is attempted first.
-5. On failure, record the visible technical error text.
-6. Load Tennessee Waltz; confirm no sparse error and test Auto 3/4 plus Beat 1.
-7. Re-test known 4/4 songs and all chord/Practice/Library controls.
+A. BUILD PACKAGE
+1. GitHub Actions passes.
+2. Artifact contains Banjofy.exe and runtime folder.
+3. runtime contains deno.exe and bgutil-ytdlp-pot-provider.
+4. BUILD_DEPENDENCY_LOCK.txt and RUNTIME_VERSIONS.json are present.
+
+B. DOWNLOAD ROOT-CAUSE TEST
+1. Start Banjofy with runtime beside Banjofy.exe.
+2. Search for It's a Long Way to the Top.
+3. Select the official audio result.
+4. Download.
+5. Status should progress through component verification, verified format
+   discovery, best verified audio and FFmpeg conversion.
+6. A usable audio file must be created.
+7. Analyse Downloaded Audio must enable.
+8. Repeat with one unrelated public song.
+
+C. DIAGNOSTIC TEST
+1. Click View Full Download Diagnostic.
+2. Confirm full text is visible in a large separate window.
+3. Confirm vertical and horizontal scroll bars are always present.
+4. Confirm Copy Full Diagnostic copies all text.
+5. Confirm Save Diagnostic As creates a readable text file.
+6. Confirm the log shows yt-dlp version, Deno path, provider path, FFmpeg path,
+   format count, audio-capable format count and final result.
+
+D. TIMING
+1. Load Tennessee Waltz.
+2. Confirm no sparse-argument error.
+3. Confirm fresh timing completes.
+4. Confirm Auto attempts 3/4 and Beat 1 alignment.
+5. Test two known 4/4 songs.
+
+E. REGRESSION
+Confirm chord levels, Practice controls, seek, repeat, count-in, Beep, reports,
+Library save/list/delete and Build 002 cursor timing remain functional.

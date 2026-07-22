@@ -1,15 +1,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
+import json
+import os
 import re
+import sys
+import threading
+import traceback
 from typing import Callable
 
 import imageio_ffmpeg
 from yt_dlp import YoutubeDL
+import yt_dlp
 
 from banjofy.models.search_result import SearchResult
-from banjofy.storage.paths import audio_folder
+from banjofy.storage.paths import audio_folder, get_library_path
 
 
 ProgressCallback = Callable[[str, int, str], None]
@@ -31,20 +38,127 @@ def _safe_filename(text: str) -> str:
     return text[:120] or "audio"
 
 
+def _runtime_root() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent / "runtime"
+    return Path(__file__).resolve().parents[3] / "runtime"
+
+
+def _diagnostic_folder() -> Path:
+    library = get_library_path()
+    if library is None:
+        folder = Path.home() / "Banjofy Diagnostics"
+    else:
+        folder = Path(library) / "diagnostics"
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
 def _usable_media_files(folder: Path, stem: str) -> list[Path]:
-    rejected = {".part", ".ytdl", ".tmp", ".json", ".webp", ".jpg", ".jpeg", ".png"}
-    files = []
+    rejected = {
+        ".part", ".ytdl", ".tmp", ".json", ".webp", ".jpg",
+        ".jpeg", ".png", ".description",
+    }
+    result = []
     for path in folder.glob(stem + ".*"):
         if not path.is_file() or path.suffix.lower() in rejected:
             continue
         if path.stat().st_size < 4096:
             continue
-        files.append(path)
-    return sorted(files, key=lambda p: p.stat().st_mtime, reverse=True)
+        result.append(path)
+    return sorted(result, key=lambda p: p.stat().st_mtime, reverse=True)
+
+
+class _DiagnosticLogger:
+    def __init__(self, log_path: Path) -> None:
+        self.log_path = log_path
+        self._lock = threading.Lock()
+        self._lines: list[str] = []
+
+    def _write(self, level: str, message: str) -> None:
+        text = str(message).rstrip()
+        line = f"[{level}] {text}"
+        with self._lock:
+            self._lines.append(line)
+            self.log_path.write_text("\n".join(self._lines) + "\n", encoding="utf-8")
+
+    def debug(self, message: str) -> None:
+        self._write("debug", message)
+
+    def warning(self, message: str) -> None:
+        self._write("warning", message)
+
+    def error(self, message: str) -> None:
+        self._write("error", message)
+
+    def add(self, message: str) -> None:
+        self._write("banjofy", message)
 
 
 class DownloadManager:
-    """Download and normalise one usable audio file for the selected result."""
+    """Modern YouTube downloader with explicit component verification.
+
+    This is deliberately a single designed extraction path:
+    yt-dlp + EJS + Deno + bgutil PO-token provider + mweb.
+    It does not cycle through guessed browser clients or format strings.
+    """
+
+    _latest_log_path: Path | None = None
+
+    @classmethod
+    def latest_log_path(cls) -> Path | None:
+        path = cls._latest_log_path
+        return path if path and path.exists() else None
+
+    @classmethod
+    def latest_log_text(cls) -> str:
+        path = cls.latest_log_path()
+        if path is None:
+            return "No download diagnostic has been created yet."
+        try:
+            return path.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            return f"Could not read diagnostic log: {exc}"
+
+    def _component_paths(self) -> tuple[Path, Path, Path]:
+        runtime = _runtime_root()
+        deno = runtime / "deno.exe"
+        provider_server = runtime / "bgutil-ytdlp-pot-provider" / "server"
+        ffmpeg = Path(imageio_ffmpeg.get_ffmpeg_exe())
+        return deno, provider_server, ffmpeg
+
+    def _verify_components(self, logger: _DiagnosticLogger) -> tuple[Path, Path, Path]:
+        deno, provider_server, ffmpeg = self._component_paths()
+        checks = {
+            "runtime_root": str(_runtime_root()),
+            "yt_dlp_version": getattr(yt_dlp.version, "__version__", "unknown"),
+            "deno": str(deno),
+            "deno_exists": deno.exists(),
+            "provider_server": str(provider_server),
+            "provider_server_exists": provider_server.exists(),
+            "provider_package_json": (provider_server / "package.json").exists(),
+            "provider_node_modules": (provider_server / "node_modules").exists(),
+            "ffmpeg": str(ffmpeg),
+            "ffmpeg_exists": ffmpeg.exists(),
+        }
+        logger.add("COMPONENT CHECK")
+        logger.add(json.dumps(checks, indent=2))
+
+        missing = []
+        if not deno.exists():
+            missing.append(f"Deno runtime missing: {deno}")
+        if not provider_server.exists():
+            missing.append(f"PO-token provider server missing: {provider_server}")
+        if not (provider_server / "node_modules").exists():
+            missing.append(
+                "PO-token provider dependencies are missing: "
+                f"{provider_server / 'node_modules'}"
+            )
+        if not ffmpeg.exists():
+            missing.append(f"FFmpeg missing: {ffmpeg}")
+        if missing:
+            raise RuntimeError("Downloader component verification failed:\n" + "\n".join(missing))
+        return deno, provider_server, ffmpeg
 
     def download(
         self,
@@ -71,111 +185,136 @@ class DownloadManager:
                 was_cached=True,
             )
 
-        ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
-        errors: list[str] = []
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_path = _diagnostic_folder() / f"download_{stamp}_{safe[:50]}.log.txt"
+        DownloadManager._latest_log_path = log_path
+        logger = _DiagnosticLogger(log_path)
+        logger.add("BANJOFY MODULE 17 BUILD 006 DOWNLOAD DIAGNOSTIC")
+        logger.add(f"UTC/local timestamp: {datetime.now().isoformat(timespec='seconds')}")
+        logger.add(f"Title: {result.title}")
+        logger.add(f"Channel: {result.channel}")
+        logger.add(f"URL: {result.url}")
 
-        def hook(data: dict) -> None:
-            if not progress:
-                return
-            status = str(data.get("status", ""))
-            if status == "downloading":
-                downloaded = int(data.get("downloaded_bytes") or 0)
-                total = int(
-                    data.get("total_bytes")
-                    or data.get("total_bytes_estimate")
-                    or 0
-                )
-                percent = int(downloaded * 100 / total) if total else 0
-                progress("downloading", max(0, min(percent, 99)), "")
-            elif status == "finished":
-                progress("converting audio", 99, str(data.get("filename", "")))
+        try:
+            deno, provider_server, ffmpeg = self._verify_components(logger)
 
-        common = {
-            "outtmpl": str(folder / (safe + ".%(ext)s")),
-            "quiet": True,
-            "no_warnings": True,
-            "noplaylist": True,
-            "retries": 5,
-            "fragment_retries": 5,
-            "extractor_retries": 3,
-            "socket_timeout": 30,
-            "concurrent_fragment_downloads": 1,
-            "progress_hooks": [hook],
-            "ffmpeg_location": ffmpeg,
-            "windowsfilenames": True,
-            "overwrites": True,
-            "nopart": False,
-            "postprocessors": [{
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "m4a",
-                "preferredquality": "0",
-            }],
-        }
-
-        # Use one selector that explicitly accepts either audio-only or any
-        # combined stream containing audio. Alternate player clients are tried
-        # only when the normal extraction route cannot expose a usable stream.
-        attempts: list[tuple[str, dict]] = [
-            ("Firefox signed-in session", {
-                "format": "ba/b[acodec!=none]/best*[acodec!=none]/best",
-                "cookiesfrombrowser": ("firefox",),
-                "http_headers": {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"},
-            }),
-            ("Firefox signed-in web session", {
-                "format": "best*[acodec!=none]/b[acodec!=none]/ba/best",
-                "cookiesfrombrowser": ("firefox",),
-                "http_headers": {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"},
-                "extractor_args": {"youtube": {"player_client": ["web", "web_safari", "web_embedded"]}},
-            }),
-            ("single anonymous fallback", {
-                "format": "best*[acodec!=none]/b[acodec!=none]/ba/best",
-            }),
-        ]
-
-        for label, special in attempts:
             if progress:
-                progress(f"trying {label}", 5, "")
-            try:
-                options = dict(common)
-                options.update(special)
-                with YoutubeDL(options) as ydl:
-                    ydl.download([result.url])
+                progress("verifying modern YouTube components", 3, str(log_path))
 
-                downloaded = _usable_media_files(folder, safe)
-                if not downloaded:
-                    raise FileNotFoundError(
-                        "Download completed but no usable audio file was produced"
+            def hook(data: dict) -> None:
+                status = str(data.get("status", ""))
+                if status == "downloading":
+                    downloaded = int(data.get("downloaded_bytes") or 0)
+                    total = int(
+                        data.get("total_bytes")
+                        or data.get("total_bytes_estimate")
+                        or 0
                     )
-                chosen = downloaded[0]
-                if progress:
-                    progress("complete", 100, str(chosen))
-                return DownloadedAudio(
-                    title=result.title,
-                    channel=result.channel,
-                    duration=result.duration,
-                    source_url=result.url,
-                    file_path=chosen,
-                    was_cached=False,
-                )
-            except Exception as exc:
-                errors.append(f"{label}: {exc}")
-                for partial in folder.glob(safe + ".*"):
-                    if partial.suffix.lower() in {".part", ".ytdl", ".tmp"}:
-                        try:
-                            partial.unlink()
-                        except OSError:
-                            pass
+                    percent = int(downloaded * 100 / total) if total else 0
+                    if progress:
+                        progress("downloading", max(5, min(percent, 97)), str(log_path))
+                elif status == "finished":
+                    if progress:
+                        progress("converting audio", 98, str(log_path))
 
-        combined = " | ".join(errors[-3:]) or "No downloader diagnostic was returned"
-        lowered = combined.lower()
-        if "sign in to confirm" in lowered or "not a bot" in lowered:
-            raise RuntimeError(
-                "YouTube requires a signed-in browser session. Banjofy tried "
-                "Firefox, Edge and Chrome cookies but could not use one. Sign in "
-                "to YouTube in Firefox, close Firefox completely, then retry. "
-                f"Technical detail: {combined}"
+            extractor_args = {
+                "youtube": {
+                    "player_client": ["mweb"],
+                    "fetch_pot": ["always"],
+                    "pot_trace": ["true"],
+                    "jsc_trace": ["true"],
+                },
+                "youtubepot-bgutilscript": {
+                    "server_home": [str(provider_server)],
+                },
+            }
+
+            common = {
+                "logger": logger,
+                "verbose": True,
+                "quiet": False,
+                "no_warnings": False,
+                "noplaylist": True,
+                "retries": 5,
+                "fragment_retries": 5,
+                "extractor_retries": 3,
+                "socket_timeout": 40,
+                "windowsfilenames": True,
+                "ffmpeg_location": str(ffmpeg),
+                "js_runtimes": {"deno": {"path": str(deno)}},
+                "extractor_args": extractor_args,
+                "progress_hooks": [hook],
+                "outtmpl": str(folder / (safe + ".%(ext)s")),
+            }
+
+            # Stage 1: format discovery. Do not guess a format until yt-dlp,
+            # EJS and the PO-token provider have exposed the real formats.
+            if progress:
+                progress("discovering verified audio formats", 5, str(log_path))
+            discovery_options = dict(common)
+            discovery_options.update({
+                "skip_download": True,
+                "listformats": False,
+            })
+
+            with YoutubeDL(discovery_options) as ydl:
+                info = ydl.extract_info(result.url, download=False)
+
+            formats = list(info.get("formats") or [])
+            audio_formats = [
+                fmt for fmt in formats
+                if fmt.get("acodec") not in (None, "none")
+            ]
+            logger.add(f"Format discovery returned {len(formats)} total formats")
+            logger.add(f"Audio-capable formats: {len(audio_formats)}")
+            logger.add(
+                "Audio format IDs: "
+                + ", ".join(str(fmt.get("format_id")) for fmt in audio_formats[:50])
             )
-        raise RuntimeError(
-            "Banjofy could not obtain a usable audio stream after standard, TV/mobile "
-            "and web extraction attempts. Technical detail: " + combined
-        )
+            if not audio_formats:
+                raise RuntimeError(
+                    "Modern format discovery completed but exposed no audio-capable formats. "
+                    "See the diagnostic log for EJS and PO-token provider messages."
+                )
+
+            # Stage 2: one normal yt-dlp selection from the verified format list.
+            if progress:
+                progress("downloading best verified audio", 8, str(log_path))
+            download_options = dict(common)
+            download_options.update({
+                "format": "bestaudio/best",
+                "postprocessors": [{
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "m4a",
+                    "preferredquality": "0",
+                }],
+            })
+            with YoutubeDL(download_options) as ydl:
+                ydl.download([result.url])
+
+            downloaded = _usable_media_files(folder, safe)
+            if not downloaded:
+                raise FileNotFoundError(
+                    "yt-dlp reported completion but no usable media file was produced"
+                )
+
+            chosen = downloaded[0]
+            logger.add(f"SUCCESS: {chosen}")
+            logger.add(f"File size: {chosen.stat().st_size} bytes")
+            if progress:
+                progress("complete", 100, str(chosen))
+            return DownloadedAudio(
+                title=result.title,
+                channel=result.channel,
+                duration=result.duration,
+                source_url=result.url,
+                file_path=chosen,
+                was_cached=False,
+            )
+        except Exception as exc:
+            logger.add("FAILURE")
+            logger.add(f"{type(exc).__name__}: {exc}")
+            logger.add(traceback.format_exc())
+            raise RuntimeError(
+                f"Download failed. Full diagnostic saved to:\n{log_path}\n\n{exc}"
+            ) from exc

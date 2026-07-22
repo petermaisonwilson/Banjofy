@@ -11,6 +11,8 @@ if SRC_DIR not in sys.path:
 hiddenimports = []
 hiddenimports += collect_submodules("banjofy")
 hiddenimports += collect_submodules("yt_dlp")
+hiddenimports += collect_submodules("yt_dlp_plugins")
+hiddenimports += collect_submodules("curl_cffi")
 hiddenimports += [
     "torch",
     "librosa",
