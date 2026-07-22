@@ -1,22 +1,25 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 010
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 011
 ACCEPTANCE TEST
 
 GITHUB ACTIONS
-1. Clone and verify dedicated ChordMini model passes.
-2. All five required model files exist.
-3. Dependency and application import gates pass.
-4. ChordMini evaluation and model-loader imports pass.
-5. chordmini_root resolves the cloned model and verifies checkpoint, test script
-   and configuration.
-6. PyInstaller completes without missing ChordMini or legacy Beat warnings.
-7. Banjofy.exe and the complete runtime package upload.
-8. Artifact includes CHORDMINI_SOURCE.txt.
+1. Clone dedicated ChordMini model passes.
+2. The three confirmed Laboratory 016 physical checks pass:
+   checkpoint, inference script and configuration.
+3. Pinned dependency installation and dependency verification pass.
+4. The five-part Banjofy application import gate passes.
+5. Deno and the PO-token provider prepare successfully.
+6. The confirmed ChordMini Python interface imports pass:
+   quality_analysis and load_model.
+7. chordmini_root verifies the three runtime assets actually used.
+8. PyInstaller builds Banjofy.exe without missing ChordMini or legacy-engine
+   collection failures.
+9. The complete runtime artifact uploads.
 
 WINDOWS
-1. Start Banjofy with runtime beside the EXE.
+1. Start Banjofy with the runtime folder beside Banjofy.exe.
 2. Download the AC/DC test song.
 3. Confirm format discovery, download and FFmpeg conversion.
-4. Run chord analysis and confirm ChordMini loads without a missing-model error.
-5. Test the full diagnostic window.
+4. Run chord analysis and confirm ChordMini loads.
+5. Test the full download diagnostic window.
 6. Test Tennessee Waltz 3/4 and two known 4/4 songs.
-7. Confirm all established Practice, Library and chord behaviours.
+7. Confirm established Practice, Library and chord behaviour.

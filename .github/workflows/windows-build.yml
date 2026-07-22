@@ -1,4 +1,4 @@
-name: Build Banjofy Module 17 Build 010
+name: Build Banjofy Module 17 Build 011
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Verify Build 010 clean-rebuild files
+      - name: Verify Build 011 clean-rebuild files
         shell: pwsh
         run: |
           $required = @(
@@ -36,14 +36,14 @@ jobs:
             "replacements/module17integration/RUNTIME_VERSIONS.json"
           )
           foreach ($file in $required) {
-            if (-not (Test-Path $file)) { throw "Missing Build 010 file: $file" }
+            if (-not (Test-Path $file)) { throw "Missing Build 011 file: $file" }
           }
 
       - name: Preserve repository window
         shell: pwsh
         run: Copy-Item "src/banjofy/ui/main_window.py" "src/banjofy/ui/main_window_legacy.py" -Force
 
-      - name: Install complete Build 010 source
+      - name: Install complete Build 011 source
         shell: pwsh
         run: |
           Copy-Item "replacements/module17integration/main_window.py" "src/banjofy/ui/main_window.py" -Force
@@ -55,26 +55,14 @@ jobs:
 
 
 
-      - name: Clone and verify dedicated ChordMini model
+      - name: Clone dedicated ChordMini model
         shell: pwsh
         run: |
           git clone --depth 1 https://github.com/ptnghia-j/ChordMini.git ChordMini
           if ($LASTEXITCODE -ne 0) { throw "ChordMini clone failed" }
-
-          $requiredModelFiles = @(
-            "ChordMini/checkpoints/2e1d_model_best.pth",
-            "ChordMini/src/evaluation/test.py",
-            "ChordMini/config/ChordMini.yaml",
-            "ChordMini/src/models/__init__.py",
-            "ChordMini/src/evaluation/utils.py"
-          )
-          foreach ($file in $requiredModelFiles) {
-            if (-not (Test-Path $file)) { throw "Missing ChordMini asset: $file" }
-          }
-
-          $commit = git -C ChordMini rev-parse HEAD
-          if ($LASTEXITCODE -ne 0) { throw "Could not record ChordMini commit" }
-          "ChordMini commit: $commit" | Out-File -Encoding utf8 CHORDMINI_SOURCE.txt
+          if (-not (Test-Path "ChordMini/checkpoints/2e1d_model_best.pth")) { throw "ChordNet checkpoint missing" }
+          if (-not (Test-Path "ChordMini/src/evaluation/test.py")) { throw "ChordMini inference script missing" }
+          if (-not (Test-Path "ChordMini/config/ChordMini.yaml")) { throw "ChordMini configuration missing" }
 
       - name: Install pinned Python dependencies
         shell: pwsh
@@ -196,19 +184,18 @@ jobs:
       - name: Assemble complete Windows package
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build010/runtime" | Out-Null
-          Copy-Item "dist/Banjofy.exe" "dist/Banjofy-Module17-Build010/Banjofy.exe" -Force
-          Copy-Item "runtime/deno.exe" "dist/Banjofy-Module17-Build010/runtime/deno.exe" -Force
-          Copy-Item "runtime/bgutil-ytdlp-pot-provider" "dist/Banjofy-Module17-Build010/runtime/bgutil-ytdlp-pot-provider" -Recurse -Force
-          Copy-Item "BUILD_DEPENDENCY_LOCK.txt" "dist/Banjofy-Module17-Build010/BUILD_DEPENDENCY_LOCK.txt" -Force
-          Copy-Item "CHORDMINI_SOURCE.txt" "dist/Banjofy-Module17-Build010/CHORDMINI_SOURCE.txt" -Force
-          Copy-Item "replacements/module17integration/RUNTIME_VERSIONS.json" "dist/Banjofy-Module17-Build010/RUNTIME_VERSIONS.json" -Force
-          if (-not (Test-Path "dist/Banjofy-Module17-Build010/Banjofy.exe")) { throw "Banjofy.exe missing" }
-          if (-not (Test-Path "dist/Banjofy-Module17-Build010/runtime/deno.exe")) { throw "Packaged Deno missing" }
+          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build011/runtime" | Out-Null
+          Copy-Item "dist/Banjofy.exe" "dist/Banjofy-Module17-Build011/Banjofy.exe" -Force
+          Copy-Item "runtime/deno.exe" "dist/Banjofy-Module17-Build011/runtime/deno.exe" -Force
+          Copy-Item "runtime/bgutil-ytdlp-pot-provider" "dist/Banjofy-Module17-Build011/runtime/bgutil-ytdlp-pot-provider" -Recurse -Force
+          Copy-Item "BUILD_DEPENDENCY_LOCK.txt" "dist/Banjofy-Module17-Build011/BUILD_DEPENDENCY_LOCK.txt" -Force
+          Copy-Item "replacements/module17integration/RUNTIME_VERSIONS.json" "dist/Banjofy-Module17-Build011/RUNTIME_VERSIONS.json" -Force
+          if (-not (Test-Path "dist/Banjofy-Module17-Build011/Banjofy.exe")) { throw "Banjofy.exe missing" }
+          if (-not (Test-Path "dist/Banjofy-Module17-Build011/runtime/deno.exe")) { throw "Packaged Deno missing" }
 
       - name: Upload complete Windows package
         uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-006.4.0-Module-17-Integration-Build-010-Windows
-          path: dist/Banjofy-Module17-Build010
+          name: Banjofy-006.4.0-Module-17-Integration-Build-011-Windows
+          path: dist/Banjofy-Module17-Build011
           if-no-files-found: error

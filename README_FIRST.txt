@@ -1,29 +1,35 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 010
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 011
 COMPLETE CLEAN REBUILD
 
-Build 010 is rebuilt from the complete confirmed Build 002 package.
+Build 011 is rebuilt from the complete confirmed Build 002 baseline.
 
-ROOT-CAUSE CORRECTION
-Build 009 reached PyInstaller but failed because the spec required a ChordMini
-folder that the workflow had never cloned. The confirmed Laboratory 016 build
-did clone ptnghia-j/ChordMini and verified the checkpoint, inference script and
-configuration before packaging.
+DIRECTLY EVIDENCED CORRECTION
+Build 010 cloned ChordMini successfully but then failed because it required two
+extra physical paths that were not part of the confirmed Laboratory 016 build:
 
-Build 010 restores that proven model-asset process and also stops PyInstaller
-from blindly collecting the incompatible legacy banjofy.engine package.
-
-MODEL ASSETS VERIFIED
-- ChordMini/checkpoints/2e1d_model_best.pth
-- ChordMini/src/evaluation/test.py
-- ChordMini/config/ChordMini.yaml
 - ChordMini/src/models/__init__.py
 - ChordMini/src/evaluation/utils.py
 
-The workflow records the exact cloned ChordMini commit in CHORDMINI_SOURCE.txt.
+Build 011 reproduces the confirmed Laboratory 016 physical-asset checks exactly:
+
+- ChordMini/checkpoints/2e1d_model_best.pth
+- ChordMini/src/evaluation/test.py
+- ChordMini/config/ChordMini.yaml
+
+After dependency installation, it retains the confirmed Laboratory 016 Python
+interface checks:
+
+- from src.evaluation.utils import quality_analysis
+- from src.models import load_model
+
+The Module 17 chord engine independently verifies the same three runtime assets
+that it actually uses.
+
+No downloader, timing or chord-analysis algorithm has changed.
 
 INSTALLATION
-Copy everything inside M17_B010 into the root Banjofy GitHub folder, allow
+Copy everything inside M17_B011 into the root Banjofy GitHub folder, allow
 merging/replacement, then commit and push.
 
 EXPECTED ARTIFACT
-Banjofy-006.4.0-Module-17-Integration-Build-010-Windows
+Banjofy-006.4.0-Module-17-Integration-Build-011-Windows

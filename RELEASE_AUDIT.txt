@@ -1,51 +1,79 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 010
-RELEASE AUDIT
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 011
+RELEASE-GATE AUDIT
 
 BUILD TYPE
 Complete clean rebuild from confirmed Build 002. No patch script.
 
-CONFIRMED BUILD 009 FAILURE
-PyInstaller failed because datas=[("ChordMini", "ChordMini")] referenced a
-repository-root folder that did not exist. The confirmed Laboratory 016
-workflow had cloned the model before building; Module 17 had omitted that step.
+CONFIRMED BUILD 010 FAILURE
+The ChordMini clone succeeded. The workflow then failed on the invented physical
+requirement ChordMini/src/evaluation/utils.py. That path was not checked by the
+confirmed Laboratory 016 workflow.
 
-SECONDARY ISSUE
-The spec blindly collected every banjofy submodule. That attempted to import
-legacy banjofy.engine, which expects a retired Beat model. Build 010 collects
-only active Module 17 namespaces and explicitly excludes banjofy.engine.
+EXACT CONFIRMED PROCESS REUSED
+The Laboratory 016 ZIP was opened and its workflow and PyInstaller spec were
+read directly. Its model process checks exactly:
+- checkpoints/2e1d_model_best.pth
+- src/evaluation/test.py
+- config/ChordMini.yaml
+It then verifies the Python interfaces quality_analysis and load_model.
 
-CONTROLLED BUILD 010 CHANGES
-- Restore Laboratory 016 ChordMini clone and verification process.
-- Verify checkpoint, inference script, configuration and core imports.
-- Record exact ChordMini commit.
-- Use model-aware PyInstaller datas and pathex.
-- Collect active Banjofy namespaces only.
-- Exclude incompatible legacy banjofy.engine.
-- Add strict PyInstaller exit handling and EXE existence check.
-- No downloader, timing or chord-engine algorithm changes.
+CONTROLLED BUILD 011 CHANGE
+- Replace Build 010's five physical model checks with the exact three confirmed
+  Laboratory 016 checks.
+- Retain the exact confirmed Laboratory 016 interface imports.
+- Remove Build 010's unneeded CHORDMINI_SOURCE artifact addition.
+- Update Build 011 identifiers.
+- Make no downloader, timing, chord-engine or dependency changes.
 
-STATIC AUDIT
-- Complete Build 002 baseline extracted into a new directory: passed.
-- Build 009 application implementation carried forward: passed.
-- ChordMini clone step present: passed.
-- Five model-asset checks present: passed.
-- ChordMini import gate present: passed.
-- chordmini_root verification present: passed.
-- Model-aware spec derived from confirmed Lab 016: passed.
-- Blind collect_submodules("banjofy") removed: passed.
-- legacy banjofy.engine excluded: passed.
-- strict PyInstaller failure check present: passed.
-- downloader, timing and chord engine unchanged from Build 009: passed.
-- synthetic 3/4, 4/4 and shifted Beat 1 tests: passed.
-- hidden-console configuration retained: passed.
+FILE AND PATH GATE
+- Confirmed Build 002 ZIP exists and was extracted: passed.
+- Build 010 ZIP exists and implementation files were inspected: passed.
+- Laboratory 016 ZIP exists and workflow/spec were inspected: passed.
+- Three physical paths match confirmed Laboratory 016 exactly: passed.
+- Two invented physical paths are absent from Build 011 workflow: passed.
+- chord_engine.py uses only checkpoint, test script and configuration: passed.
+- Workflow clones ChordMini before any model check: passed.
+- PyInstaller spec includes the complete ChordMini folder as data: passed.
+- PyInstaller search path includes ChordMini: passed.
+- Final package retains runtime beside Banjofy.exe: passed.
+
+DEPENDENCY GATE
+- Build 009 strict pip failure checks retained: passed.
+- Python 3.12 dependency gate retained: passed.
+- Unused incompatible chord-extractor remains absent: passed.
+- Confirmed ChordMini interface imports occur after dependency installation:
+  passed.
+
+SOURCE COMPARISON
+- Downloader byte-for-byte unchanged from Build 010: passed.
+- Timing analyzer byte-for-byte unchanged from Build 010: passed.
+- Chord engine byte-for-byte unchanged from Build 010: passed.
+- Requirements byte-for-byte unchanged from Build 010: passed.
+- Only version text, workflow model validation and release documentation changed.
+
+LOCAL AUDIT
 - Python compilation: passed.
-- ZIP integrity and checksums: passed.
+- Synthetic 3/4 detection: passed.
+- Synthetic 4/4 detection: passed.
+- Synthetic shifted Beat 1 detection: passed.
+- Workflow ordering: passed.
+- Hidden-console configuration: passed.
+- ZIP integrity: passed.
+- Checksums regenerated and verified: passed.
 
-RUNTIME PROOF STILL REQUIRED
-GitHub Actions must prove ChordMini clone/import, full PyInstaller packaging,
-Deno/provider and artifact assembly. Peter's Windows test must prove live
-YouTube download, model execution and real-song timing.
+GITHUB ACTIONS MUST STILL PROVE
+- live ChordMini clone contents;
+- confirmed interface imports on the Windows runner;
+- Deno/provider preparation;
+- PyInstaller model packaging;
+- complete artifact assembly.
+
+PETER'S WINDOWS TEST MUST STILL PROVE
+- live YouTube download;
+- ChordMini model execution;
+- FFmpeg conversion;
+- real-song meter and cursor timing.
 
 CLEAN REBUILD CONFIRMATION
-Created in a new empty directory from the full Build 002 ZIP. Earlier confirmed
-baselines were untouched.
+Created in a new empty directory from the complete Build 002 ZIP. All earlier
+confirmed baselines remain untouched.
