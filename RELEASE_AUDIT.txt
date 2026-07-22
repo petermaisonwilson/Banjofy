@@ -1,67 +1,38 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 007
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 008
 RELEASE AUDIT
 
 BUILD TYPE
 Complete clean rebuild from confirmed Build 002. No patch script.
 
-CONFIRMED BUILD 006 FAILURE
-GitHub Actions compiled the source files but failed when internal audits imported
-banjofy because src was not on Python's search path. The later workflow step
-set PYTHONPATH, but the failure occurred before reaching it.
+CONFIRMED BUILD 007 FAILURE
+The banjofy package import passed, proving PYTHONPATH was corrected. Imports of
+main window, timing, chord and downloader failed because third-party
+dependencies had not yet been installed.
 
-CONTROLLED BUILD 007 CHANGE
-- Job-wide PYTHONPATH set to the repository src folder.
-- Early application import gate added immediately after source installation.
-- Later redundant step-local PYTHONPATH assignment removed.
-- Artifact and build identifiers updated to Build 007.
-- No downloader algorithm changes.
-- No timing algorithm changes.
-- No chord-engine changes.
-
-PRESERVED BUILD 006 ARCHITECTURE
-- pinned yt-dlp with EJS and curl-cffi;
-- pinned Deno runtime;
-- pinned bgutil PO-token provider;
-- mweb extraction and automatic PO-token fetching;
-- format discovery before download;
-- FFmpeg conversion;
-- permanent detailed diagnostics;
-- separate scrollable diagnostic dialog;
-- corrected 3/4, 4/4 and Beat 1 timing;
-- Build 002 cursor polling;
-- unchanged Laboratory 016 chord engine.
+CONTROLLED BUILD 008 CHANGE
+- Dependency installation moved before the application import gate.
+- Job-wide PYTHONPATH retained.
+- Import gate remains before Deno/provider preparation.
+- All workflow labels and artifact paths updated to Build 008.
+- Downloader, timing and chord logic unchanged.
 
 STATIC AUDIT
-- Complete Build 002 baseline extracted into new directory: passed.
-- Build 006 implementation files carried forward: passed.
-- Job-wide PYTHONPATH present: passed.
-- Early five-import gate present: passed.
-- Import gate occurs before Deno/provider preparation: passed.
-- Redundant later PYTHONPATH assignment removed: passed.
-- Build 007 artifact naming: passed.
+- Dependency installation before import gate: passed.
+- Import gate before Deno: passed.
+- Five-part import gate retained: passed.
+- Job-wide PYTHONPATH retained: passed.
+- Build 008 labels and artifact naming: passed.
 - Python compilation: passed.
-- Synthetic 3/4 detection: passed.
-- Synthetic 4/4 detection: passed.
-- Synthetic shifted Beat 1 detection: passed.
-- Chord engine byte-for-byte unchanged from Build 006: passed.
-- Downloader byte-for-byte unchanged from Build 006: passed.
-- Timing analyzer byte-for-byte unchanged from Build 006: passed.
-- Windows hidden-console configuration retained: passed.
+- Synthetic 3/4, 4/4 and shifted Beat 1 tests: passed.
+- Downloader, timing and chord engine unchanged from Build 007: passed.
+- Hidden-console configuration retained: passed.
 - ZIP integrity and checksums: passed.
 
-GITHUB ACTIONS MUST STILL PROVE
-- all imports pass in the real Windows runner;
-- pinned dependencies install together;
-- Deno and provider prepare correctly;
-- modern downloader component checks pass;
-- PyInstaller builds the EXE;
-- complete runtime artifact is assembled.
-
-PETER'S WINDOWS ACCEPTANCE MUST STILL PROVE
-- live YouTube format discovery and download;
-- FFmpeg conversion;
-- Tennessee Waltz timing on Peter's local file.
+RUNTIME PROOF STILL REQUIRED
+GitHub Actions must prove dependency installation, imports, Deno/provider,
+PyInstaller and package assembly. Peter's Windows test must prove live YouTube
+download and real-song timing.
 
 CLEAN REBUILD CONFIRMATION
-Created in a new empty directory from the full Build 002 ZIP. Build 002 and all
-earlier confirmed baselines were untouched.
+Created in a new empty directory from the full Build 002 ZIP. Earlier confirmed
+baselines were untouched.

@@ -1,25 +1,24 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 007
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 008
 COMPLETE CLEAN REBUILD
 
-Build 007 is rebuilt from the complete confirmed Build 002 package.
+Build 008 is rebuilt from the complete confirmed Build 002 package.
 
 ROOT-CAUSE CORRECTION
-Build 006 failed before the downloader was tested because GitHub Actions did
-not add the repository src folder to Python's import path before running the
-internal audits.
+Build 007 proved that job-wide PYTHONPATH works because the banjofy package
+import passed. The remaining imports failed because the import gate ran before
+third-party dependencies such as numpy and imageio-ffmpeg were installed.
 
-Build 007 corrects that build-system defect by:
-- setting PYTHONPATH for the entire GitHub Actions job;
-- adding an early application import gate before Deno/provider preparation;
-- keeping the complete Build 006 downloader, timing and diagnostic architecture
-  otherwise unchanged.
+Build 008 corrects only the workflow order:
+1. install complete Build 008 source;
+2. install pinned Python dependencies;
+3. run the early five-part application import gate;
+4. continue to Deno, provider, audits and PyInstaller.
+
+No downloader, timing or chord-analysis logic has changed.
 
 INSTALLATION
-1. Extract this ZIP.
-2. Copy everything inside M17_B007 into the root Banjofy GitHub folder.
-3. Allow Windows to merge folders and replace files.
-4. Commit and push.
-5. Download the complete Build 007 artifact after GitHub Actions passes.
+Copy everything inside M17_B008 into the root Banjofy GitHub folder, allow
+merging/replacement, then commit and push.
 
 EXPECTED ARTIFACT
-Banjofy-006.4.0-Module-17-Integration-Build-007-Windows
+Banjofy-006.4.0-Module-17-Integration-Build-008-Windows

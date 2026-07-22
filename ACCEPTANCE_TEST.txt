@@ -1,38 +1,15 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 007
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 008
 ACCEPTANCE TEST
 
-A. GITHUB ACTIONS ROOT-CAUSE TEST
-1. Verify Build 007 clean-rebuild files passes.
-2. Install complete Build 007 source passes.
-3. Early application import gate passes all five imports:
-   - banjofy package
-   - main window
-   - timing analyzer
-   - chord engine
-   - downloader
-4. Compile and internal audits pass without ModuleNotFoundError.
-5. Verify modern downloader components runs.
+GITHUB ACTIONS
+1. Install complete Build 008 source passes.
+2. Install pinned Python dependencies completes before the import gate.
+3. Early application import gate passes all five imports.
+4. Deno setup runs after the import gate.
+5. Internal audits and modern downloader component verification pass.
 6. PyInstaller builds Banjofy.exe.
-7. Complete runtime package is assembled and uploaded.
+7. Complete runtime package uploads.
 
-B. WINDOWS PACKAGE
-1. Artifact contains Banjofy.exe and runtime folder.
-2. runtime contains deno.exe and bgutil-ytdlp-pot-provider.
-3. BUILD_DEPENDENCY_LOCK.txt and RUNTIME_VERSIONS.json are present.
-
-C. DOWNLOAD
-1. Search for It's a Long Way to the Top.
-2. Download the official audio result.
-3. Confirm component verification, format discovery, download and conversion.
-4. Confirm a usable audio file is created and analysis enables.
-5. Open the full diagnostic window and verify copy/save/scrolling.
-
-D. TIMING
-1. Load Tennessee Waltz.
-2. Confirm fresh timing completes with no sparse-argument error.
-3. Confirm Auto attempts 3/4 and Beat 1 alignment.
-4. Test two known 4/4 songs.
-
-E. REGRESSION
-Confirm accepted chord levels, Practice controls, seek, repeat, count-in, Beep,
-reports, Library save/list/delete and Build 002 cursor behaviour.
+WINDOWS
+Test the AC/DC download, full diagnostic window, Tennessee Waltz 3/4 timing,
+two known 4/4 songs, and all established Practice/Library/chord behaviours.
