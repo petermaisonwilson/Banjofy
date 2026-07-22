@@ -1,64 +1,66 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 006
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 007
 RELEASE AUDIT
 
 BUILD TYPE
 Complete clean rebuild from confirmed Build 002. No patch script.
 
-ROOT CAUSE ADDRESSED
-Modern YouTube extraction requires a supported JavaScript runtime and EJS
-challenge scripts. PO-token enforcement may also require an automatic provider.
-Build 006 replaces guessed format/client retries with one designed stack:
-yt-dlp + EJS + Deno + bgutil provider + mweb + format discovery.
+CONFIRMED BUILD 006 FAILURE
+GitHub Actions compiled the source files but failed when internal audits imported
+banjofy because src was not on Python's search path. The later workflow step
+set PYTHONPATH, but the failure occurred before reaching it.
 
-PINNED COMPONENTS
-- yt-dlp 2026.6.9 with default and curl-cffi extras
-- Deno 2.8.1
-- bgutil-ytdlp-pot-provider 1.3.1
-- imageio-ffmpeg 0.6.0
-- librosa 0.11.0
-- PyInstaller 6.14.2 in workflow
+CONTROLLED BUILD 007 CHANGE
+- Job-wide PYTHONPATH set to the repository src folder.
+- Early application import gate added immediately after source installation.
+- Later redundant step-local PYTHONPATH assignment removed.
+- Artifact and build identifiers updated to Build 007.
+- No downloader algorithm changes.
+- No timing algorithm changes.
+- No chord-engine changes.
 
-STATIC AND SYNTHETIC AUDIT
+PRESERVED BUILD 006 ARCHITECTURE
+- pinned yt-dlp with EJS and curl-cffi;
+- pinned Deno runtime;
+- pinned bgutil PO-token provider;
+- mweb extraction and automatic PO-token fetching;
+- format discovery before download;
+- FFmpeg conversion;
+- permanent detailed diagnostics;
+- separate scrollable diagnostic dialog;
+- corrected 3/4, 4/4 and Beat 1 timing;
+- Build 002 cursor polling;
+- unchanged Laboratory 016 chord engine.
+
+STATIC AUDIT
 - Complete Build 002 baseline extracted into new directory: passed.
-- Laboratory 016 chord engine unchanged: passed.
-- Build 002 30 ms cursor polling retained: passed.
-- Build 004 sparse compatibility correction retained: passed.
+- Build 006 implementation files carried forward: passed.
+- Job-wide PYTHONPATH present: passed.
+- Early five-import gate present: passed.
+- Import gate occurs before Deno/provider preparation: passed.
+- Redundant later PYTHONPATH assignment removed: passed.
+- Build 007 artifact naming: passed.
+- Python compilation: passed.
 - Synthetic 3/4 detection: passed.
 - Synthetic 4/4 detection: passed.
 - Synthetic shifted Beat 1 detection: passed.
-- Downloader component verification code: passed.
-- Deno explicit path configuration: passed.
-- bgutil provider server_home configuration: passed.
-- mweb and automatic PO-token fetching configuration: passed.
-- EJS/PO trace logging enabled: passed.
-- Format discovery before download: passed.
-- Full permanent diagnostic logging: passed.
-- Separate scrollable diagnostic dialog: passed.
-- Copy and Save diagnostic controls: passed.
-- Runtime-folder packaging workflow: passed.
-- Exact dependency lock generation: passed.
-- Windows hidden-console specification retained: passed.
-- Python compilation: passed.
+- Chord engine byte-for-byte unchanged from Build 006: passed.
+- Downloader byte-for-byte unchanged from Build 006: passed.
+- Timing analyzer byte-for-byte unchanged from Build 006: passed.
+- Windows hidden-console configuration retained: passed.
 - ZIP integrity and checksums: passed.
 
 GITHUB ACTIONS MUST STILL PROVE
-- pinned packages install together;
-- Deno downloads and launches;
-- provider dependencies install;
-- plugin namespace is visible;
+- all imports pass in the real Windows runner;
+- pinned dependencies install together;
+- Deno and provider prepare correctly;
+- modern downloader component checks pass;
 - PyInstaller builds the EXE;
-- complete runtime folder is assembled.
+- complete runtime artifact is assembled.
 
 PETER'S WINDOWS ACCEPTANCE MUST STILL PROVE
-- YouTube exposes audio-capable formats from Peter's connection;
-- the exact AC/DC audio downloads;
-- FFmpeg converts it;
+- live YouTube format discovery and download;
+- FFmpeg conversion;
 - Tennessee Waltz timing on Peter's local file.
-
-KNOWN LIMITATIONS
-YouTube and PO-token enforcement can change externally. The permanent detailed
-diagnostic is included specifically so future failures can be root-caused
-without speculative rebuilds.
 
 CLEAN REBUILD CONFIRMATION
 Created in a new empty directory from the full Build 002 ZIP. Build 002 and all

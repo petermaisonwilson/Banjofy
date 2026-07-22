@@ -1,4 +1,4 @@
-name: Build Banjofy Module 17 Build 006
+name: Build Banjofy Module 17 Build 007
 
 on:
   push:
@@ -11,6 +11,9 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 60
 
+    env:
+      PYTHONPATH: ${{ github.workspace }}\src
+
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -20,7 +23,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Verify Build 006 clean-rebuild files
+      - name: Verify Build 007 clean-rebuild files
         shell: pwsh
         run: |
           $required = @(
@@ -33,7 +36,7 @@ jobs:
             "replacements/module17integration/RUNTIME_VERSIONS.json"
           )
           foreach ($file in $required) {
-            if (-not (Test-Path $file)) { throw "Missing Build 006 file: $file" }
+            if (-not (Test-Path $file)) { throw "Missing Build 007 file: $file" }
           }
 
       - name: Preserve repository window
@@ -49,6 +52,16 @@ jobs:
           Copy-Item "replacements/module17integration/audio_downloader.py" "src/banjofy/download/audio_downloader.py" -Force
           Copy-Item "replacements/module17integration/requirements.txt" "requirements.txt" -Force
           Copy-Item "replacements/module17integration/Banjofy_Module17.spec" "Banjofy_Module17.spec" -Force
+
+
+      - name: Early application import gate
+        shell: pwsh
+        run: |
+          python -c "import banjofy; print('banjofy package import: passed')"
+          python -c "from banjofy.ui.main_window import MainWindow; print('main window import: passed')"
+          python -c "from banjofy.ui.timing_analyzer import TimingAnalyzer; print('timing analyzer import: passed')"
+          python -c "from banjofy.analysis.chord_engine import ChordEngine; print('chord engine import: passed')"
+          python -c "from banjofy.download.audio_downloader import DownloadManager; print('downloader import: passed')"
 
       - name: Install pinned Python dependencies
         run: |
@@ -100,7 +113,6 @@ jobs:
       - name: Verify modern downloader components
         shell: pwsh
         run: |
-          $env:PYTHONPATH = "$env:GITHUB_WORKSPACE/src"
           python -c "from yt_dlp import YoutubeDL; import yt_dlp; print('yt-dlp API', yt_dlp.version.__version__)"
           python -c "import yt_dlp_plugins; print('yt-dlp plugin namespace available')"
           if (-not (Test-Path "runtime/deno.exe")) { throw "Deno missing" }
@@ -113,18 +125,18 @@ jobs:
       - name: Assemble complete Windows package
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build006/runtime" | Out-Null
-          Copy-Item "dist/Banjofy.exe" "dist/Banjofy-Module17-Build006/Banjofy.exe" -Force
-          Copy-Item "runtime/deno.exe" "dist/Banjofy-Module17-Build006/runtime/deno.exe" -Force
-          Copy-Item "runtime/bgutil-ytdlp-pot-provider" "dist/Banjofy-Module17-Build006/runtime/bgutil-ytdlp-pot-provider" -Recurse -Force
-          Copy-Item "BUILD_DEPENDENCY_LOCK.txt" "dist/Banjofy-Module17-Build006/BUILD_DEPENDENCY_LOCK.txt" -Force
-          Copy-Item "replacements/module17integration/RUNTIME_VERSIONS.json" "dist/Banjofy-Module17-Build006/RUNTIME_VERSIONS.json" -Force
-          if (-not (Test-Path "dist/Banjofy-Module17-Build006/Banjofy.exe")) { throw "Banjofy.exe missing" }
-          if (-not (Test-Path "dist/Banjofy-Module17-Build006/runtime/deno.exe")) { throw "Packaged Deno missing" }
+          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build007/runtime" | Out-Null
+          Copy-Item "dist/Banjofy.exe" "dist/Banjofy-Module17-Build007/Banjofy.exe" -Force
+          Copy-Item "runtime/deno.exe" "dist/Banjofy-Module17-Build007/runtime/deno.exe" -Force
+          Copy-Item "runtime/bgutil-ytdlp-pot-provider" "dist/Banjofy-Module17-Build007/runtime/bgutil-ytdlp-pot-provider" -Recurse -Force
+          Copy-Item "BUILD_DEPENDENCY_LOCK.txt" "dist/Banjofy-Module17-Build007/BUILD_DEPENDENCY_LOCK.txt" -Force
+          Copy-Item "replacements/module17integration/RUNTIME_VERSIONS.json" "dist/Banjofy-Module17-Build007/RUNTIME_VERSIONS.json" -Force
+          if (-not (Test-Path "dist/Banjofy-Module17-Build007/Banjofy.exe")) { throw "Banjofy.exe missing" }
+          if (-not (Test-Path "dist/Banjofy-Module17-Build007/runtime/deno.exe")) { throw "Packaged Deno missing" }
 
       - name: Upload complete Windows package
         uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-006.4.0-Module-17-Integration-Build-006-Windows
-          path: dist/Banjofy-Module17-Build006
+          name: Banjofy-006.4.0-Module-17-Integration-Build-007-Windows
+          path: dist/Banjofy-Module17-Build007
           if-no-files-found: error

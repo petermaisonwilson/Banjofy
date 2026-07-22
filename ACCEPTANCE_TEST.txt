@@ -1,39 +1,38 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 006
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 007
 ACCEPTANCE TEST
 
-A. BUILD PACKAGE
-1. GitHub Actions passes.
-2. Artifact contains Banjofy.exe and runtime folder.
-3. runtime contains deno.exe and bgutil-ytdlp-pot-provider.
-4. BUILD_DEPENDENCY_LOCK.txt and RUNTIME_VERSIONS.json are present.
+A. GITHUB ACTIONS ROOT-CAUSE TEST
+1. Verify Build 007 clean-rebuild files passes.
+2. Install complete Build 007 source passes.
+3. Early application import gate passes all five imports:
+   - banjofy package
+   - main window
+   - timing analyzer
+   - chord engine
+   - downloader
+4. Compile and internal audits pass without ModuleNotFoundError.
+5. Verify modern downloader components runs.
+6. PyInstaller builds Banjofy.exe.
+7. Complete runtime package is assembled and uploaded.
 
-B. DOWNLOAD ROOT-CAUSE TEST
-1. Start Banjofy with runtime beside Banjofy.exe.
-2. Search for It's a Long Way to the Top.
-3. Select the official audio result.
-4. Download.
-5. Status should progress through component verification, verified format
-   discovery, best verified audio and FFmpeg conversion.
-6. A usable audio file must be created.
-7. Analyse Downloaded Audio must enable.
-8. Repeat with one unrelated public song.
+B. WINDOWS PACKAGE
+1. Artifact contains Banjofy.exe and runtime folder.
+2. runtime contains deno.exe and bgutil-ytdlp-pot-provider.
+3. BUILD_DEPENDENCY_LOCK.txt and RUNTIME_VERSIONS.json are present.
 
-C. DIAGNOSTIC TEST
-1. Click View Full Download Diagnostic.
-2. Confirm full text is visible in a large separate window.
-3. Confirm vertical and horizontal scroll bars are always present.
-4. Confirm Copy Full Diagnostic copies all text.
-5. Confirm Save Diagnostic As creates a readable text file.
-6. Confirm the log shows yt-dlp version, Deno path, provider path, FFmpeg path,
-   format count, audio-capable format count and final result.
+C. DOWNLOAD
+1. Search for It's a Long Way to the Top.
+2. Download the official audio result.
+3. Confirm component verification, format discovery, download and conversion.
+4. Confirm a usable audio file is created and analysis enables.
+5. Open the full diagnostic window and verify copy/save/scrolling.
 
 D. TIMING
 1. Load Tennessee Waltz.
-2. Confirm no sparse-argument error.
-3. Confirm fresh timing completes.
-4. Confirm Auto attempts 3/4 and Beat 1 alignment.
-5. Test two known 4/4 songs.
+2. Confirm fresh timing completes with no sparse-argument error.
+3. Confirm Auto attempts 3/4 and Beat 1 alignment.
+4. Test two known 4/4 songs.
 
 E. REGRESSION
-Confirm chord levels, Practice controls, seek, repeat, count-in, Beep, reports,
-Library save/list/delete and Build 002 cursor timing remain functional.
+Confirm accepted chord levels, Practice controls, seek, repeat, count-in, Beep,
+reports, Library save/list/delete and Build 002 cursor behaviour.
