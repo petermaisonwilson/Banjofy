@@ -1,48 +1,50 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 009
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 010
 RELEASE AUDIT
 
 BUILD TYPE
 Complete clean rebuild from confirmed Build 002. No patch script.
 
-CONFIRMED BUILD 008 FAILURE
-requirements.txt included chord-extractor==0.1.2. No Python 3.12-compatible
-distribution exists. pip therefore aborted the full requirements transaction,
-so numpy and imageio-ffmpeg were never installed. A later successful
-PyInstaller command hid the earlier failure from the workflow step result.
+CONFIRMED BUILD 009 FAILURE
+PyInstaller failed because datas=[("ChordMini", "ChordMini")] referenced a
+repository-root folder that did not exist. The confirmed Laboratory 016
+workflow had cloned the model before building; Module 17 had omitted that step.
 
-SOURCE INSPECTION
-The confirmed Laboratory 016 chord engine imports imageio_ffmpeg, librosa,
-numpy and scipy. It does not import chord_extractor.
+SECONDARY ISSUE
+The spec blindly collected every banjofy submodule. That attempted to import
+legacy banjofy.engine, which expects a retired Beat model. Build 010 collects
+only active Module 17 namespaces and explicitly excludes banjofy.engine.
 
-CONTROLLED BUILD 009 CHANGES
-- Remove unused chord-extractor requirement.
-- Add explicit PowerShell exit checks after every pip command.
-- Add a separate dependency verification gate.
-- Keep dependency verification before application import gate.
-- Update Build 009 labels and artifact names.
-- No downloader, timing or chord-engine logic changes.
+CONTROLLED BUILD 010 CHANGES
+- Restore Laboratory 016 ChordMini clone and verification process.
+- Verify checkpoint, inference script, configuration and core imports.
+- Record exact ChordMini commit.
+- Use model-aware PyInstaller datas and pathex.
+- Collect active Banjofy namespaces only.
+- Exclude incompatible legacy banjofy.engine.
+- Add strict PyInstaller exit handling and EXE existence check.
+- No downloader, timing or chord-engine algorithm changes.
 
 STATIC AUDIT
 - Complete Build 002 baseline extracted into a new directory: passed.
-- chord-extractor removed: passed.
-- numpy, imageio-ffmpeg, librosa and scipy retained: passed.
-- yt-dlp, curl-cffi and PySide6 retained: passed.
-- pip failure checks present: passed.
-- dependency import/version gate present: passed.
-- dependency gate before application import gate: passed.
-- application import gate before Deno: passed.
-- downloader unchanged from Build 008: passed.
-- timing analyzer unchanged from Build 008: passed.
-- chord engine unchanged from Build 008: passed.
+- Build 009 application implementation carried forward: passed.
+- ChordMini clone step present: passed.
+- Five model-asset checks present: passed.
+- ChordMini import gate present: passed.
+- chordmini_root verification present: passed.
+- Model-aware spec derived from confirmed Lab 016: passed.
+- Blind collect_submodules("banjofy") removed: passed.
+- legacy banjofy.engine excluded: passed.
+- strict PyInstaller failure check present: passed.
+- downloader, timing and chord engine unchanged from Build 009: passed.
 - synthetic 3/4, 4/4 and shifted Beat 1 tests: passed.
 - hidden-console configuration retained: passed.
 - Python compilation: passed.
 - ZIP integrity and checksums: passed.
 
 RUNTIME PROOF STILL REQUIRED
-GitHub Actions must prove dependency installation, imports, Deno/provider,
-PyInstaller and artifact assembly. Peter's Windows test must prove live YouTube
-download and real-song timing.
+GitHub Actions must prove ChordMini clone/import, full PyInstaller packaging,
+Deno/provider and artifact assembly. Peter's Windows test must prove live
+YouTube download, model execution and real-song timing.
 
 CLEAN REBUILD CONFIRMATION
 Created in a new empty directory from the full Build 002 ZIP. Earlier confirmed
