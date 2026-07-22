@@ -30,7 +30,7 @@ from banjofy.ui.timing_analyzer import TimingAnalysis, TimingAnalyzer
 from banjofy.analysis.chord_engine import AnalysisResult, analyse_audio
 
 
-APP_VERSION = "Banjofy 006.4.0 Module 17 Integration Build 012"
+APP_VERSION = "Banjofy 006.4.0 Module 17 Integration Build 013"
 
 
 class MainWindow(LegacyMainWindow):
@@ -116,7 +116,7 @@ class MainWindow(LegacyMainWindow):
         self.download_diagnostic_timer.start()
 
         self.statusBar().showMessage(
-            "Ready - Module 17 confirmed Laboratory 016 dependencies and modern YouTube stack loaded"
+            "Ready - Module 17 verified frozen runtime chain and modern YouTube stack loaded"
         )
 
     def _set_visible_titles(self) -> None:

@@ -1,87 +1,80 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 012
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 013
 RELEASE-GATE AUDIT
 
 BUILD TYPE
 Complete clean rebuild from confirmed Build 002. No patch script.
 
-CONFIRMED BUILD 011 FAILURE
-The ChordMini physical checks passed. The confirmed evaluation import then
-failed with ModuleNotFoundError: mir_eval.
+CONFIRMED BUILD 012 FAILURE
+The GitHub build and PyInstaller stage passed. The Windows EXE failed at startup
+inside PyInstaller's pkg_resources runtime hook with:
+ModuleNotFoundError: No module named 'backports'
 
-SOURCE VERIFICATION
-The confirmed Laboratory 016 ZIP was opened directly. Its requirements and
-workflow were read in full. It uses Python 3.11 and explicitly installs:
-numpy==1.26.4
-PyYAML==6.0.2
-setuptools==80.9.0
-torch==2.9.1
-librosa==0.10.1
-scipy==1.13.1
-soundfile==0.12.1
-tqdm==4.67.1
-matplotlib==3.10.1
-seaborn==0.13.2
-mir_eval==0.8.2
-scikit-learn==1.6.1
-imageio-ffmpeg>=0.5
+The traceback directly identified:
+pkg_resources -> jaraco.text -> jaraco.context -> backports.tarfile
 
-CONTROLLED BUILD 012 CHANGES
-- Reproduce the exact confirmed Laboratory 016 model dependency set.
-- Change GitHub Actions Python from 3.12 to the confirmed 3.11.
-- Reproduce the exact confirmed Laboratory 016 runtime import chain.
-- Retain verified Module 17 UI/downloader dependencies and checks.
-- Update Build 012 identifiers.
+CONTROLLED BUILD 013 CHANGES
+- Add backports.tarfile==1.2.0, which supports Python >=3.8.
+- Verify the exact failing runtime import and metadata chain.
+- Collect backports.tarfile, backports namespace and jaraco namespace.
+- Add a ten-second post-PyInstaller startup smoke test.
+- Update Build 013 identifiers.
 - No application algorithm changes.
 
-FILE/PATH GATE
+SOURCE/PATH GATE
 - Build 002 baseline ZIP exists and was extracted: passed.
-- Build 011 package exists and was inspected: passed.
-- Laboratory 016 ZIP exists and requirements/workflow/spec were inspected:
-  passed.
-- Three confirmed ChordMini physical paths retained: passed.
-- No invented ChordMini physical path added: passed.
-- Complete ChordMini folder remains in PyInstaller datas: passed.
-- ChordMini remains in PyInstaller pathex: passed.
-- Legacy banjofy.engine remains excluded: passed.
+- Build 012 ZIP exists and was inspected: passed.
+- Existing ChordMini physical checks retained: passed.
+- Existing model-aware PyInstaller data and pathex retained: passed.
+- Existing legacy banjofy.engine exclusion retained: passed.
+- Existing runtime folder assembly retained: passed.
 
 DEPENDENCY GATE
-- Exact Laboratory 016 requirements appear in Build 012: passed.
-- Python 3.11 matches Laboratory 016: passed.
-- mir_eval is explicit: passed.
-- torch, yaml, sklearn, tqdm, matplotlib and seaborn are explicit: passed.
-- Strict pip exit checks retained: passed.
-- Exact Laboratory 016 import chain retained: passed.
-- Module 17 downloader/UI checks retained: passed.
-- Unused chord-extractor remains absent: passed.
+- Python 3.11 retained: passed.
+- backports.tarfile==1.2.0 explicit: passed.
+- Exact pkg_resources/jaraco/backports import gate present: passed.
+- Exact package metadata gate present: passed.
+- Strict pip failure checks retained: passed.
+- Full Laboratory 016 dependency environment retained: passed.
+- Module 17 downloader dependencies retained: passed.
+
+PYINSTALLER GATE
+- backports.tarfile collect_all present: passed.
+- jaraco.context collect_all present: passed.
+- jaraco.text collect_all present: passed.
+- backports namespace hidden collection present: passed.
+- jaraco namespace hidden collection present: passed.
+- console=False retained: passed.
+- EXE existence check retained: passed.
+- ten-second EXE startup smoke test present: passed.
+- workflow fails if EXE exits during startup: passed.
 
 SOURCE COMPARISON
-- Downloader unchanged from Build 011: passed.
-- Timing analyzer unchanged from Build 011: passed.
-- Chord engine unchanged from Build 011: passed.
-- PyInstaller spec unchanged from Build 011: passed.
-- Only requirements, workflow compatibility, version text and documentation
-  changed.
+- Downloader unchanged from Build 012: passed.
+- Timing analyzer unchanged from Build 012: passed.
+- Chord engine unchanged from Build 012: passed.
+- Only requirements, PyInstaller runtime collection, workflow gates, version
+  text and documentation changed.
 
 LOCAL AUDIT
 - Python compilation: passed.
 - Synthetic 3/4 detection: passed.
 - Synthetic 4/4 detection: passed.
 - Synthetic shifted Beat 1 detection: passed.
-- Workflow order: passed.
+- Workflow ordering: passed.
 - ZIP integrity: passed.
 - Every checksum re-verified: passed.
 
 GITHUB ACTIONS MUST STILL PROVE
-- exact packages install together on Windows Python 3.11;
-- complete Laboratory 016 import chain;
-- Deno/provider preparation;
-- ChordMini imports and PyInstaller packaging;
-- final artifact assembly.
+- backports/jaraco chain installs on Windows Python 3.11;
+- PyInstaller includes the runtime chain;
+- Banjofy.exe stays running through the smoke test;
+- complete artifact assembly.
 
 PETER'S WINDOWS TEST MUST STILL PROVE
+- visible application startup;
 - live YouTube download and conversion;
-- ChordMini model execution;
-- real-song meter and cursor timing.
+- ChordMini execution;
+- real-song timing and Practice/Library regression.
 
 CLEAN REBUILD CONFIRMATION
 Created in a new empty directory from the complete Build 002 ZIP. Earlier

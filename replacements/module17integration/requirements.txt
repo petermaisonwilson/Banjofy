@@ -14,3 +14,4 @@ seaborn==0.13.2
 mir_eval==0.8.2
 scikit-learn==1.6.1
 imageio-ffmpeg>=0.5
+backports.tarfile==1.2.0

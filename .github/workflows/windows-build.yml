@@ -1,4 +1,4 @@
-name: Build Banjofy Module 17 Build 012
+name: Build Banjofy Module 17 Build 013
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Verify Build 012 clean-rebuild files
+      - name: Verify Build 013 clean-rebuild files
         shell: pwsh
         run: |
           $required = @(
@@ -36,14 +36,14 @@ jobs:
             "replacements/module17integration/RUNTIME_VERSIONS.json"
           )
           foreach ($file in $required) {
-            if (-not (Test-Path $file)) { throw "Missing Build 012 file: $file" }
+            if (-not (Test-Path $file)) { throw "Missing Build 013 file: $file" }
           }
 
       - name: Preserve repository window
         shell: pwsh
         run: Copy-Item "src/banjofy/ui/main_window.py" "src/banjofy/ui/main_window_legacy.py" -Force
 
-      - name: Install complete Build 012 source
+      - name: Install complete Build 013 source
         shell: pwsh
         run: |
           Copy-Item "replacements/module17integration/main_window.py" "src/banjofy/ui/main_window.py" -Force
@@ -93,6 +93,15 @@ jobs:
 
           python -c "import importlib.metadata as m; print('bgutil', m.version('bgutil-ytdlp-pot-provider')); print('yt-dlp-ejs', m.version('yt-dlp-ejs'))"
           if ($LASTEXITCODE -ne 0) { throw "Modern downloader package metadata verification failed" }
+
+      - name: Verify frozen pkg_resources runtime chain
+        shell: pwsh
+        run: |
+          python -c "import pkg_resources, jaraco.text, jaraco.context, backports.tarfile; print('pkg_resources jaraco backports runtime chain: passed')"
+          if ($LASTEXITCODE -ne 0) { throw "pkg_resources runtime chain import failed" }
+
+          python -c "import importlib.metadata as m; print('backports.tarfile', m.version('backports.tarfile')); print('jaraco.text', m.version('jaraco.text')); print('jaraco.context', m.version('jaraco.context'))"
+          if ($LASTEXITCODE -ne 0) { throw "pkg_resources runtime chain metadata check failed" }
 
       - name: Early application import gate
         shell: pwsh
@@ -175,21 +184,35 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
           if (-not (Test-Path "dist/Banjofy.exe")) { throw "Banjofy.exe missing after PyInstaller" }
 
+      - name: Smoke-test built Banjofy EXE startup
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath "$env:GITHUB_WORKSPACE/dist/Banjofy.exe" -PassThru
+          Start-Sleep -Seconds 10
+
+          if ($process.HasExited) {
+            throw "Banjofy.exe exited during startup smoke test with code $($process.ExitCode)"
+          }
+
+          Stop-Process -Id $process.Id -Force
+          Start-Sleep -Seconds 2
+          Write-Host "Banjofy.exe startup smoke test passed"
+
       - name: Assemble complete Windows package
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build012/runtime" | Out-Null
-          Copy-Item "dist/Banjofy.exe" "dist/Banjofy-Module17-Build012/Banjofy.exe" -Force
-          Copy-Item "runtime/deno.exe" "dist/Banjofy-Module17-Build012/runtime/deno.exe" -Force
-          Copy-Item "runtime/bgutil-ytdlp-pot-provider" "dist/Banjofy-Module17-Build012/runtime/bgutil-ytdlp-pot-provider" -Recurse -Force
-          Copy-Item "BUILD_DEPENDENCY_LOCK.txt" "dist/Banjofy-Module17-Build012/BUILD_DEPENDENCY_LOCK.txt" -Force
-          Copy-Item "replacements/module17integration/RUNTIME_VERSIONS.json" "dist/Banjofy-Module17-Build012/RUNTIME_VERSIONS.json" -Force
-          if (-not (Test-Path "dist/Banjofy-Module17-Build012/Banjofy.exe")) { throw "Banjofy.exe missing" }
-          if (-not (Test-Path "dist/Banjofy-Module17-Build012/runtime/deno.exe")) { throw "Packaged Deno missing" }
+          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build013/runtime" | Out-Null
+          Copy-Item "dist/Banjofy.exe" "dist/Banjofy-Module17-Build013/Banjofy.exe" -Force
+          Copy-Item "runtime/deno.exe" "dist/Banjofy-Module17-Build013/runtime/deno.exe" -Force
+          Copy-Item "runtime/bgutil-ytdlp-pot-provider" "dist/Banjofy-Module17-Build013/runtime/bgutil-ytdlp-pot-provider" -Recurse -Force
+          Copy-Item "BUILD_DEPENDENCY_LOCK.txt" "dist/Banjofy-Module17-Build013/BUILD_DEPENDENCY_LOCK.txt" -Force
+          Copy-Item "replacements/module17integration/RUNTIME_VERSIONS.json" "dist/Banjofy-Module17-Build013/RUNTIME_VERSIONS.json" -Force
+          if (-not (Test-Path "dist/Banjofy-Module17-Build013/Banjofy.exe")) { throw "Banjofy.exe missing" }
+          if (-not (Test-Path "dist/Banjofy-Module17-Build013/runtime/deno.exe")) { throw "Packaged Deno missing" }
 
       - name: Upload complete Windows package
         uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-006.4.0-Module-17-Integration-Build-012-Windows
-          path: dist/Banjofy-Module17-Build012
+          name: Banjofy-006.4.0-Module-17-Integration-Build-013-Windows
+          path: dist/Banjofy-Module17-Build013
           if-no-files-found: error

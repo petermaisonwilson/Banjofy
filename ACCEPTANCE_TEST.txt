@@ -1,20 +1,18 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 012
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 013
 ACCEPTANCE TEST
 
 GITHUB ACTIONS
-1. Python 3.11 setup passes.
-2. ChordMini clone and the three confirmed physical checks pass.
-3. Pinned dependency installation completes as one transaction.
-4. Exact Laboratory 016 runtime import chain passes, including mir_eval.
-5. Module 17 yt-dlp, curl-cffi, PySide6, bgutil and yt-dlp-ejs checks pass.
-6. Five-part Banjofy application import gate passes.
-7. Deno and PO-token provider preparation pass.
-8. Confirmed ChordMini quality_analysis and load_model imports pass.
-9. chordmini_root verifies the checkpoint, inference script and configuration.
-10. PyInstaller builds Banjofy.exe.
-11. Complete runtime artifact uploads.
+1. All Build 012 dependency, ChordMini, Deno and provider gates pass.
+2. pkg_resources, jaraco.text, jaraco.context and backports.tarfile import.
+3. PyInstaller builds Banjofy.exe.
+4. The Banjofy.exe startup smoke test keeps the process alive for ten seconds.
+5. Complete runtime package uploads.
 
 WINDOWS
-Test the AC/DC download, full diagnostic window, ChordMini analysis,
-Tennessee Waltz 3/4 timing, two known 4/4 songs and all established
-Practice/Library/chord behaviour.
+1. Extract the artifact to a short path such as C:\B13.
+2. Keep runtime beside Banjofy.exe.
+3. Start Banjofy and confirm no backports or PyInstaller runtime error.
+4. Test AC/DC download and full diagnostic window.
+5. Run ChordMini analysis.
+6. Test Tennessee Waltz 3/4 and two known 4/4 songs.
+7. Confirm established Practice and Library behaviour.

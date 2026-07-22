@@ -24,6 +24,7 @@ for package in (
     "mir_eval", "tqdm", "audioread", "numba", "llvmlite",
     "imageio_ffmpeg", "matplotlib", "seaborn", "pandas",
     "yt_dlp", "curl_cffi", "PySide6",
+    "backports.tarfile", "jaraco.context", "jaraco.text",
 ):
     package_datas, package_binaries, package_hidden = collect_all(package)
     datas += package_datas
@@ -39,6 +40,13 @@ hiddenimports += collect_submodules("banjofy.storage")
 hiddenimports += collect_submodules("banjofy.models")
 hiddenimports += collect_submodules("banjofy.services")
 hiddenimports += collect_submodules("yt_dlp_plugins")
+hiddenimports += collect_submodules("backports")
+hiddenimports += collect_submodules("jaraco")
+hiddenimports += [
+    "backports.tarfile",
+    "jaraco.context",
+    "jaraco.text",
+]
 
 hiddenimports += [
     "src", "src.evaluation", "src.evaluation.utils", "src.models", "src.utils",
