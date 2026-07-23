@@ -30,7 +30,43 @@ from banjofy.ui.timing_analyzer import TimingAnalysis, TimingAnalyzer
 from banjofy.analysis.chord_engine import AnalysisResult, analyse_audio
 
 
-APP_VERSION = "Banjofy 006.4.0 Module 17 Integration Build 015"
+APP_VERSION = "Banjofy 006.4.0 Module 17 Integration Build 016"
+
+def _repeat_time_bounds_from_beats(
+    beat_times_ms: list[int] | tuple[int, ...],
+    start_beat: int,
+    end_beat: int,
+) -> tuple[int, int] | None:
+    """Map displayed repeat markers to exact audio-time boundaries.
+
+    The End marker is a boundary: Bar 1 Beat 1 to Bar 4 Beat 1 plays the
+    three complete bars before Bar 4. A same-beat selection plays one beat.
+    """
+    if not beat_times_ms:
+        return None
+
+    first = min(int(start_beat), int(end_beat))
+    last = max(int(start_beat), int(end_beat))
+    if first < 0 or first >= len(beat_times_ms):
+        return None
+
+    start_ms = int(beat_times_ms[first])
+    if last > first and last < len(beat_times_ms):
+        end_ms = int(beat_times_ms[last])
+    else:
+        next_index = first + 1
+        if next_index < len(beat_times_ms):
+            end_ms = int(beat_times_ms[next_index])
+        elif len(beat_times_ms) >= 2:
+            interval = max(100, int(beat_times_ms[-1]) - int(beat_times_ms[-2]))
+            end_ms = start_ms + interval
+        else:
+            end_ms = start_ms + 500
+
+    if end_ms <= start_ms:
+        return None
+    return start_ms, end_ms
+
 
 
 class MainWindow(LegacyMainWindow):
@@ -58,6 +94,9 @@ class MainWindow(LegacyMainWindow):
         self.repeat_seek_pending = False
         self.repeat_continuous = False
         self.continuous_restart_pending = False
+        self.repeat_active_start_ms: int | None = None
+        self.repeat_active_end_ms: int | None = None
+        self.repeat_seek_attempt = 0
 
         self.timing_analyzer = TimingAnalyzer()
         self.timing_analysis: TimingAnalysis | None = None
@@ -116,7 +155,7 @@ class MainWindow(LegacyMainWindow):
         self.download_diagnostic_timer.start()
 
         self.statusBar().showMessage(
-            "Ready - Module 17 verified frozen imports and modern YouTube stack loaded"
+            "Ready - Module 17 portable PO-token plugin and exact repeat boundaries loaded"
         )
 
     def _set_visible_titles(self) -> None:
@@ -524,14 +563,67 @@ class MainWindow(LegacyMainWindow):
                 self.practice_message.setText("Set both repeat Start and End first.")
                 self.count_in_label.setText("Ready")
                 return
-            start_ms, _ = bounds
-            self._set_player_position(start_ms)
-            self._highlight_beat(min(self.repeat_start_beat, self.repeat_end_beat))
+            self.repeat_active_start_ms, self.repeat_active_end_ms = bounds
+            start_beat = min(self.repeat_start_beat, self.repeat_end_beat)
+            self.repeat_seek_attempt = 0
+            self.practice_message.setText(
+                f"Preparing repeat {self._beat_label(start_beat)} "
+                f"at {self.repeat_active_start_ms / 1000:.3f}s."
+            )
+            self._prepare_repeat_start_seek(start_beat)
+            return
 
+        self.repeat_active_start_ms = None
+        self.repeat_active_end_ms = None
+        self._start_count_in_display()
+
+    def _start_count_in_display(self) -> None:
         self.count_in_active = True
         self.count_in_remaining = self.count_in_beats
         self._show_count()
         self.count_in_timer.start()
+
+    def _prepare_repeat_start_seek(self, start_beat: int) -> None:
+        if (
+            not self.repeat_enabled
+            or self.repeat_active_start_ms is None
+            or self.repeat_active_end_ms is None
+        ):
+            self.count_in_label.setText("Ready")
+            return
+
+        target = int(self.repeat_active_start_ms)
+        if self.repeat_seek_attempt == 0 or self.repeat_seek_attempt % 4 == 0:
+            self._set_player_position(target)
+
+        actual = int(self.media_player.position())
+        tolerance_ms = 120
+        if abs(actual - target) <= tolerance_ms:
+            self._highlight_beat(start_beat)
+            self.position_slider.blockSignals(True)
+            self.position_slider.setValue(target)
+            self.position_slider.blockSignals(False)
+            self._update_time_label(target, self.media_player.duration())
+            self.practice_message.setText(
+                f"Repeat ready: {self._beat_label(start_beat)} "
+                f"{target / 1000:.3f}s to {self.repeat_active_end_ms / 1000:.3f}s."
+            )
+            self._start_count_in_display()
+            return
+
+        self.repeat_seek_attempt += 1
+        if self.repeat_seek_attempt >= 30:
+            self.repeat_run_active = False
+            self.repeat_active_start_ms = None
+            self.repeat_active_end_ms = None
+            self.count_in_label.setText("Ready")
+            self.practice_message.setText(
+                f"Repeat could not seek to the selected start. "
+                f"Requested {target / 1000:.3f}s; player reported {actual / 1000:.3f}s."
+            )
+            return
+
+        QTimer.singleShot(50, lambda: self._prepare_repeat_start_seek(start_beat))
 
     def _count_in_tick(self) -> None:
         if not self.count_in_active:
@@ -548,6 +640,25 @@ class MainWindow(LegacyMainWindow):
         self.count_in_label.setText("PLAY")
 
         if self.repeat_enabled:
+            if (
+                self.repeat_active_start_ms is None
+                or self.repeat_active_end_ms is None
+            ):
+                self.repeat_run_active = False
+                self.count_in_label.setText("Ready")
+                self.practice_message.setText("Repeat boundaries are no longer available.")
+                return
+
+            actual = int(self.media_player.position())
+            if abs(actual - self.repeat_active_start_ms) > 180:
+                start_beat = min(self.repeat_start_beat, self.repeat_end_beat)
+                self.repeat_seek_attempt = 0
+                self.repeat_run_active = False
+                self.practice_message.setText(
+                    "Repeat start moved during count-in; confirming the selected start again."
+                )
+                self._prepare_repeat_start_seek(start_beat)
+                return
             self.repeat_run_active = True
         else:
             self.repeat_run_active = False
@@ -579,14 +690,31 @@ class MainWindow(LegacyMainWindow):
         ):
             return None
 
-        start_beat = min(self.repeat_start_beat, self.repeat_end_beat)
-        end_beat = max(self.repeat_start_beat, self.repeat_end_beat)
+        timing = self.timing_analysis
+        if timing is not None and timing.usable:
+            bounds = _repeat_time_bounds_from_beats(
+                timing.beat_times_ms,
+                self.repeat_start_beat,
+                self.repeat_end_beat,
+            )
+        else:
+            start_beat = min(self.repeat_start_beat, self.repeat_end_beat)
+            end_beat = max(self.repeat_start_beat, self.repeat_end_beat)
+            start_ms = self._beat_time_ms(start_beat)
+            if end_beat > start_beat:
+                end_ms = self._beat_time_ms(end_beat)
+            else:
+                end_ms = self._beat_end_time_ms(start_beat)
+            bounds = (
+                (int(start_ms), int(end_ms))
+                if start_ms is not None and end_ms is not None and end_ms > start_ms
+                else None
+            )
 
-        start_ms = self._beat_time_ms(start_beat)
-        end_ms = self._beat_end_time_ms(end_beat)
-        if start_ms is None or end_ms is None:
+        if bounds is None:
             return None
 
+        start_ms, end_ms = bounds
         duration = int(self.media_player.duration())
         if duration > 0:
             start_ms = max(0, min(start_ms, max(0, duration - 1)))
@@ -661,6 +789,9 @@ class MainWindow(LegacyMainWindow):
         self.repeat_run_active = False
         self.repeat_seek_pending = False
         self.continuous_restart_pending = False
+        self.repeat_active_start_ms = None
+        self.repeat_active_end_ms = None
+        self.repeat_seek_attempt = 0
 
         if hasattr(self, "repeat_toggle_button"):
             self.repeat_toggle_button.blockSignals(True)
@@ -709,7 +840,11 @@ class MainWindow(LegacyMainWindow):
             self.repeat_run_active = False
             return
 
-        start_ms, _ = bounds
+        start_ms = (
+            int(self.repeat_active_start_ms)
+            if self.repeat_active_start_ms is not None
+            else int(bounds[0])
+        )
         self.repeat_run_active = False
         self.media_player.pause()
         self._set_player_position(start_ms)
@@ -915,8 +1050,8 @@ class MainWindow(LegacyMainWindow):
             return
 
         if self.repeat_run_active and not self.repeat_seek_pending:
-            bounds = self._repeat_bounds_ms()
-            if bounds is not None and position >= bounds[1]:
+            end_ms = self.repeat_active_end_ms
+            if end_ms is not None and position >= int(end_ms):
                 self._finish_repeat_run()
                 return
 

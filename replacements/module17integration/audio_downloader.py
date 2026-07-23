@@ -38,10 +38,18 @@ def _safe_filename(text: str) -> str:
     return text[:120] or "audio"
 
 
-def _runtime_root() -> Path:
+def _executable_root() -> Path:
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent / "runtime"
-    return Path(__file__).resolve().parents[3] / "runtime"
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parents[3]
+
+
+def _runtime_root() -> Path:
+    return _executable_root() / "runtime"
+
+
+def _portable_plugin_root() -> Path:
+    return _executable_root() / "yt-dlp-plugins"
 
 
 def _diagnostic_folder() -> Path:
@@ -120,15 +128,20 @@ class DownloadManager:
         except OSError as exc:
             return f"Could not read diagnostic log: {exc}"
 
-    def _component_paths(self) -> tuple[Path, Path, Path]:
+    def _component_paths(self) -> tuple[Path, Path, Path, Path]:
         runtime = _runtime_root()
         deno = runtime / "deno.exe"
         provider_server = runtime / "bgutil-ytdlp-pot-provider" / "server"
+        plugin_root = _portable_plugin_root()
         ffmpeg = Path(imageio_ffmpeg.get_ffmpeg_exe())
-        return deno, provider_server, ffmpeg
+        return deno, provider_server, plugin_root, ffmpeg
 
-    def _verify_components(self, logger: _DiagnosticLogger) -> tuple[Path, Path, Path]:
-        deno, provider_server, ffmpeg = self._component_paths()
+    def _verify_components(
+        self,
+        logger: _DiagnosticLogger,
+    ) -> tuple[Path, Path, Path, Path]:
+        deno, provider_server, plugin_root, ffmpeg = self._component_paths()
+        plugin_files = sorted(plugin_root.rglob("getpot_bgutil*.py")) if plugin_root.exists() else []
         checks = {
             "runtime_root": str(_runtime_root()),
             "yt_dlp_version": getattr(yt_dlp.version, "__version__", "unknown"),
@@ -138,6 +151,9 @@ class DownloadManager:
             "provider_server_exists": provider_server.exists(),
             "provider_package_json": (provider_server / "package.json").exists(),
             "provider_node_modules": (provider_server / "node_modules").exists(),
+            "portable_plugin_root": str(plugin_root),
+            "portable_plugin_root_exists": plugin_root.exists(),
+            "portable_plugin_files": [str(path) for path in plugin_files],
             "ffmpeg": str(ffmpeg),
             "ffmpeg_exists": ffmpeg.exists(),
         }
@@ -154,11 +170,18 @@ class DownloadManager:
                 "PO-token provider dependencies are missing: "
                 f"{provider_server / 'node_modules'}"
             )
+        if not plugin_root.exists():
+            missing.append(f"Portable yt-dlp plugin folder missing: {plugin_root}")
+        if not plugin_files:
+            missing.append(
+                "Portable bgutil yt-dlp plugin files are missing beneath: "
+                f"{plugin_root}"
+            )
         if not ffmpeg.exists():
             missing.append(f"FFmpeg missing: {ffmpeg}")
         if missing:
             raise RuntimeError("Downloader component verification failed:\n" + "\n".join(missing))
-        return deno, provider_server, ffmpeg
+        return deno, provider_server, plugin_root, ffmpeg
 
     def download(
         self,
@@ -189,14 +212,14 @@ class DownloadManager:
         log_path = _diagnostic_folder() / f"download_{stamp}_{safe[:50]}.log.txt"
         DownloadManager._latest_log_path = log_path
         logger = _DiagnosticLogger(log_path)
-        logger.add("BANJOFY MODULE 17 BUILD 006 DOWNLOAD DIAGNOSTIC")
+        logger.add("BANJOFY MODULE 17 BUILD 016 DOWNLOAD DIAGNOSTIC")
         logger.add(f"UTC/local timestamp: {datetime.now().isoformat(timespec='seconds')}")
         logger.add(f"Title: {result.title}")
         logger.add(f"Channel: {result.channel}")
         logger.add(f"URL: {result.url}")
 
         try:
-            deno, provider_server, ffmpeg = self._verify_components(logger)
+            deno, provider_server, plugin_root, ffmpeg = self._verify_components(logger)
 
             if progress:
                 progress("verifying modern YouTube components", 3, str(log_path))
@@ -242,6 +265,7 @@ class DownloadManager:
                 "windowsfilenames": True,
                 "ffmpeg_location": str(ffmpeg),
                 "js_runtimes": {"deno": {"path": str(deno)}},
+                "plugin_dirs": [str(plugin_root)],
                 "extractor_args": extractor_args,
                 "progress_hooks": [hook],
                 "outtmpl": str(folder / (safe + ".%(ext)s")),

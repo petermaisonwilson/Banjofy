@@ -1,20 +1,29 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 015
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 016
 ACCEPTANCE TEST
 
-GITHUB ACTIONS
-1. All dependency, ChordMini, Deno and provider gates pass.
-2. pkg_resources, jaraco.text, jaraco.context and backports.tarfile import in
-   one real runtime process and expose valid file paths.
-3. backports.tarfile metadata/version check passes.
-4. PyInstaller builds Banjofy.exe.
-5. Banjofy.exe remains running during the ten-second startup smoke test.
-6. Complete runtime artifact uploads.
+DOWNLOAD
+1. Extract to C:\B16 and keep runtime and yt-dlp-plugins beside Banjofy.exe.
+2. Search for Bryan Adams - (Everything I Do) I Do It For You.
+3. Download the selected result.
+4. In Full Download Diagnostic confirm:
+   - portable_plugin_root_exists: true
+   - portable_plugin_files lists getpot_bgutil modules
+   - Plugin directories is not none
+   - PO Token Providers includes bgutil
+5. Confirm format discovery, download and FFmpeg conversion complete.
 
-WINDOWS
-1. Extract to a short path such as C:\B15.
-2. Keep runtime beside Banjofy.exe.
-3. Confirm startup without a PyInstaller/backports error.
-4. Test AC/DC download and full diagnostics.
-5. Run ChordMini analysis.
-6. Test Tennessee Waltz 3/4 and two known 4/4 songs.
-7. Confirm established Practice and Library behaviour.
+REPEAT
+Use a 4/4 song with automatic timing ready.
+1. Set Start Bar 1 Beat 1 and End Bar 4 Beat 1.
+   Expected: exactly the three complete bars before Bar 4.
+2. Set Start Bar 4 Beat 1 and End Bar 6 Beat 1.
+   Expected: exactly two complete bars, beginning at Bar 4 Beat 1.
+3. Confirm the cursor does not jump to an earlier bar during count-in or play.
+4. Test Single Run and Continuous modes.
+5. Report any message containing requested and reported seek times.
+
+REGRESSION
+- Practice Play/Pause/Stop and manual seek.
+- Tennessee Waltz 3/4.
+- Two known 4/4 songs.
+- ChordMini analysis and Library.

@@ -1,83 +1,64 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 015
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 016
 RELEASE-GATE AUDIT
 
 BUILD TYPE
 Complete clean rebuild from confirmed Build 002. No patch script.
 
-CONFIRMED BUILD 014 RESULT
-The exact runtime imports passed and printed valid module file paths:
-- jaraco.text from setuptools' vendored jaraco tree;
-- jaraco.context from setuptools' vendored jaraco tree;
-- backports.tarfile from its installed package.
+EVIDENCE
+Build 015 Windows startup passed.
+The live diagnostic proved:
+- yt-dlp 2026.06.09 loaded;
+- Deno 2.8.1 loaded;
+- yt-dlp-ejs 0.8.0 loaded;
+- FFmpeg existed;
+- bgutil server and node_modules existed;
+- Plugin directories: none;
+- PO Token Providers: none.
 
-The build failed only because a new Python process used find_spec on jaraco
-without first activating setuptools' vendored loader.
+DOWNLOAD CORRECTION
+- Stage plugin files from importlib.metadata distribution file list.
+- Preserve the exact yt_dlp_plugins namespace path.
+- Package under executable-adjacent yt-dlp-plugins.
+- Pass plugin_dirs explicitly to embedded yt-dlp.
+- Verify plugin folder and getpot_bgutil modules before download.
+- Keep mweb, EJS, Deno, provider server and FFmpeg unchanged.
 
-CONTROLLED BUILD 015 CHANGE
-- Remove only the disproven fresh-process find_spec gate.
-- Retain single-process imports and assert the actual module file paths exist.
-- Retain backports.tarfile metadata/version verification.
-- Retain explicit PyInstaller collection and EXE startup smoke test.
-- Update Build 015 identifiers.
-- No dependency, application or PyInstaller collection changes.
+REPEAT CORRECTION
+User evidence:
+- Bar 1 Beat 1 to Bar 4 Beat 1 played only seven beats.
+- Bar 4 Beat 1 to Bar 6 Beat 1 began with cursor at Bar 2 Beat 2.
 
-SOURCE/PATH GATE
-- Build 002 baseline ZIP exists and was extracted: passed.
-- Build 014 ZIP exists and was inspected: passed.
-- Existing ChordMini checks and model packaging retained: passed.
-- Existing runtime-folder assembly retained: passed.
+Controlled correction:
+- End marker is an exclusive musical boundary.
+- Selected timestamps are locked once per run.
+- Player seek must be acknowledged within 120 ms before count-in.
+- Position is checked again before Play.
+- End detection uses the locked end timestamp.
+- Failure reports requested and actual media positions.
 
-DEPENDENCY GATE
-- Requirements unchanged from Build 014: passed.
-- backports.tarfile==1.2.0 retained: passed.
-- Successful runtime import chain retained: passed.
-- False find_spec gate removed: passed.
-- backports.tarfile metadata check retained: passed.
-- Strict pip failure checks retained: passed.
-
-PYINSTALLER GATE
-- PyInstaller spec unchanged from Build 014: passed.
-- backports and jaraco collection retained: passed.
-- legacy banjofy.engine exclusion retained: passed.
-- console=False retained: passed.
-- EXE existence check retained: passed.
-- ten-second startup smoke test retained: passed.
-- workflow still fails if EXE exits: passed.
-
-SOURCE COMPARISON
-- Downloader unchanged from Build 014: passed.
-- Timing analyzer unchanged from Build 014: passed.
-- Chord engine unchanged from Build 014: passed.
-- Requirements unchanged from Build 014: passed.
-- PyInstaller spec unchanged from Build 014: passed.
+UNCHANGED
+- requirements;
+- PyInstaller spec;
+- timing analyzer;
+- chord engine;
+- ChordMini environment and model;
+- Deno/provider server versions;
+- hidden-console startup configuration.
 
 LOCAL AUDIT
 - Python compilation: passed.
-- Synthetic 3/4 detection: passed.
-- Synthetic 4/4 detection: passed.
-- Synthetic shifted Beat 1 detection: passed.
-- Workflow order: passed.
-- ZIP integrity: passed.
-- Every checksum re-verified: passed.
+- Repeat boundary helper deterministic tests: passed.
+- Synthetic timing 3/4, 4/4 and phase tests: passed.
+- Workflow ordering and packaging paths: passed.
+- ZIP integrity and checksums: passed.
 
-GITHUB ACTIONS MUST STILL PROVE
-- PyInstaller packages the frozen runtime chain;
-- Banjofy.exe stays alive through the smoke test;
-- complete artifact assembly.
+GITHUB MUST STILL PROVE
+- exact installed plugin file staging on Windows;
+- portable plugin directory detection;
+- PyInstaller build and startup;
+- artifact includes the plugin namespace.
 
 PETER'S WINDOWS TEST MUST STILL PROVE
-- visible application startup;
-- live YouTube download and conversion;
-- ChordMini execution;
-- real-song timing and Practice/Library regression.
-
-DIRECTION ASSESSMENT
-This build remains in the correct direction because Build 012 already produced
-an EXE, Build 013/014 proved the missing runtime modules are installed and
-importable, and Build 015 removes only a validation test that contradicted that
-proven runtime behaviour. The next meaningful gate is the real EXE startup
-smoke test.
-
-CLEAN REBUILD CONFIRMATION
-Created in a new empty directory from the complete Build 002 ZIP. Earlier
-confirmed baselines remain untouched.
+- bgutil provider registration and live download;
+- QMediaPlayer repeat seek acknowledgement;
+- exact repeat start/end behaviour.
