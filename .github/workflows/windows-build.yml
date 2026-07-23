@@ -1,4 +1,4 @@
-name: Build Banjofy Module 17 Build 019
+name: Build Banjofy Module 17 Build 020
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Verify Build 019 clean-rebuild files
+      - name: Verify Build 020 clean-rebuild files
         shell: pwsh
         run: |
           $required = @(
@@ -77,8 +77,14 @@ jobs:
         run: |
           python -c "import torch, librosa, numpy, scipy.signal, mir_eval, imageio_ffmpeg, seaborn, pandas, matplotlib, tqdm, soundfile, yaml; print('Laboratory runtime imports: passed')"
           if ($LASTEXITCODE -ne 0) { throw "Laboratory runtime imports failed" }
-          python -c "from banjofy.ui.main_window import MainWindow; from banjofy.ui.timing_analyzer import TimingAnalyzer; from banjofy.analysis.chord_engine import ChordEngine; from banjofy.download.audio_downloader import DownloadManager; print('Banjofy application imports: passed')"
+          python -c "from banjofy.ui.main_window import MainWindow; from banjofy.ui.timing_analyzer import TimingAnalysis, TimingAnalyzer; from banjofy.analysis.chord_engine import AnalysisResult, analyse_audio; from banjofy.download.audio_downloader import DownloadManager; assert MainWindow and TimingAnalysis and TimingAnalyzer and AnalysisResult and analyse_audio and DownloadManager; print('Exact Banjofy application imports: passed')"
           if ($LASTEXITCODE -ne 0) { throw "Banjofy application import failed" }
+
+      - name: Verify main window and chord engine API agree
+        shell: pwsh
+        run: |
+          python -c "import ast, pathlib; mw=ast.parse(pathlib.Path('src/banjofy/ui/main_window.py').read_text(encoding='utf-8')); ce=ast.parse(pathlib.Path('src/banjofy/analysis/chord_engine.py').read_text(encoding='utf-8')); requested=set(); exported=set(); [(requested.update(a.name for a in n.names)) for n in mw.body if isinstance(n, ast.ImportFrom) and n.module=='banjofy.analysis.chord_engine']; [(exported.add(n.name)) for n in ce.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))]; missing=requested-exported; print('Requested:', sorted(requested)); print('Exported match:', sorted(requested & exported)); assert not missing, f'Main window requests missing chord-engine names: {sorted(missing)}'; print('Main-window/chord-engine API consistency: passed')"
+          if ($LASTEXITCODE -ne 0) { throw "Main-window/chord-engine API consistency failed" }
 
       - name: Prepare External Acquisition Agent
         shell: pwsh
@@ -179,23 +185,23 @@ jobs:
       - name: Assemble complete Windows package
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build019" | Out-Null
-          Copy-Item "dist/Banjofy.exe" "dist/Banjofy-Module17-Build019/Banjofy.exe" -Force
-          Copy-Item "Acquisition" "dist/Banjofy-Module17-Build019/Acquisition" -Recurse -Force
-          Copy-Item "replacements/module17integration/RUNTIME_VERSIONS.json" "dist/Banjofy-Module17-Build019/RUNTIME_VERSIONS.json" -Force
+          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build020" | Out-Null
+          Copy-Item "dist/Banjofy.exe" "dist/Banjofy-Module17-Build020/Banjofy.exe" -Force
+          Copy-Item "Acquisition" "dist/Banjofy-Module17-Build020/Acquisition" -Recurse -Force
+          Copy-Item "replacements/module17integration/RUNTIME_VERSIONS.json" "dist/Banjofy-Module17-Build020/RUNTIME_VERSIONS.json" -Force
 
-          if (-not (Test-Path "dist/Banjofy-Module17-Build019/Banjofy.exe")) { throw "Packaged Banjofy.exe missing" }
-          if (-not (Test-Path "dist/Banjofy-Module17-Build019/Acquisition/yt-dlp.exe")) { throw "Packaged EAA yt-dlp missing" }
-          if (-not (Test-Path "dist/Banjofy-Module17-Build019/Acquisition/deno.exe")) { throw "Packaged EAA Deno missing" }
-          if (-not (Test-Path "dist/Banjofy-Module17-Build019/Acquisition/ffmpeg.exe")) { throw "Packaged EAA FFmpeg missing" }
-          if (-not (Get-ChildItem "dist/Banjofy-Module17-Build019/Acquisition/yt-dlp-plugins" -Recurse -Filter "getpot_bgutil*.py")) {
+          if (-not (Test-Path "dist/Banjofy-Module17-Build020/Banjofy.exe")) { throw "Packaged Banjofy.exe missing" }
+          if (-not (Test-Path "dist/Banjofy-Module17-Build020/Acquisition/yt-dlp.exe")) { throw "Packaged EAA yt-dlp missing" }
+          if (-not (Test-Path "dist/Banjofy-Module17-Build020/Acquisition/deno.exe")) { throw "Packaged EAA Deno missing" }
+          if (-not (Test-Path "dist/Banjofy-Module17-Build020/Acquisition/ffmpeg.exe")) { throw "Packaged EAA FFmpeg missing" }
+          if (-not (Get-ChildItem "dist/Banjofy-Module17-Build020/Acquisition/yt-dlp-plugins" -Recurse -Filter "getpot_bgutil*.py")) {
             throw "Packaged EAA plugin missing"
           }
 
       - name: Test assembled External Acquisition Agent
         shell: pwsh
         run: |
-          Push-Location "dist/Banjofy-Module17-Build019"
+          Push-Location "dist/Banjofy-Module17-Build020"
           & "Acquisition/yt-dlp.exe" --version
           if ($LASTEXITCODE -ne 0) { throw "Packaged yt-dlp failed" }
           & "Acquisition/deno.exe" --version
@@ -208,6 +214,6 @@ jobs:
       - name: Upload complete Windows package
         uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-006.4.0-Module-17-Integration-Build-019-Windows
-          path: dist/Banjofy-Module17-Build019
+          name: Banjofy-006.4.0-Module-17-Integration-Build-020-Windows
+          path: dist/Banjofy-Module17-Build020
           if-no-files-found: error

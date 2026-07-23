@@ -1,22 +1,22 @@
-BANJOFY BUILD 019 — EXACT TEST
+BANJOFY BUILD 020 — EXACT TEST
 
-1. Download the GitHub Actions artifact.
-2. Extract the complete artifact to C:\B19.
-3. Open the extracted folder.
-4. Confirm you can see:
-   Banjofy.exe
-   Acquisition
-   RUNTIME_VERSIONS.json
-5. Do not open anything inside Acquisition.
-6. Double-click Banjofy.exe.
-7. Search for:
+1. Commit and push this package through GitHub Desktop.
+2. Confirm GitHub passes:
+   - Exact Banjofy application imports
+   - Main-window/chord-engine API consistency
+   - External Acquisition Agent preparation and tests
+   - PyInstaller build
+   - Banjofy.exe startup smoke test
+   - assembled EAA test
+3. Download:
+   Banjofy-006.4.0-Module-17-Integration-Build-020-Windows
+4. Extract the complete artifact to C:\B20.
+5. Confirm Banjofy.exe and Acquisition are beside one another.
+6. Run Banjofy.exe.
+7. Search for and download:
    Bryan Adams - (Everything I Do) I Do It For You
-8. Select the correct result and click Download Selected Audio.
-9. Wait for completion or failure.
-10. Open View Full Download Diagnostic.
-11. On success confirm the song appears in the Library and can be analysed.
-12. Test repeat:
+8. Open View Full Download Diagnostic.
+9. On failure, copy and paste the complete Build 020 diagnostic.
+10. Repeat test:
     Bar 1 Beat 1 to Bar 4 Beat 1 = three complete bars.
     Bar 4 Beat 1 to Bar 6 Beat 1 = two complete bars.
-
-On failure, use Copy Full Diagnostic and paste the complete text.

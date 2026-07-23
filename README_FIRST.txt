@@ -1,27 +1,16 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 019
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 020
 EXTERNAL ACQUISITION AGENT
 
-SIMPLE EXPLANATION
-Banjofy now asks a separate helper to obtain the audio.
+This is a complete clean rebuild from confirmed Build 002.
 
-Banjofy:
-- searches for the song;
-- sends the selected address to the helper;
-- waits for the completed audio file;
-- analyses chords and timing;
-- stores the song in the Library;
-- plays it locally in Practice.
+ROOT-CAUSE CORRECTION
+Build 019 stopped because its workflow tried to import a non-existent class
+named ChordEngine. The application itself correctly imports AnalysisResult and
+analyse_audio. Build 020 tests those exact real names and also compares the
+main-window imports with the actual chord-engine exports before proceeding.
 
-The helper lives in the Acquisition folder beside Banjofy.exe. It contains its
-own yt-dlp, Deno, FFmpeg and PO-token provider. It is not frozen inside
-Banjofy.exe.
+The EAA design is unchanged:
+Banjofy sends the selected URL to the separate Acquisition folder, receives
+the completed local media file, then performs analysis and Practice locally.
 
-WHY THIS IS STRONGER
-When YouTube changes, only the Acquisition folder should need updating.
-Library, analysis, Practice, chord display and diagrams remain separate.
-
-DO NOT MOVE OR RENAME THE ACQUISITION FOLDER.
-Keep it beside Banjofy.exe.
-
-EXPECTED ARTIFACT
-Banjofy-006.4.0-Module-17-Integration-Build-019-Windows
+Keep the Acquisition folder beside Banjofy.exe.
