@@ -1,4 +1,4 @@
-name: Build Banjofy Module 17 Build 016
+name: Build Banjofy Module 17 Build 017
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Verify Build 016 clean-rebuild files
+      - name: Verify Build 017 clean-rebuild files
         shell: pwsh
         run: |
           $required = @(
@@ -36,14 +36,14 @@ jobs:
             "replacements/module17integration/RUNTIME_VERSIONS.json"
           )
           foreach ($file in $required) {
-            if (-not (Test-Path $file)) { throw "Missing Build 016 file: $file" }
+            if (-not (Test-Path $file)) { throw "Missing Build 017 file: $file" }
           }
 
       - name: Preserve repository window
         shell: pwsh
         run: Copy-Item "src/banjofy/ui/main_window.py" "src/banjofy/ui/main_window_legacy.py" -Force
 
-      - name: Install complete Build 016 source
+      - name: Install complete Build 017 source
         shell: pwsh
         run: |
           Copy-Item "replacements/module17integration/main_window.py" "src/banjofy/ui/main_window.py" -Force
@@ -145,13 +145,17 @@ jobs:
           $pluginFiles = Get-ChildItem "portable_plugins/bgutil-ytdlp-pot-provider/yt_dlp_plugins" -Recurse -Filter "getpot_bgutil*.py"
           if (-not $pluginFiles) { throw "No staged bgutil provider plugin modules found" }
 
-          python -m yt_dlp --plugin-dirs "$env:GITHUB_WORKSPACE/portable_plugins" --verbose --version 2>&1 | Tee-Object -FilePath "PORTABLE_PLUGIN_CHECK.txt"
-          if ($LASTEXITCODE -ne 0) { throw "yt-dlp portable plugin discovery command failed" }
+          $pluginRoot = (Resolve-Path "portable_plugins").Path
+          python -c "from pathlib import Path; from yt_dlp.globals import plugin_dirs; from yt_dlp.plugins import load_all_plugins; root=Path(r'$pluginRoot').resolve(); plugin_dirs.value=[str(root)]; load_all_plugins(); import yt_dlp_plugins.extractor.getpot_bgutil as base; import yt_dlp_plugins.extractor.getpot_bgutil_http as http; import yt_dlp_plugins.extractor.getpot_bgutil_script as script; print('portable plugin API activation: passed'); print(base.__file__); print(http.__file__); print(script.__file__)"
+          if ($LASTEXITCODE -ne 0) { throw "yt-dlp portable plugin API activation failed" }
+
+          python -m yt_dlp --plugin-dirs "$pluginRoot" --verbose --list-extractors 2>&1 | Tee-Object -FilePath "PORTABLE_PLUGIN_CHECK.txt"
+          if ($LASTEXITCODE -ne 0) { throw "yt-dlp extractor initialization failed" }
           if (-not (Select-String -Path "PORTABLE_PLUGIN_CHECK.txt" -Pattern "Plugin directories:" -Quiet)) {
-            throw "yt-dlp did not report plugin directories"
+            throw "yt-dlp extractor initialization did not report plugin directories"
           }
           if (Select-String -Path "PORTABLE_PLUGIN_CHECK.txt" -Pattern "Plugin directories: none" -Quiet) {
-            throw "yt-dlp reported no portable plugin directory"
+            throw "yt-dlp extractor initialization reported no plugin directory"
           }
 
       - name: Record exact dependency versions
@@ -223,23 +227,23 @@ jobs:
       - name: Assemble complete Windows package
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build016/runtime" | Out-Null
-          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build016/yt-dlp-plugins" | Out-Null
-          Copy-Item "dist/Banjofy.exe" "dist/Banjofy-Module17-Build016/Banjofy.exe" -Force
-          Copy-Item "runtime/deno.exe" "dist/Banjofy-Module17-Build016/runtime/deno.exe" -Force
-          Copy-Item "runtime/bgutil-ytdlp-pot-provider" "dist/Banjofy-Module17-Build016/runtime/bgutil-ytdlp-pot-provider" -Recurse -Force
-          Copy-Item "portable_plugins/bgutil-ytdlp-pot-provider" "dist/Banjofy-Module17-Build016/yt-dlp-plugins/bgutil-ytdlp-pot-provider" -Recurse -Force
-          Copy-Item "BUILD_DEPENDENCY_LOCK.txt" "dist/Banjofy-Module17-Build016/BUILD_DEPENDENCY_LOCK.txt" -Force
-          Copy-Item "replacements/module17integration/RUNTIME_VERSIONS.json" "dist/Banjofy-Module17-Build016/RUNTIME_VERSIONS.json" -Force
-          if (-not (Test-Path "dist/Banjofy-Module17-Build016/Banjofy.exe")) { throw "Banjofy.exe missing" }
-          if (-not (Test-Path "dist/Banjofy-Module17-Build016/runtime/deno.exe")) { throw "Packaged Deno missing" }
-          if (-not (Get-ChildItem "dist/Banjofy-Module17-Build016/yt-dlp-plugins/bgutil-ytdlp-pot-provider/yt_dlp_plugins" -Recurse -Filter "getpot_bgutil*.py")) {
+          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build017/runtime" | Out-Null
+          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build017/yt-dlp-plugins" | Out-Null
+          Copy-Item "dist/Banjofy.exe" "dist/Banjofy-Module17-Build017/Banjofy.exe" -Force
+          Copy-Item "runtime/deno.exe" "dist/Banjofy-Module17-Build017/runtime/deno.exe" -Force
+          Copy-Item "runtime/bgutil-ytdlp-pot-provider" "dist/Banjofy-Module17-Build017/runtime/bgutil-ytdlp-pot-provider" -Recurse -Force
+          Copy-Item "portable_plugins/bgutil-ytdlp-pot-provider" "dist/Banjofy-Module17-Build017/yt-dlp-plugins/bgutil-ytdlp-pot-provider" -Recurse -Force
+          Copy-Item "BUILD_DEPENDENCY_LOCK.txt" "dist/Banjofy-Module17-Build017/BUILD_DEPENDENCY_LOCK.txt" -Force
+          Copy-Item "replacements/module17integration/RUNTIME_VERSIONS.json" "dist/Banjofy-Module17-Build017/RUNTIME_VERSIONS.json" -Force
+          if (-not (Test-Path "dist/Banjofy-Module17-Build017/Banjofy.exe")) { throw "Banjofy.exe missing" }
+          if (-not (Test-Path "dist/Banjofy-Module17-Build017/runtime/deno.exe")) { throw "Packaged Deno missing" }
+          if (-not (Get-ChildItem "dist/Banjofy-Module17-Build017/yt-dlp-plugins/bgutil-ytdlp-pot-provider/yt_dlp_plugins" -Recurse -Filter "getpot_bgutil*.py")) {
             throw "Packaged portable bgutil plugin missing"
           }
 
       - name: Upload complete Windows package
         uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-006.4.0-Module-17-Integration-Build-016-Windows
-          path: dist/Banjofy-Module17-Build016
+          name: Banjofy-006.4.0-Module-17-Integration-Build-017-Windows
+          path: dist/Banjofy-Module17-Build017
           if-no-files-found: error

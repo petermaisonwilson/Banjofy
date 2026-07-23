@@ -14,6 +14,8 @@ from typing import Callable
 import imageio_ffmpeg
 from yt_dlp import YoutubeDL
 import yt_dlp
+from yt_dlp.globals import plugin_dirs as yt_dlp_plugin_dirs
+from yt_dlp.plugins import load_all_plugins as yt_dlp_load_all_plugins
 
 from banjofy.models.search_result import SearchResult
 from banjofy.storage.paths import audio_folder, get_library_path
@@ -50,6 +52,23 @@ def _runtime_root() -> Path:
 
 def _portable_plugin_root() -> Path:
     return _executable_root() / "yt-dlp-plugins"
+
+
+def _activate_portable_yt_dlp_plugins(plugin_root: Path) -> list[str]:
+    """Activate the portable plugin directory using yt-dlp's Python API."""
+    resolved_root = plugin_root.resolve()
+    yt_dlp_plugin_dirs.value = [str(resolved_root)]
+    yt_dlp_load_all_plugins()
+
+    loaded_modules: list[str] = []
+    for module_name in (
+        "yt_dlp_plugins.extractor.getpot_bgutil",
+        "yt_dlp_plugins.extractor.getpot_bgutil_http",
+        "yt_dlp_plugins.extractor.getpot_bgutil_script",
+    ):
+        __import__(module_name)
+        loaded_modules.append(module_name)
+    return loaded_modules
 
 
 def _diagnostic_folder() -> Path:
@@ -134,6 +153,11 @@ class DownloadManager:
         provider_server = runtime / "bgutil-ytdlp-pot-provider" / "server"
         plugin_root = _portable_plugin_root()
         ffmpeg = Path(imageio_ffmpeg.get_ffmpeg_exe())
+        loaded_plugin_modules = _activate_portable_yt_dlp_plugins(plugin_root)
+        logger.write(
+            "[banjofy] PORTABLE PLUGIN MODULES\n"
+            + json.dumps(loaded_plugin_modules, indent=2)
+        )
         return deno, provider_server, plugin_root, ffmpeg
 
     def _verify_components(
@@ -212,7 +236,7 @@ class DownloadManager:
         log_path = _diagnostic_folder() / f"download_{stamp}_{safe[:50]}.log.txt"
         DownloadManager._latest_log_path = log_path
         logger = _DiagnosticLogger(log_path)
-        logger.add("BANJOFY MODULE 17 BUILD 016 DOWNLOAD DIAGNOSTIC")
+        logger.add("BANJOFY MODULE 17 BUILD 017 DOWNLOAD DIAGNOSTIC")
         logger.add(f"UTC/local timestamp: {datetime.now().isoformat(timespec='seconds')}")
         logger.add(f"Title: {result.title}")
         logger.add(f"Channel: {result.channel}")
@@ -265,7 +289,6 @@ class DownloadManager:
                 "windowsfilenames": True,
                 "ffmpeg_location": str(ffmpeg),
                 "js_runtimes": {"deno": {"path": str(deno)}},
-                "plugin_dirs": [str(plugin_root)],
                 "extractor_args": extractor_args,
                 "progress_hooks": [hook],
                 "outtmpl": str(folder / (safe + ".%(ext)s")),

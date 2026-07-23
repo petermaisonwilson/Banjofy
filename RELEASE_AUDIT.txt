@@ -1,64 +1,60 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 016
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 017
 RELEASE-GATE AUDIT
 
 BUILD TYPE
 Complete clean rebuild from confirmed Build 002. No patch script.
 
-EVIDENCE
-Build 015 Windows startup passed.
-The live diagnostic proved:
-- yt-dlp 2026.06.09 loaded;
-- Deno 2.8.1 loaded;
-- yt-dlp-ejs 0.8.0 loaded;
-- FFmpeg existed;
-- bgutil server and node_modules existed;
-- Plugin directories: none;
-- PO Token Providers: none.
+CONFIRMED BUILD 016 EVIDENCE
+Plugin staging passed and printed the exact three required bgutil modules.
+The only failure was the expectation that a version-only yt-dlp command would
+perform plugin/extractor initialisation.
 
-DOWNLOAD CORRECTION
-- Stage plugin files from importlib.metadata distribution file list.
-- Preserve the exact yt_dlp_plugins namespace path.
-- Package under executable-adjacent yt-dlp-plugins.
-- Pass plugin_dirs explicitly to embedded yt-dlp.
-- Verify plugin folder and getpot_bgutil modules before download.
-- Keep mweb, EJS, Deno, provider server and FFmpeg unchanged.
+ROOT-CAUSE CORRECTION
+yt-dlp's own source shows that CLI parsing assigns plugin_dirs.value and calls
+load_all_plugins before constructing YoutubeDL. Build 017 reproduces this exact
+mechanism in the embedded downloader:
+- assign portable root to yt_dlp.globals.plugin_dirs.value;
+- call yt_dlp.plugins.load_all_plugins;
+- import the three required provider modules.
 
-REPEAT CORRECTION
-User evidence:
-- Bar 1 Beat 1 to Bar 4 Beat 1 played only seven beats.
-- Bar 4 Beat 1 to Bar 6 Beat 1 began with cursor at Bar 2 Beat 2.
+WORKFLOW PROOF
+- Exact installed distribution files staged: retained.
+- Python API activation and module imports: added.
+- `--version` plugin assertion: removed.
+- `--verbose --list-extractors` initialisation proof: added.
+- Portable artifact copy and existence checks: retained.
 
-Controlled correction:
-- End marker is an exclusive musical boundary.
-- Selected timestamps are locked once per run.
-- Player seek must be acknowledged within 120 ms before count-in.
-- Position is checked again before Play.
-- End detection uses the locked end timestamp.
-- Failure reports requested and actual media positions.
+RUNTIME/PACKAGING
+- Banjofy.exe-adjacent yt-dlp-plugins layout retained.
+- Provider server and node_modules retained.
+- Deno, EJS and FFmpeg unchanged.
+- PyInstaller spec unchanged.
+- Hidden console unchanged.
+- Ten-second startup smoke test retained.
 
-UNCHANGED
-- requirements;
-- PyInstaller spec;
-- timing analyzer;
-- chord engine;
-- ChordMini environment and model;
-- Deno/provider server versions;
-- hidden-console startup configuration.
+REPEAT
+Build 016 repeat implementation retained unchanged:
+- exclusive end boundary;
+- locked timestamps;
+- seek acknowledgement;
+- post-count-in verification;
+- locked end detection.
 
-LOCAL AUDIT
+LOCAL PROOF
 - Python compilation: passed.
-- Repeat boundary helper deterministic tests: passed.
-- Synthetic timing 3/4, 4/4 and phase tests: passed.
-- Workflow ordering and packaging paths: passed.
+- Exact workflow replacement: passed.
+- Unsupported YoutubeDL plugin_dirs parameter absent: passed.
+- Global plugin loader activation present: passed.
+- Three explicit provider imports present: passed.
+- Repeat deterministic tests: passed.
 - ZIP integrity and checksums: passed.
 
 GITHUB MUST STILL PROVE
-- exact installed plugin file staging on Windows;
-- portable plugin directory detection;
-- PyInstaller build and startup;
-- artifact includes the plugin namespace.
+- Windows-installed plugin files import through the yt-dlp loader;
+- extractor initialisation reports the plugin directory;
+- PyInstaller and frozen startup complete.
 
 PETER'S WINDOWS TEST MUST STILL PROVE
-- bgutil provider registration and live download;
-- QMediaPlayer repeat seek acknowledgement;
-- exact repeat start/end behaviour.
+- provider registration in the live diagnostic;
+- YouTube format discovery and download;
+- corrected repeat behaviour.

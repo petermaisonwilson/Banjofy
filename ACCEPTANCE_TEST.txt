@@ -1,29 +1,26 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 016
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 017
 ACCEPTANCE TEST
 
-DOWNLOAD
-1. Extract to C:\B16 and keep runtime and yt-dlp-plugins beside Banjofy.exe.
-2. Search for Bryan Adams - (Everything I Do) I Do It For You.
-3. Download the selected result.
-4. In Full Download Diagnostic confirm:
-   - portable_plugin_root_exists: true
-   - portable_plugin_files lists getpot_bgutil modules
-   - Plugin directories is not none
-   - PO Token Providers includes bgutil
-5. Confirm format discovery, download and FFmpeg conversion complete.
+GITHUB ACTIONS
+1. Exact bgutil files are staged beneath:
+   portable_plugins/bgutil-ytdlp-pot-provider/yt_dlp_plugins.
+2. Python API activation imports all three getpot_bgutil modules.
+3. Verbose extractor initialisation reports a real Plugin directories entry.
+4. PyInstaller builds Banjofy.exe.
+5. Banjofy.exe remains running for the ten-second startup smoke test.
+6. Artifact includes runtime and yt-dlp-plugins beside the EXE.
+
+WINDOWS DOWNLOAD
+1. Extract the complete artifact to C:\B17.
+2. Keep Banjofy.exe, runtime and yt-dlp-plugins together.
+3. Retry Bryan Adams - (Everything I Do) I Do It For You.
+4. Open Full Download Diagnostic.
+5. Confirm PORTABLE PLUGIN MODULES lists all three bgutil modules.
+6. Confirm PO Token Providers no longer says none.
+7. Confirm download and FFmpeg conversion complete.
 
 REPEAT
-Use a 4/4 song with automatic timing ready.
-1. Set Start Bar 1 Beat 1 and End Bar 4 Beat 1.
-   Expected: exactly the three complete bars before Bar 4.
-2. Set Start Bar 4 Beat 1 and End Bar 6 Beat 1.
-   Expected: exactly two complete bars, beginning at Bar 4 Beat 1.
-3. Confirm the cursor does not jump to an earlier bar during count-in or play.
-4. Test Single Run and Continuous modes.
-5. Report any message containing requested and reported seek times.
-
-REGRESSION
-- Practice Play/Pause/Stop and manual seek.
-- Tennessee Waltz 3/4.
-- Two known 4/4 songs.
-- ChordMini analysis and Library.
+1. Bar 1 Beat 1 to Bar 4 Beat 1: three complete bars.
+2. Bar 4 Beat 1 to Bar 6 Beat 1: two complete bars.
+3. Test Single Run and Continuous.
+4. Confirm the cursor begins and ends at the selected boundaries.
