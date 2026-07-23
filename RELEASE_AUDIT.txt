@@ -1,31 +1,40 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 020
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 021
 RELEASE-GATE AUDIT
 
-ROOT CAUSE
-Build 019 workflow imported ChordEngine from chord_engine.py. No class or
-function of that name exists. The application imports AnalysisResult and
-analyse_audio. The workflow gate was wrong.
+BUILD 020 EVIDENCE
+The GitHub log showed:
+- yt-dlp started;
+- Deno started;
+- FFmpeg started;
+- plugin files existed;
+- provider server existed;
+- provider node_modules existed;
+- health_check returned ready=True and missing=[].
 
-CORRECTION
-- Removed the invented ChordEngine import.
-- Tests the exact objects imported by main_window.py.
-- Added AST-based API consistency checking so the workflow verifies every
-  main-window chord-engine import exists in chord_engine.py.
-- EAA implementation retained unchanged apart from Build 020 identity.
-- Repeat correction retained unchanged.
-- Built again from a fresh extraction of confirmed Build 002.
+The subsequent bare AssertionError came from the workflow's over-escaped
+Windows suffix comparison. It was not an EAA failure.
+
+BUILD 021 CORRECTION
+- Removed the one-line quoted handoff assertion.
+- Added eaa_release_gate.py as a real source-controlled test.
+- Uses Path.resolve() equality instead of slash-count string matching.
+- Verifies the real command values, not textual formatting.
+- Every failure has a named diagnostic message.
+- Retains exact application imports consistency check.
+- Retains EAA, startup smoke test and repeat corrections.
+- Complete clean rebuild from confirmed Build 002.
 
 LOCAL PROOF
-- all replacement Python files compile;
-- exact application import names exist;
-- no ChordEngine import remains anywhere in the workflow;
-- main-window/chord-engine API consistency passes;
+- replacement Python files compile;
+- release-gate script compiles;
+- no old endswith path assertion remains;
+- workflow invokes eaa_release_gate.py;
+- release-gate semantics validated with a controlled fake health/command;
 - deterministic repeat tests pass;
 - ZIP integrity and checksums pass.
 
 GITHUB PROOF
-Not yet claimed. GitHub must run the Windows workflow.
+Not yet claimed.
 
 PETER'S WINDOWS PROOF
-Not yet claimed. Live YouTube acquisition and actual QMediaPlayer behaviour
-remain Peter's Windows acceptance tests.
+Not yet claimed.

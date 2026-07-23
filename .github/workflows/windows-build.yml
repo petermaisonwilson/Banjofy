@@ -1,4 +1,4 @@
-name: Build Banjofy Module 17 Build 020
+name: Build Banjofy Module 17 Build 021
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Verify Build 020 clean-rebuild files
+      - name: Verify Build 021 clean-rebuild files
         shell: pwsh
         run: |
           $required = @(
@@ -33,7 +33,8 @@ jobs:
             "replacements/module17integration/audio_downloader.py",
             "replacements/module17integration/requirements.txt",
             "replacements/module17integration/Banjofy_Module17.spec",
-            "replacements/module17integration/RUNTIME_VERSIONS.json"
+            "replacements/module17integration/RUNTIME_VERSIONS.json",
+            "replacements/module17integration/eaa_release_gate.py"
           )
           foreach ($file in $required) {
             if (-not (Test-Path $file)) { throw "Missing Build 019 file: $file" }
@@ -52,6 +53,7 @@ jobs:
           Copy-Item "replacements/module17integration/audio_downloader.py" "src/banjofy/download/audio_downloader.py" -Force
           Copy-Item "replacements/module17integration/requirements.txt" "requirements.txt" -Force
           Copy-Item "replacements/module17integration/Banjofy_Module17.spec" "Banjofy_Module17.spec" -Force
+          Copy-Item "replacements/module17integration/eaa_release_gate.py" "eaa_release_gate.py" -Force
 
       - name: Clone dedicated ChordMini model
         shell: pwsh
@@ -140,7 +142,7 @@ jobs:
             throw "External agent provider dependencies missing"
           }
 
-          python -c "from banjofy.download.audio_downloader import DownloadManager; m=DownloadManager(); h=m.health_check(); print(h); assert h['ready']; cmd=m._command(type('R', (), {'url':'https://example.invalid/test'})(), __import__('pathlib').Path('Audio'), 'test'); assert cmd[0].endswith('Acquisition\\\\yt-dlp.exe'); assert '--plugin-dirs' in cmd; assert '--js-runtimes' in cmd; assert '--ffmpeg-location' in cmd; print('Banjofy-to-EAA handoff: passed')"
+          python eaa_release_gate.py
           if ($LASTEXITCODE -ne 0) { throw "Banjofy-to-EAA handoff failed" }
 
       - name: Compile and internal audits
@@ -185,23 +187,23 @@ jobs:
       - name: Assemble complete Windows package
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build020" | Out-Null
-          Copy-Item "dist/Banjofy.exe" "dist/Banjofy-Module17-Build020/Banjofy.exe" -Force
-          Copy-Item "Acquisition" "dist/Banjofy-Module17-Build020/Acquisition" -Recurse -Force
-          Copy-Item "replacements/module17integration/RUNTIME_VERSIONS.json" "dist/Banjofy-Module17-Build020/RUNTIME_VERSIONS.json" -Force
+          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build021" | Out-Null
+          Copy-Item "dist/Banjofy.exe" "dist/Banjofy-Module17-Build021/Banjofy.exe" -Force
+          Copy-Item "Acquisition" "dist/Banjofy-Module17-Build021/Acquisition" -Recurse -Force
+          Copy-Item "replacements/module17integration/RUNTIME_VERSIONS.json" "dist/Banjofy-Module17-Build021/RUNTIME_VERSIONS.json" -Force
 
-          if (-not (Test-Path "dist/Banjofy-Module17-Build020/Banjofy.exe")) { throw "Packaged Banjofy.exe missing" }
-          if (-not (Test-Path "dist/Banjofy-Module17-Build020/Acquisition/yt-dlp.exe")) { throw "Packaged EAA yt-dlp missing" }
-          if (-not (Test-Path "dist/Banjofy-Module17-Build020/Acquisition/deno.exe")) { throw "Packaged EAA Deno missing" }
-          if (-not (Test-Path "dist/Banjofy-Module17-Build020/Acquisition/ffmpeg.exe")) { throw "Packaged EAA FFmpeg missing" }
-          if (-not (Get-ChildItem "dist/Banjofy-Module17-Build020/Acquisition/yt-dlp-plugins" -Recurse -Filter "getpot_bgutil*.py")) {
+          if (-not (Test-Path "dist/Banjofy-Module17-Build021/Banjofy.exe")) { throw "Packaged Banjofy.exe missing" }
+          if (-not (Test-Path "dist/Banjofy-Module17-Build021/Acquisition/yt-dlp.exe")) { throw "Packaged EAA yt-dlp missing" }
+          if (-not (Test-Path "dist/Banjofy-Module17-Build021/Acquisition/deno.exe")) { throw "Packaged EAA Deno missing" }
+          if (-not (Test-Path "dist/Banjofy-Module17-Build021/Acquisition/ffmpeg.exe")) { throw "Packaged EAA FFmpeg missing" }
+          if (-not (Get-ChildItem "dist/Banjofy-Module17-Build021/Acquisition/yt-dlp-plugins" -Recurse -Filter "getpot_bgutil*.py")) {
             throw "Packaged EAA plugin missing"
           }
 
       - name: Test assembled External Acquisition Agent
         shell: pwsh
         run: |
-          Push-Location "dist/Banjofy-Module17-Build020"
+          Push-Location "dist/Banjofy-Module17-Build021"
           & "Acquisition/yt-dlp.exe" --version
           if ($LASTEXITCODE -ne 0) { throw "Packaged yt-dlp failed" }
           & "Acquisition/deno.exe" --version
@@ -214,6 +216,6 @@ jobs:
       - name: Upload complete Windows package
         uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-006.4.0-Module-17-Integration-Build-020-Windows
-          path: dist/Banjofy-Module17-Build020
+          name: Banjofy-006.4.0-Module-17-Integration-Build-021-Windows
+          path: dist/Banjofy-Module17-Build021
           if-no-files-found: error
