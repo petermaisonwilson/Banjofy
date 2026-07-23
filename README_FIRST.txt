@@ -1,30 +1,27 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 017
-COMPLETE CLEAN REBUILD
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 019
+EXTERNAL ACQUISITION AGENT
 
-Build 017 is rebuilt from the complete confirmed Build 002 baseline.
+SIMPLE EXPLANATION
+Banjofy now asks a separate helper to obtain the audio.
 
-BUILD 016 FAILURE
-The exact bgutil plugin modules were staged successfully:
-- getpot_bgutil.py
-- getpot_bgutil_http.py
-- getpot_bgutil_script.py
+Banjofy:
+- searches for the song;
+- sends the selected address to the helper;
+- waits for the completed audio file;
+- analyses chords and timing;
+- stores the song in the Library;
+- plays it locally in Practice.
 
-Build 016 then incorrectly used `yt-dlp --verbose --version` as a plugin
-initialisation test. The version-only command printed the pinned version and
-exited without initialising extractors, so it could not report plugin
-directories.
+The helper lives in the Acquisition folder beside Banjofy.exe. It contains its
+own yt-dlp, Deno, FFmpeg and PO-token provider. It is not frozen inside
+Banjofy.exe.
 
-BUILD 017 CORRECTION
-- Retains the confirmed plugin staging and portable artifact layout.
-- Activates the portable plugin path through yt-dlp's actual Python API:
-  yt_dlp.globals.plugin_dirs.value followed by
-  yt_dlp.plugins.load_all_plugins().
-- Imports all three staged bgutil modules immediately and fails if any cannot
-  load.
-- Uses `--verbose --list-extractors` only as a second extractor-initialisation
-  proof; this performs the initialisation that `--version` did not.
-- Removes the unsupported YoutubeDL constructor `plugin_dirs` parameter.
-- Retains Build 016 repeat corrections unchanged.
+WHY THIS IS STRONGER
+When YouTube changes, only the Acquisition folder should need updating.
+Library, analysis, Practice, chord display and diagrams remain separate.
+
+DO NOT MOVE OR RENAME THE ACQUISITION FOLDER.
+Keep it beside Banjofy.exe.
 
 EXPECTED ARTIFACT
-Banjofy-006.4.0-Module-17-Integration-Build-017-Windows
+Banjofy-006.4.0-Module-17-Integration-Build-019-Windows

@@ -1,26 +1,22 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 017
-ACCEPTANCE TEST
+BANJOFY BUILD 019 — EXACT TEST
 
-GITHUB ACTIONS
-1. Exact bgutil files are staged beneath:
-   portable_plugins/bgutil-ytdlp-pot-provider/yt_dlp_plugins.
-2. Python API activation imports all three getpot_bgutil modules.
-3. Verbose extractor initialisation reports a real Plugin directories entry.
-4. PyInstaller builds Banjofy.exe.
-5. Banjofy.exe remains running for the ten-second startup smoke test.
-6. Artifact includes runtime and yt-dlp-plugins beside the EXE.
+1. Download the GitHub Actions artifact.
+2. Extract the complete artifact to C:\B19.
+3. Open the extracted folder.
+4. Confirm you can see:
+   Banjofy.exe
+   Acquisition
+   RUNTIME_VERSIONS.json
+5. Do not open anything inside Acquisition.
+6. Double-click Banjofy.exe.
+7. Search for:
+   Bryan Adams - (Everything I Do) I Do It For You
+8. Select the correct result and click Download Selected Audio.
+9. Wait for completion or failure.
+10. Open View Full Download Diagnostic.
+11. On success confirm the song appears in the Library and can be analysed.
+12. Test repeat:
+    Bar 1 Beat 1 to Bar 4 Beat 1 = three complete bars.
+    Bar 4 Beat 1 to Bar 6 Beat 1 = two complete bars.
 
-WINDOWS DOWNLOAD
-1. Extract the complete artifact to C:\B17.
-2. Keep Banjofy.exe, runtime and yt-dlp-plugins together.
-3. Retry Bryan Adams - (Everything I Do) I Do It For You.
-4. Open Full Download Diagnostic.
-5. Confirm PORTABLE PLUGIN MODULES lists all three bgutil modules.
-6. Confirm PO Token Providers no longer says none.
-7. Confirm download and FFmpeg conversion complete.
-
-REPEAT
-1. Bar 1 Beat 1 to Bar 4 Beat 1: three complete bars.
-2. Bar 4 Beat 1 to Bar 6 Beat 1: two complete bars.
-3. Test Single Run and Continuous.
-4. Confirm the cursor begins and ends at the selected boundaries.
+On failure, use Copy Full Diagnostic and paste the complete text.

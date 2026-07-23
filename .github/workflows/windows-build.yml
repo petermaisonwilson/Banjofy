@@ -1,4 +1,4 @@
-name: Build Banjofy Module 17 Build 017
+name: Build Banjofy Module 17 Build 019
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Verify Build 017 clean-rebuild files
+      - name: Verify Build 019 clean-rebuild files
         shell: pwsh
         run: |
           $required = @(
@@ -36,14 +36,14 @@ jobs:
             "replacements/module17integration/RUNTIME_VERSIONS.json"
           )
           foreach ($file in $required) {
-            if (-not (Test-Path $file)) { throw "Missing Build 017 file: $file" }
+            if (-not (Test-Path $file)) { throw "Missing Build 019 file: $file" }
           }
 
       - name: Preserve repository window
         shell: pwsh
         run: Copy-Item "src/banjofy/ui/main_window.py" "src/banjofy/ui/main_window_legacy.py" -Force
 
-      - name: Install complete Build 017 source
+      - name: Install complete Build 019 source
         shell: pwsh
         run: |
           Copy-Item "replacements/module17integration/main_window.py" "src/banjofy/ui/main_window.py" -Force
@@ -52,8 +52,6 @@ jobs:
           Copy-Item "replacements/module17integration/audio_downloader.py" "src/banjofy/download/audio_downloader.py" -Force
           Copy-Item "replacements/module17integration/requirements.txt" "requirements.txt" -Force
           Copy-Item "replacements/module17integration/Banjofy_Module17.spec" "Banjofy_Module17.spec" -Force
-
-
 
       - name: Clone dedicated ChordMini model
         shell: pwsh
@@ -69,105 +67,78 @@ jobs:
         run: |
           python -m pip install --upgrade pip wheel
           if ($LASTEXITCODE -ne 0) { throw "pip and wheel upgrade failed" }
-
           python -m pip install -r requirements.txt
           if ($LASTEXITCODE -ne 0) { throw "requirements installation failed" }
-
           python -m pip install pyinstaller==6.14.2
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller installation failed" }
 
-      - name: Verify confirmed Laboratory 016 and Module 17 dependencies
+      - name: Verify application dependencies and imports
         shell: pwsh
         run: |
-          python -c "import torch, librosa, numpy, scipy.signal, mir_eval, imageio_ffmpeg, seaborn, pandas, matplotlib, tqdm, soundfile, yaml; print('Confirmed Laboratory 016 runtime imports available')"
-          if ($LASTEXITCODE -ne 0) { throw "Laboratory 016 runtime import chain failed" }
+          python -c "import torch, librosa, numpy, scipy.signal, mir_eval, imageio_ffmpeg, seaborn, pandas, matplotlib, tqdm, soundfile, yaml; print('Laboratory runtime imports: passed')"
+          if ($LASTEXITCODE -ne 0) { throw "Laboratory runtime imports failed" }
+          python -c "from banjofy.ui.main_window import MainWindow; from banjofy.ui.timing_analyzer import TimingAnalyzer; from banjofy.analysis.chord_engine import ChordEngine; from banjofy.download.audio_downloader import DownloadManager; print('Banjofy application imports: passed')"
+          if ($LASTEXITCODE -ne 0) { throw "Banjofy application import failed" }
 
-          python -c "import yt_dlp; print('yt-dlp', yt_dlp.version.__version__)"
-          if ($LASTEXITCODE -ne 0) { throw "yt-dlp import failed" }
-
-          python -c "import curl_cffi; print('curl-cffi import: passed')"
-          if ($LASTEXITCODE -ne 0) { throw "curl-cffi import failed" }
-
-          python -c "import PySide6; print('PySide6', PySide6.__version__)"
-          if ($LASTEXITCODE -ne 0) { throw "PySide6 import failed" }
-
-          python -c "import importlib.metadata as m; print('bgutil', m.version('bgutil-ytdlp-pot-provider')); print('yt-dlp-ejs', m.version('yt-dlp-ejs'))"
-          if ($LASTEXITCODE -ne 0) { throw "Modern downloader package metadata verification failed" }
-
-      - name: Verify frozen pkg_resources runtime chain
+      - name: Prepare External Acquisition Agent
         shell: pwsh
         run: |
-          python -c "import pkg_resources, jaraco.text, jaraco.context, backports.tarfile; assert jaraco.text.__file__; assert jaraco.context.__file__; assert backports.tarfile.__file__; print('pkg_resources jaraco backports runtime chain: passed'); print('jaraco.text file:', jaraco.text.__file__); print('jaraco.context file:', jaraco.context.__file__); print('backports.tarfile file:', backports.tarfile.__file__)"
-          if ($LASTEXITCODE -ne 0) { throw "pkg_resources runtime chain import failed" }
+          New-Item -ItemType Directory -Force "Acquisition/runtime" | Out-Null
+          New-Item -ItemType Directory -Force "Acquisition/yt-dlp-plugins/bgutil-ytdlp-pot-provider" | Out-Null
 
-          python -c "import importlib.metadata as m; print('backports.tarfile', m.version('backports.tarfile'))"
-          if ($LASTEXITCODE -ne 0) { throw "backports.tarfile metadata check failed" }
+          Invoke-WebRequest `
+            -Uri "https://github.com/yt-dlp/yt-dlp/releases/download/2026.06.09/yt-dlp.exe" `
+            -OutFile "Acquisition/yt-dlp.exe"
+          if (-not (Test-Path "Acquisition/yt-dlp.exe")) { throw "Official yt-dlp.exe missing" }
 
-      - name: Early application import gate
-        shell: pwsh
-        run: |
-          python -c "import banjofy; print('banjofy package import: passed')"
-          python -c "from banjofy.ui.main_window import MainWindow; print('main window import: passed')"
-          python -c "from banjofy.ui.timing_analyzer import TimingAnalyzer; print('timing analyzer import: passed')"
-          python -c "from banjofy.analysis.chord_engine import ChordEngine; print('chord engine import: passed')"
-          python -c "from banjofy.download.audio_downloader import DownloadManager; print('downloader import: passed')"
+          Invoke-WebRequest `
+            -Uri "https://github.com/denoland/deno/releases/download/v2.8.1/deno-x86_64-pc-windows-msvc.zip" `
+            -OutFile "Acquisition/deno.zip"
+          Expand-Archive "Acquisition/deno.zip" -DestinationPath "Acquisition" -Force
+          Remove-Item "Acquisition/deno.zip"
+          if (-not (Test-Path "Acquisition/deno.exe")) { throw "deno.exe missing" }
 
-      - name: Download pinned Deno 2.8.1
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force runtime | Out-Null
-          $url = "https://github.com/denoland/deno/releases/download/v2.8.1/deno-x86_64-pc-windows-msvc.zip"
-          Invoke-WebRequest -Uri $url -OutFile "runtime/deno.zip"
-          Expand-Archive "runtime/deno.zip" -DestinationPath "runtime" -Force
-          Remove-Item "runtime/deno.zip"
-          if (-not (Test-Path "runtime/deno.exe")) { throw "deno.exe missing" }
-          & "runtime/deno.exe" --version
+          python -c "import imageio_ffmpeg, pathlib, shutil; src=pathlib.Path(imageio_ffmpeg.get_ffmpeg_exe()); dst=pathlib.Path('Acquisition/ffmpeg.exe'); shutil.copy2(src,dst); print(src, '->', dst)"
+          if ($LASTEXITCODE -ne 0) { throw "FFmpeg staging failed" }
+          if (-not (Test-Path "Acquisition/ffmpeg.exe")) { throw "ffmpeg.exe missing" }
 
-      - name: Prepare pinned bgutil PO-token provider 1.3.1
-        shell: pwsh
-        run: |
-          git clone --depth 1 --branch 1.3.1 https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git runtime/bgutil-ytdlp-pot-provider
-          Push-Location runtime/bgutil-ytdlp-pot-provider/server
-          & "$env:GITHUB_WORKSPACE/runtime/deno.exe" install --allow-scripts=npm:canvas --frozen
+          git clone --depth 1 --branch 1.3.1 `
+            https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git `
+            "Acquisition/runtime/bgutil-ytdlp-pot-provider"
+          if ($LASTEXITCODE -ne 0) { throw "bgutil provider clone failed" }
+
+          Push-Location "Acquisition/runtime/bgutil-ytdlp-pot-provider/server"
+          & "$env:GITHUB_WORKSPACE/Acquisition/deno.exe" install --allow-scripts=npm:canvas --frozen
+          if ($LASTEXITCODE -ne 0) { throw "bgutil provider dependency installation failed" }
           Pop-Location
-          if (-not (Test-Path "runtime/bgutil-ytdlp-pot-provider/server/node_modules")) {
-            throw "bgutil provider node_modules missing"
-          }
 
-      - name: Stage exact installed bgutil plugin for portable EXE
+          python -c "import importlib.metadata as m, pathlib, shutil; d=m.distribution('bgutil-ytdlp-pot-provider'); files=[f for f in (d.files or []) if 'yt_dlp_plugins' in f.parts and f.suffix=='.py']; assert files; root=pathlib.Path('Acquisition/yt-dlp-plugins/bgutil-ytdlp-pot-provider'); [(lambda src,dst: (dst.parent.mkdir(parents=True, exist_ok=True), shutil.copy2(src,dst)))(pathlib.Path(d.locate_file(f)), root/pathlib.Path(*f.parts[f.parts.index('yt_dlp_plugins'):])) for f in files]; print('\n'.join(str(root/pathlib.Path(*f.parts[f.parts.index('yt_dlp_plugins'):])) for f in files))"
+          if ($LASTEXITCODE -ne 0) { throw "External agent plugin staging failed" }
+
+      - name: Test External Acquisition Agent as a separate product
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force "portable_plugins/bgutil-ytdlp-pot-provider" | Out-Null
+          & "Acquisition/yt-dlp.exe" --version
+          if ($LASTEXITCODE -ne 0) { throw "yt-dlp executable self-test failed" }
 
-          python -c "import importlib.metadata as m, pathlib, shutil; d=m.distribution('bgutil-ytdlp-pot-provider'); files=[f for f in (d.files or []) if 'yt_dlp_plugins' in f.parts and f.suffix=='.py']; assert files, 'No yt_dlp_plugins Python files in installed bgutil distribution'; root=pathlib.Path('portable_plugins/bgutil-ytdlp-pot-provider'); [(lambda src,dst: (dst.parent.mkdir(parents=True, exist_ok=True), shutil.copy2(src,dst)))(pathlib.Path(d.locate_file(f)), root/pathlib.Path(*f.parts[f.parts.index('yt_dlp_plugins'):])) for f in files]; print('\n'.join(str(root/pathlib.Path(*f.parts[f.parts.index('yt_dlp_plugins'):])) for f in files))"
-          if ($LASTEXITCODE -ne 0) { throw "Portable bgutil plugin staging failed" }
+          & "Acquisition/deno.exe" --version
+          if ($LASTEXITCODE -ne 0) { throw "Deno executable self-test failed" }
 
-          $pluginFiles = Get-ChildItem "portable_plugins/bgutil-ytdlp-pot-provider/yt_dlp_plugins" -Recurse -Filter "getpot_bgutil*.py"
-          if (-not $pluginFiles) { throw "No staged bgutil provider plugin modules found" }
+          & "Acquisition/ffmpeg.exe" -version
+          if ($LASTEXITCODE -ne 0) { throw "FFmpeg executable self-test failed" }
 
-          $pluginRoot = (Resolve-Path "portable_plugins").Path
-          python -c "from pathlib import Path; from yt_dlp.globals import plugin_dirs; from yt_dlp.plugins import load_all_plugins; root=Path(r'$pluginRoot').resolve(); plugin_dirs.value=[str(root)]; load_all_plugins(); import yt_dlp_plugins.extractor.getpot_bgutil as base; import yt_dlp_plugins.extractor.getpot_bgutil_http as http; import yt_dlp_plugins.extractor.getpot_bgutil_script as script; print('portable plugin API activation: passed'); print(base.__file__); print(http.__file__); print(script.__file__)"
-          if ($LASTEXITCODE -ne 0) { throw "yt-dlp portable plugin API activation failed" }
-
-          python -m yt_dlp --plugin-dirs "$pluginRoot" --verbose --list-extractors 2>&1 | Tee-Object -FilePath "PORTABLE_PLUGIN_CHECK.txt"
-          if ($LASTEXITCODE -ne 0) { throw "yt-dlp extractor initialization failed" }
-          if (-not (Select-String -Path "PORTABLE_PLUGIN_CHECK.txt" -Pattern "Plugin directories:" -Quiet)) {
-            throw "yt-dlp extractor initialization did not report plugin directories"
+          if (-not (Get-ChildItem "Acquisition/yt-dlp-plugins" -Recurse -Filter "getpot_bgutil*.py")) {
+            throw "External agent bgutil plugin files missing"
           }
-          if (Select-String -Path "PORTABLE_PLUGIN_CHECK.txt" -Pattern "Plugin directories: none" -Quiet) {
-            throw "yt-dlp extractor initialization reported no plugin directory"
+          if (-not (Test-Path "Acquisition/runtime/bgutil-ytdlp-pot-provider/server/node_modules")) {
+            throw "External agent provider dependencies missing"
           }
 
-      - name: Record exact dependency versions
-        shell: pwsh
-        run: |
-          python -c "import yt_dlp; print('yt-dlp', yt_dlp.version.__version__)"
-          python -c "import importlib.metadata as m; print('yt-dlp-ejs', m.version('yt-dlp-ejs')); print('bgutil', m.version('bgutil-ytdlp-pot-provider')); print('curl-cffi', m.version('curl-cffi')); print('librosa', m.version('librosa'))"
-          & "runtime/deno.exe" --version
-          python -c "import imageio_ffmpeg; print('ffmpeg', imageio_ffmpeg.get_ffmpeg_version())"
-          python -m pip freeze | Out-File -Encoding utf8 BUILD_DEPENDENCY_LOCK.txt
+          python -c "from banjofy.download.audio_downloader import DownloadManager; m=DownloadManager(); h=m.health_check(); print(h); assert h['ready']; cmd=m._command(type('R', (), {'url':'https://example.invalid/test'})(), __import__('pathlib').Path('Audio'), 'test'); assert cmd[0].endswith('Acquisition\\\\yt-dlp.exe'); assert '--plugin-dirs' in cmd; assert '--js-runtimes' in cmd; assert '--ffmpeg-location' in cmd; print('Banjofy-to-EAA handoff: passed')"
+          if ($LASTEXITCODE -ne 0) { throw "Banjofy-to-EAA handoff failed" }
 
       - name: Compile and internal audits
+        shell: pwsh
         run: |
           python -m py_compile src/main.py
           python -m py_compile src/banjofy/ui/main_window.py
@@ -177,31 +148,14 @@ jobs:
           python -c "from banjofy.analysis import chord_engine as c; print('\n'.join(c.run_internal_self_audit()))"
           python -c "from banjofy.ui import timing_analyzer as t; print('\n'.join(t.run_internal_timing_audit()))"
 
-      - name: Verify modern downloader components
-        shell: pwsh
-        run: |
-          python -c "from yt_dlp import YoutubeDL; import yt_dlp; print('yt-dlp API', yt_dlp.version.__version__)"
-          python -c "import yt_dlp_plugins; print('yt-dlp plugin namespace available')"
-          if (-not (Test-Path "portable_plugins/bgutil-ytdlp-pot-provider/yt_dlp_plugins")) { throw "Portable plugin namespace missing" }
-          if (-not (Get-ChildItem "portable_plugins/bgutil-ytdlp-pot-provider/yt_dlp_plugins" -Recurse -Filter "getpot_bgutil*.py")) { throw "Portable bgutil plugin modules missing" }
-          if (-not (Test-Path "runtime/deno.exe")) { throw "Deno missing" }
-          if (-not (Test-Path "runtime/bgutil-ytdlp-pot-provider/server/package.json")) { throw "Provider source missing" }
-          if (-not (Test-Path "runtime/bgutil-ytdlp-pot-provider/server/node_modules")) { throw "Provider dependencies missing" }
-
-
       - name: Verify ChordMini import and runtime assets
         shell: pwsh
         run: |
           $env:PYTHONPATH = "$env:GITHUB_WORKSPACE/src;$env:GITHUB_WORKSPACE/ChordMini"
-
-          python -c "from src.evaluation.utils import quality_analysis; print('ChordMini evaluation import: passed')"
-          if ($LASTEXITCODE -ne 0) { throw "ChordMini evaluation import failed" }
-
-          python -c "from src.models import load_model; print('ChordMini model loader import: passed')"
-          if ($LASTEXITCODE -ne 0) { throw "ChordMini model loader import failed" }
-
-          python -c "from banjofy.analysis.chord_engine import chordmini_root; p=chordmini_root(); print('ChordMini runtime root:', p); assert (p/'checkpoints/2e1d_model_best.pth').exists(); assert (p/'src/evaluation/test.py').exists(); assert (p/'config/ChordMini.yaml').exists()"
-          if ($LASTEXITCODE -ne 0) { throw "ChordMini runtime path verification failed" }
+          python -c "from src.evaluation.utils import quality_analysis; from src.models import load_model; print('ChordMini imports: passed')"
+          if ($LASTEXITCODE -ne 0) { throw "ChordMini import failed" }
+          python -c "from banjofy.analysis.chord_engine import chordmini_root; p=chordmini_root(); assert (p/'checkpoints/2e1d_model_best.pth').exists(); assert (p/'src/evaluation/test.py').exists(); assert (p/'config/ChordMini.yaml').exists(); print('ChordMini assets: passed')"
+          if ($LASTEXITCODE -ne 0) { throw "ChordMini asset verification failed" }
 
       - name: Build Windows EXE
         shell: pwsh
@@ -215,11 +169,9 @@ jobs:
         run: |
           $process = Start-Process -FilePath "$env:GITHUB_WORKSPACE/dist/Banjofy.exe" -PassThru
           Start-Sleep -Seconds 10
-
           if ($process.HasExited) {
             throw "Banjofy.exe exited during startup smoke test with code $($process.ExitCode)"
           }
-
           Stop-Process -Id $process.Id -Force
           Start-Sleep -Seconds 2
           Write-Host "Banjofy.exe startup smoke test passed"
@@ -227,23 +179,35 @@ jobs:
       - name: Assemble complete Windows package
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build017/runtime" | Out-Null
-          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build017/yt-dlp-plugins" | Out-Null
-          Copy-Item "dist/Banjofy.exe" "dist/Banjofy-Module17-Build017/Banjofy.exe" -Force
-          Copy-Item "runtime/deno.exe" "dist/Banjofy-Module17-Build017/runtime/deno.exe" -Force
-          Copy-Item "runtime/bgutil-ytdlp-pot-provider" "dist/Banjofy-Module17-Build017/runtime/bgutil-ytdlp-pot-provider" -Recurse -Force
-          Copy-Item "portable_plugins/bgutil-ytdlp-pot-provider" "dist/Banjofy-Module17-Build017/yt-dlp-plugins/bgutil-ytdlp-pot-provider" -Recurse -Force
-          Copy-Item "BUILD_DEPENDENCY_LOCK.txt" "dist/Banjofy-Module17-Build017/BUILD_DEPENDENCY_LOCK.txt" -Force
-          Copy-Item "replacements/module17integration/RUNTIME_VERSIONS.json" "dist/Banjofy-Module17-Build017/RUNTIME_VERSIONS.json" -Force
-          if (-not (Test-Path "dist/Banjofy-Module17-Build017/Banjofy.exe")) { throw "Banjofy.exe missing" }
-          if (-not (Test-Path "dist/Banjofy-Module17-Build017/runtime/deno.exe")) { throw "Packaged Deno missing" }
-          if (-not (Get-ChildItem "dist/Banjofy-Module17-Build017/yt-dlp-plugins/bgutil-ytdlp-pot-provider/yt_dlp_plugins" -Recurse -Filter "getpot_bgutil*.py")) {
-            throw "Packaged portable bgutil plugin missing"
+          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build019" | Out-Null
+          Copy-Item "dist/Banjofy.exe" "dist/Banjofy-Module17-Build019/Banjofy.exe" -Force
+          Copy-Item "Acquisition" "dist/Banjofy-Module17-Build019/Acquisition" -Recurse -Force
+          Copy-Item "replacements/module17integration/RUNTIME_VERSIONS.json" "dist/Banjofy-Module17-Build019/RUNTIME_VERSIONS.json" -Force
+
+          if (-not (Test-Path "dist/Banjofy-Module17-Build019/Banjofy.exe")) { throw "Packaged Banjofy.exe missing" }
+          if (-not (Test-Path "dist/Banjofy-Module17-Build019/Acquisition/yt-dlp.exe")) { throw "Packaged EAA yt-dlp missing" }
+          if (-not (Test-Path "dist/Banjofy-Module17-Build019/Acquisition/deno.exe")) { throw "Packaged EAA Deno missing" }
+          if (-not (Test-Path "dist/Banjofy-Module17-Build019/Acquisition/ffmpeg.exe")) { throw "Packaged EAA FFmpeg missing" }
+          if (-not (Get-ChildItem "dist/Banjofy-Module17-Build019/Acquisition/yt-dlp-plugins" -Recurse -Filter "getpot_bgutil*.py")) {
+            throw "Packaged EAA plugin missing"
           }
+
+      - name: Test assembled External Acquisition Agent
+        shell: pwsh
+        run: |
+          Push-Location "dist/Banjofy-Module17-Build019"
+          & "Acquisition/yt-dlp.exe" --version
+          if ($LASTEXITCODE -ne 0) { throw "Packaged yt-dlp failed" }
+          & "Acquisition/deno.exe" --version
+          if ($LASTEXITCODE -ne 0) { throw "Packaged Deno failed" }
+          & "Acquisition/ffmpeg.exe" -version
+          if ($LASTEXITCODE -ne 0) { throw "Packaged FFmpeg failed" }
+          Pop-Location
+          Write-Host "Assembled External Acquisition Agent self-test passed"
 
       - name: Upload complete Windows package
         uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-006.4.0-Module-17-Integration-Build-017-Windows
-          path: dist/Banjofy-Module17-Build017
+          name: Banjofy-006.4.0-Module-17-Integration-Build-019-Windows
+          path: dist/Banjofy-Module17-Build019
           if-no-files-found: error

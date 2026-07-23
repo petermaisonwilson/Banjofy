@@ -30,7 +30,7 @@ from banjofy.ui.timing_analyzer import TimingAnalysis, TimingAnalyzer
 from banjofy.analysis.chord_engine import AnalysisResult, analyse_audio
 
 
-APP_VERSION = "Banjofy 006.4.0 Module 17 Integration Build 017"
+APP_VERSION = "Banjofy 006.4.0 Module 17 Integration Build 019"
 
 def _repeat_time_bounds_from_beats(
     beat_times_ms: list[int] | tuple[int, ...],
@@ -155,7 +155,7 @@ class MainWindow(LegacyMainWindow):
         self.download_diagnostic_timer.start()
 
         self.statusBar().showMessage(
-            "Ready - Module 17 verified PO-token loader and exact repeat boundaries loaded"
+            "Ready - External Acquisition Agent and exact repeat boundaries loaded"
         )
 
     def _set_visible_titles(self) -> None:

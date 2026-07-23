@@ -6,16 +6,11 @@ from pathlib import Path
 import json
 import os
 import re
+import subprocess
 import sys
 import threading
 import traceback
 from typing import Callable
-
-import imageio_ffmpeg
-from yt_dlp import YoutubeDL
-import yt_dlp
-from yt_dlp.globals import plugin_dirs as yt_dlp_plugin_dirs
-from yt_dlp.plugins import load_all_plugins as yt_dlp_load_all_plugins
 
 from banjofy.models.search_result import SearchResult
 from banjofy.storage.paths import audio_folder, get_library_path
@@ -40,35 +35,14 @@ def _safe_filename(text: str) -> str:
     return text[:120] or "audio"
 
 
-def _executable_root() -> Path:
+def _application_root() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parents[3]
 
 
-def _runtime_root() -> Path:
-    return _executable_root() / "runtime"
-
-
-def _portable_plugin_root() -> Path:
-    return _executable_root() / "yt-dlp-plugins"
-
-
-def _activate_portable_yt_dlp_plugins(plugin_root: Path) -> list[str]:
-    """Activate the portable plugin directory using yt-dlp's Python API."""
-    resolved_root = plugin_root.resolve()
-    yt_dlp_plugin_dirs.value = [str(resolved_root)]
-    yt_dlp_load_all_plugins()
-
-    loaded_modules: list[str] = []
-    for module_name in (
-        "yt_dlp_plugins.extractor.getpot_bgutil",
-        "yt_dlp_plugins.extractor.getpot_bgutil_http",
-        "yt_dlp_plugins.extractor.getpot_bgutil_script",
-    ):
-        __import__(module_name)
-        loaded_modules.append(module_name)
-    return loaded_modules
+def _agent_root() -> Path:
+    return _application_root() / "Acquisition"
 
 
 def _diagnostic_folder() -> Path:
@@ -86,48 +60,35 @@ def _usable_media_files(folder: Path, stem: str) -> list[Path]:
         ".part", ".ytdl", ".tmp", ".json", ".webp", ".jpg",
         ".jpeg", ".png", ".description",
     }
-    result = []
+    result: list[Path] = []
     for path in folder.glob(stem + ".*"):
         if not path.is_file() or path.suffix.lower() in rejected:
             continue
         if path.stat().st_size < 4096:
             continue
         result.append(path)
-    return sorted(result, key=lambda p: p.stat().st_mtime, reverse=True)
+    return sorted(result, key=lambda item: item.stat().st_mtime, reverse=True)
 
 
-class _DiagnosticLogger:
-    def __init__(self, log_path: Path) -> None:
-        self.log_path = log_path
+class _DiagnosticLog:
+    def __init__(self, path: Path) -> None:
+        self.path = path
         self._lock = threading.Lock()
         self._lines: list[str] = []
 
-    def _write(self, level: str, message: str) -> None:
-        text = str(message).rstrip()
-        line = f"[{level}] {text}"
+    def add(self, line: str) -> None:
+        text = str(line).rstrip()
         with self._lock:
-            self._lines.append(line)
-            self.log_path.write_text("\n".join(self._lines) + "\n", encoding="utf-8")
-
-    def debug(self, message: str) -> None:
-        self._write("debug", message)
-
-    def warning(self, message: str) -> None:
-        self._write("warning", message)
-
-    def error(self, message: str) -> None:
-        self._write("error", message)
-
-    def add(self, message: str) -> None:
-        self._write("banjofy", message)
+            self._lines.append(text)
+            self.path.write_text("\n".join(self._lines) + "\n", encoding="utf-8")
 
 
 class DownloadManager:
-    """Modern YouTube downloader with explicit component verification.
+    """Banjofy adapter for the replaceable External Acquisition Agent.
 
-    This is deliberately a single designed extraction path:
-    yt-dlp + EJS + Deno + bgutil PO-token provider + mweb.
-    It does not cycle through guessed browser clients or format strings.
+    Banjofy does not import or freeze yt-dlp. It launches the official
+    standalone yt-dlp executable from the Acquisition folder and waits for a
+    completed local media file.
     """
 
     _latest_log_path: Path | None = None
@@ -147,65 +108,111 @@ class DownloadManager:
         except OSError as exc:
             return f"Could not read diagnostic log: {exc}"
 
-    def _component_paths(self) -> tuple[Path, Path, Path, Path]:
-        runtime = _runtime_root()
-        deno = runtime / "deno.exe"
-        provider_server = runtime / "bgutil-ytdlp-pot-provider" / "server"
-        plugin_root = _portable_plugin_root()
-        ffmpeg = Path(imageio_ffmpeg.get_ffmpeg_exe())
-        loaded_plugin_modules = _activate_portable_yt_dlp_plugins(plugin_root)
-        logger.write(
-            "[banjofy] PORTABLE PLUGIN MODULES\n"
-            + json.dumps(loaded_plugin_modules, indent=2)
-        )
-        return deno, provider_server, plugin_root, ffmpeg
-
-    def _verify_components(
-        self,
-        logger: _DiagnosticLogger,
-    ) -> tuple[Path, Path, Path, Path]:
-        deno, provider_server, plugin_root, ffmpeg = self._component_paths()
-        plugin_files = sorted(plugin_root.rglob("getpot_bgutil*.py")) if plugin_root.exists() else []
-        checks = {
-            "runtime_root": str(_runtime_root()),
-            "yt_dlp_version": getattr(yt_dlp.version, "__version__", "unknown"),
-            "deno": str(deno),
-            "deno_exists": deno.exists(),
-            "provider_server": str(provider_server),
-            "provider_server_exists": provider_server.exists(),
-            "provider_package_json": (provider_server / "package.json").exists(),
-            "provider_node_modules": (provider_server / "node_modules").exists(),
-            "portable_plugin_root": str(plugin_root),
-            "portable_plugin_root_exists": plugin_root.exists(),
-            "portable_plugin_files": [str(path) for path in plugin_files],
-            "ffmpeg": str(ffmpeg),
-            "ffmpeg_exists": ffmpeg.exists(),
+    def _paths(self) -> dict[str, Path]:
+        root = _agent_root()
+        return {
+            "root": root,
+            "yt_dlp": root / "yt-dlp.exe",
+            "deno": root / "deno.exe",
+            "ffmpeg": root / "ffmpeg.exe",
+            "plugins": root / "yt-dlp-plugins",
+            "provider_server": root / "runtime" / "bgutil-ytdlp-pot-provider" / "server",
         }
-        logger.add("COMPONENT CHECK")
-        logger.add(json.dumps(checks, indent=2))
 
-        missing = []
-        if not deno.exists():
-            missing.append(f"Deno runtime missing: {deno}")
-        if not provider_server.exists():
-            missing.append(f"PO-token provider server missing: {provider_server}")
-        if not (provider_server / "node_modules").exists():
-            missing.append(
-                "PO-token provider dependencies are missing: "
-                f"{provider_server / 'node_modules'}"
-            )
-        if not plugin_root.exists():
-            missing.append(f"Portable yt-dlp plugin folder missing: {plugin_root}")
+    def health_check(self) -> dict[str, object]:
+        paths = self._paths()
+        plugin_files = (
+            sorted(paths["plugins"].rglob("getpot_bgutil*.py"))
+            if paths["plugins"].exists()
+            else []
+        )
+        checks: dict[str, object] = {
+            "architecture": "External Acquisition Agent",
+            "agent_root": str(paths["root"]),
+            "agent_root_exists": paths["root"].exists(),
+            "yt_dlp": str(paths["yt_dlp"]),
+            "yt_dlp_exists": paths["yt_dlp"].exists(),
+            "deno": str(paths["deno"]),
+            "deno_exists": paths["deno"].exists(),
+            "ffmpeg": str(paths["ffmpeg"]),
+            "ffmpeg_exists": paths["ffmpeg"].exists(),
+            "plugin_root": str(paths["plugins"]),
+            "plugin_root_exists": paths["plugins"].exists(),
+            "plugin_files": [str(path) for path in plugin_files],
+            "provider_server": str(paths["provider_server"]),
+            "provider_server_exists": paths["provider_server"].exists(),
+            "provider_package_json": (paths["provider_server"] / "package.json").exists(),
+            "provider_node_modules": (paths["provider_server"] / "node_modules").exists(),
+        }
+
+        missing: list[str] = []
+        for name in ("yt_dlp", "deno", "ffmpeg"):
+            if not paths[name].exists():
+                missing.append(f"Missing acquisition component: {paths[name]}")
         if not plugin_files:
+            missing.append(f"No bgutil plugin files found beneath: {paths['plugins']}")
+        if not paths["provider_server"].exists():
+            missing.append(f"Missing provider server: {paths['provider_server']}")
+        if not (paths["provider_server"] / "node_modules").exists():
             missing.append(
-                "Portable bgutil yt-dlp plugin files are missing beneath: "
-                f"{plugin_root}"
+                "Missing provider dependencies: "
+                f"{paths['provider_server'] / 'node_modules'}"
             )
-        if not ffmpeg.exists():
-            missing.append(f"FFmpeg missing: {ffmpeg}")
+
         if missing:
-            raise RuntimeError("Downloader component verification failed:\n" + "\n".join(missing))
-        return deno, provider_server, plugin_root, ffmpeg
+            checks["ready"] = False
+            checks["missing"] = missing
+        else:
+            checks["ready"] = True
+            checks["missing"] = []
+        return checks
+
+    def _command(self, result: SearchResult, folder: Path, safe: str) -> list[str]:
+        paths = self._paths()
+        provider_arg = (
+            "youtubepot-bgutilscript:"
+            f"server_home={paths['provider_server']}"
+        )
+        youtube_arg = (
+            "youtube:"
+            "player_client=mweb;"
+            "fetch_pot=always;"
+            "pot_trace=true;"
+            "jsc_trace=true"
+        )
+        return [
+            str(paths["yt_dlp"]),
+            "--ignore-config",
+            "--newline",
+            "--verbose",
+            "--no-playlist",
+            "--windows-filenames",
+            "--retries", "5",
+            "--fragment-retries", "5",
+            "--extractor-retries", "3",
+            "--socket-timeout", "40",
+            "--plugin-dirs", str(paths["plugins"]),
+            "--js-runtimes", f"deno:{paths['deno']}",
+            "--extractor-args", youtube_arg,
+            "--extractor-args", provider_arg,
+            "--ffmpeg-location", str(paths["root"]),
+            "--format", "bestaudio/best",
+            "--extract-audio",
+            "--audio-format", "m4a",
+            "--audio-quality", "0",
+            "--progress-template",
+            "download:BANJOFY_PROGRESS:%(progress._percent_str)s",
+            "--print", "after_move:BANJOFY_FILE:%(filepath)s",
+            "--output", str(folder / (safe + ".%(ext)s")),
+            result.url,
+        ]
+
+    @staticmethod
+    def _progress_percent(line: str) -> int | None:
+        match = re.search(r"BANJOFY_PROGRESS:\s*([0-9]+(?:\.[0-9]+)?)%", line)
+        if not match:
+            return None
+        return max(0, min(99, int(float(match.group(1)))))
 
     def download(
         self,
@@ -213,7 +220,7 @@ class DownloadManager:
         progress: ProgressCallback | None = None,
     ) -> DownloadedAudio:
         if not result or not result.url:
-            raise ValueError("No selected YouTube result to download")
+            raise ValueError("No selected result to acquire")
 
         folder = audio_folder()
         folder.mkdir(parents=True, exist_ok=True)
@@ -233,123 +240,92 @@ class DownloadManager:
             )
 
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_path = _diagnostic_folder() / f"download_{stamp}_{safe[:50]}.log.txt"
+        log_path = _diagnostic_folder() / f"acquisition_{stamp}_{safe[:50]}.log.txt"
         DownloadManager._latest_log_path = log_path
-        logger = _DiagnosticLogger(log_path)
-        logger.add("BANJOFY MODULE 17 BUILD 017 DOWNLOAD DIAGNOSTIC")
-        logger.add(f"UTC/local timestamp: {datetime.now().isoformat(timespec='seconds')}")
-        logger.add(f"Title: {result.title}")
-        logger.add(f"Channel: {result.channel}")
-        logger.add(f"URL: {result.url}")
+        log = _DiagnosticLog(log_path)
+
+        log.add("[banjofy] BANJOFY MODULE 17 BUILD 019 EAA DIAGNOSTIC")
+        log.add(f"[banjofy] Timestamp: {datetime.now().isoformat(timespec='seconds')}")
+        log.add(f"[banjofy] Title: {result.title}")
+        log.add(f"[banjofy] Channel: {result.channel}")
+        log.add(f"[banjofy] URL: {result.url}")
+
+        health = self.health_check()
+        log.add("[banjofy] EXTERNAL ACQUISITION AGENT HEALTH")
+        log.add(json.dumps(health, indent=2))
+        if not health["ready"]:
+            raise RuntimeError(
+                "External Acquisition Agent is incomplete.\n"
+                + "\n".join(str(item) for item in health["missing"])
+            )
+
+        command = self._command(result, folder, safe)
+        safe_command = [
+            item if result.url not in item else "<selected URL>"
+            for item in command
+        ]
+        log.add("[banjofy] COMMAND")
+        log.add(json.dumps(safe_command, indent=2))
+
+        if progress:
+            progress("starting external acquisition agent", 2, str(log_path))
+
+        creationflags = 0
+        if os.name == "nt":
+            creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
         try:
-            deno, provider_server, plugin_root, ffmpeg = self._verify_components(logger)
-
-            if progress:
-                progress("verifying modern YouTube components", 3, str(log_path))
-
-            def hook(data: dict) -> None:
-                status = str(data.get("status", ""))
-                if status == "downloading":
-                    downloaded = int(data.get("downloaded_bytes") or 0)
-                    total = int(
-                        data.get("total_bytes")
-                        or data.get("total_bytes_estimate")
-                        or 0
-                    )
-                    percent = int(downloaded * 100 / total) if total else 0
-                    if progress:
-                        progress("downloading", max(5, min(percent, 97)), str(log_path))
-                elif status == "finished":
-                    if progress:
-                        progress("converting audio", 98, str(log_path))
-
-            extractor_args = {
-                "youtube": {
-                    "player_client": ["mweb"],
-                    "fetch_pot": ["always"],
-                    "pot_trace": ["true"],
-                    "jsc_trace": ["true"],
-                },
-                "youtubepot-bgutilscript": {
-                    "server_home": [str(provider_server)],
-                },
-            }
-
-            common = {
-                "logger": logger,
-                "verbose": True,
-                "quiet": False,
-                "no_warnings": False,
-                "noplaylist": True,
-                "retries": 5,
-                "fragment_retries": 5,
-                "extractor_retries": 3,
-                "socket_timeout": 40,
-                "windowsfilenames": True,
-                "ffmpeg_location": str(ffmpeg),
-                "js_runtimes": {"deno": {"path": str(deno)}},
-                "extractor_args": extractor_args,
-                "progress_hooks": [hook],
-                "outtmpl": str(folder / (safe + ".%(ext)s")),
-            }
-
-            # Stage 1: format discovery. Do not guess a format until yt-dlp,
-            # EJS and the PO-token provider have exposed the real formats.
-            if progress:
-                progress("discovering verified audio formats", 5, str(log_path))
-            discovery_options = dict(common)
-            discovery_options.update({
-                "skip_download": True,
-                "listformats": False,
-            })
-
-            with YoutubeDL(discovery_options) as ydl:
-                info = ydl.extract_info(result.url, download=False)
-
-            formats = list(info.get("formats") or [])
-            audio_formats = [
-                fmt for fmt in formats
-                if fmt.get("acodec") not in (None, "none")
-            ]
-            logger.add(f"Format discovery returned {len(formats)} total formats")
-            logger.add(f"Audio-capable formats: {len(audio_formats)}")
-            logger.add(
-                "Audio format IDs: "
-                + ", ".join(str(fmt.get("format_id")) for fmt in audio_formats[:50])
+            process = subprocess.Popen(
+                command,
+                cwd=str(self._paths()["root"]),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                bufsize=1,
+                creationflags=creationflags,
             )
-            if not audio_formats:
+
+            reported_file: Path | None = None
+            assert process.stdout is not None
+            for raw_line in process.stdout:
+                line = raw_line.rstrip()
+                log.add(line)
+
+                percent = self._progress_percent(line)
+                if percent is not None and progress:
+                    progress("downloading audio", max(3, percent), str(log_path))
+
+                if line.startswith("BANJOFY_FILE:"):
+                    candidate = Path(line.split(":", 1)[1].strip())
+                    if candidate.exists():
+                        reported_file = candidate
+
+            return_code = process.wait()
+            log.add(f"[banjofy] EAA exit code: {return_code}")
+            if return_code != 0:
                 raise RuntimeError(
-                    "Modern format discovery completed but exposed no audio-capable formats. "
-                    "See the diagnostic log for EJS and PO-token provider messages."
+                    f"External Acquisition Agent ended with code {return_code}. "
+                    "Open View Full Download Diagnostic for the exact reason."
                 )
 
-            # Stage 2: one normal yt-dlp selection from the verified format list.
-            if progress:
-                progress("downloading best verified audio", 8, str(log_path))
-            download_options = dict(common)
-            download_options.update({
-                "format": "bestaudio/best",
-                "postprocessors": [{
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": "m4a",
-                    "preferredquality": "0",
-                }],
-            })
-            with YoutubeDL(download_options) as ydl:
-                ydl.download([result.url])
-
-            downloaded = _usable_media_files(folder, safe)
-            if not downloaded:
+            candidates = _usable_media_files(folder, safe)
+            chosen = (
+                reported_file
+                if reported_file is not None and reported_file.exists()
+                else (candidates[0] if candidates else None)
+            )
+            if chosen is None:
                 raise FileNotFoundError(
-                    "yt-dlp reported completion but no usable media file was produced"
+                    "The agent reported success but no usable media file was produced."
                 )
 
-            chosen = downloaded[0]
-            logger.add(f"SUCCESS: {chosen}")
-            logger.add(f"File size: {chosen.stat().st_size} bytes")
+            log.add(f"[banjofy] SUCCESS: {chosen}")
+            log.add(f"[banjofy] File size: {chosen.stat().st_size} bytes")
             if progress:
                 progress("complete", 100, str(chosen))
+
             return DownloadedAudio(
                 title=result.title,
                 channel=result.channel,
@@ -359,9 +335,9 @@ class DownloadManager:
                 was_cached=False,
             )
         except Exception as exc:
-            logger.add("FAILURE")
-            logger.add(f"{type(exc).__name__}: {exc}")
-            logger.add(traceback.format_exc())
+            log.add("[banjofy] FAILURE")
+            log.add(f"[banjofy] {type(exc).__name__}: {exc}")
+            log.add(traceback.format_exc())
             raise RuntimeError(
-                f"Download failed. Full diagnostic saved to:\n{log_path}\n\n{exc}"
+                f"Acquisition failed. Full diagnostic saved to:\n{log_path}\n\n{exc}"
             ) from exc

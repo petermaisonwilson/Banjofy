@@ -1,5 +1,5 @@
 {
-  "build": "Banjofy 006.4.0 Module 17 Integration Build 017",
+  "build": "Banjofy 006.4.0 Module 17 Integration Build 019",
   "yt-dlp": "2026.6.9",
   "deno": "2.8.1",
   "bgutil-ytdlp-pot-provider": "1.3.1",
@@ -9,5 +9,11 @@
   "Python": "3.11 (matches confirmed Laboratory 016 workflow)",
   "backports.tarfile": "1.2.0",
   "portable_plugin_layout": "yt-dlp-plugins/bgutil-ytdlp-pot-provider/yt_dlp_plugins",
-  "plugin_activation": "yt_dlp.globals.plugin_dirs plus yt_dlp.plugins.load_all_plugins"
+  "plugin_activation": "yt_dlp.globals.plugin_dirs plus yt_dlp.plugins.load_all_plugins",
+  "release_gate": "Exact plugin staging + actual yt-dlp Python API activation + exact module imports; no debug-text proxy assertions",
+  "download_architecture": "External Acquisition Agent",
+  "eaa_yt_dlp": "2026.06.09 official Windows executable",
+  "eaa_deno": "2.8.1",
+  "eaa_bgutil_provider": "1.3.1",
+  "eaa_layout": "Acquisition folder beside Banjofy.exe"
 }

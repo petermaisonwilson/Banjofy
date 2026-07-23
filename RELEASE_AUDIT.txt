@@ -1,60 +1,61 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 017
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 019
 RELEASE-GATE AUDIT
 
-BUILD TYPE
-Complete clean rebuild from confirmed Build 002. No patch script.
+DIRECTION REVIEW
+Question asked before implementation: is there a better route than continuing
+to freeze the changing downloader stack inside Banjofy?
 
-CONFIRMED BUILD 016 EVIDENCE
-Plugin staging passed and printed the exact three required bgutil modules.
-The only failure was the expectation that a version-only yt-dlp command would
-perform plugin/extractor initialisation.
+Answer: yes. Separate acquisition from the stable application.
 
-ROOT-CAUSE CORRECTION
-yt-dlp's own source shows that CLI parsing assigns plugin_dirs.value and calls
-load_all_plugins before constructing YoutubeDL. Build 017 reproduces this exact
-mechanism in the embedded downloader:
-- assign portable root to yt_dlp.globals.plugin_dirs.value;
-- call yt_dlp.plugins.load_all_plugins;
-- import the three required provider modules.
+KNOWN EARLIER FAILURE CLASS REMOVED
+The active download route no longer imports yt-dlp, plugin namespaces, Deno or
+the provider into the frozen Banjofy process. It launches a separately tested
+official yt-dlp.exe from the Acquisition folder.
 
-WORKFLOW PROOF
-- Exact installed distribution files staged: retained.
-- Python API activation and module imports: added.
-- `--version` plugin assertion: removed.
-- `--verbose --list-extractors` initialisation proof: added.
-- Portable artifact copy and existence checks: retained.
+EAA CONTENTS
+- official yt-dlp.exe 2026.06.09;
+- Deno 2.8.1;
+- FFmpeg staged from the pinned imageio-ffmpeg installation;
+- bgutil PO-token provider 1.3.1 server and installed dependencies;
+- exact bgutil yt_dlp_plugins files.
 
-RUNTIME/PACKAGING
-- Banjofy.exe-adjacent yt-dlp-plugins layout retained.
-- Provider server and node_modules retained.
-- Deno, EJS and FFmpeg unchanged.
-- PyInstaller spec unchanged.
-- Hidden console unchanged.
-- Ten-second startup smoke test retained.
+HANDOFF
+Banjofy passes:
+- selected URL;
+- Library audio destination;
+- output filename;
+- Deno path;
+- plugin path;
+- provider path;
+- FFmpeg path.
+
+The EAA returns:
+- process exit code;
+- full diagnostic output;
+- completed local audio path.
+
+AUTOMATED PROOF
+- all EAA executables exist;
+- each executable starts;
+- provider server and node_modules exist;
+- exact plugin files exist;
+- Banjofy health_check reports ready;
+- Banjofy creates the expected EAA command;
+- Python source compiles;
+- chord and timing audits run;
+- PyInstaller builds;
+- normal GUI stays running for ten seconds;
+- assembled EAA starts from final artifact layout;
+- ZIP integrity and checksums pass.
+
+LIMIT
+A live YouTube request from Peter's network remains the final proof that
+YouTube accepts the selected request. No build system can guarantee that a
+third-party service will never change.
 
 REPEAT
-Build 016 repeat implementation retained unchanged:
-- exclusive end boundary;
-- locked timestamps;
-- seek acknowledgement;
-- post-count-in verification;
-- locked end detection.
+Build 018 repeat-boundary and seek-confirmation changes are retained unchanged.
 
-LOCAL PROOF
-- Python compilation: passed.
-- Exact workflow replacement: passed.
-- Unsupported YoutubeDL plugin_dirs parameter absent: passed.
-- Global plugin loader activation present: passed.
-- Three explicit provider imports present: passed.
-- Repeat deterministic tests: passed.
-- ZIP integrity and checksums: passed.
-
-GITHUB MUST STILL PROVE
-- Windows-installed plugin files import through the yt-dlp loader;
-- extractor initialisation reports the plugin directory;
-- PyInstaller and frozen startup complete.
-
-PETER'S WINDOWS TEST MUST STILL PROVE
-- provider registration in the live diagnostic;
-- YouTube format discovery and download;
-- corrected repeat behaviour.
+CLEAN REBUILD
+Created in a new empty directory from confirmed Build 002. Earlier baselines
+remain untouched.
