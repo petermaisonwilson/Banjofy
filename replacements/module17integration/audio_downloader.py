@@ -113,7 +113,7 @@ class DownloadManager:
         return {
             "root": root,
             "yt_dlp": root / "yt-dlp.exe",
-            "deno": root / "deno.exe",
+            "node": root / "node" / "node.exe",
             "ffmpeg": root / "ffmpeg.exe",
             "plugins": root / "yt-dlp-plugins",
             "provider_server": root / "runtime" / "bgutil-ytdlp-pot-provider" / "server",
@@ -132,8 +132,8 @@ class DownloadManager:
             "agent_root_exists": paths["root"].exists(),
             "yt_dlp": str(paths["yt_dlp"]),
             "yt_dlp_exists": paths["yt_dlp"].exists(),
-            "deno": str(paths["deno"]),
-            "deno_exists": paths["deno"].exists(),
+            "node": str(paths["node"]),
+            "node_exists": paths["node"].exists(),
             "ffmpeg": str(paths["ffmpeg"]),
             "ffmpeg_exists": paths["ffmpeg"].exists(),
             "plugin_root": str(paths["plugins"]),
@@ -143,10 +143,11 @@ class DownloadManager:
             "provider_server_exists": paths["provider_server"].exists(),
             "provider_package_json": (paths["provider_server"] / "package.json").exists(),
             "provider_node_modules": (paths["provider_server"] / "node_modules").exists(),
+            "provider_compiled_generator": (paths["provider_server"] / "build" / "generate_once.js").exists(),
         }
 
         missing: list[str] = []
-        for name in ("yt_dlp", "deno", "ffmpeg"):
+        for name in ("yt_dlp", "node", "ffmpeg"):
             if not paths[name].exists():
                 missing.append(f"Missing acquisition component: {paths[name]}")
         if not plugin_files:
@@ -157,6 +158,11 @@ class DownloadManager:
             missing.append(
                 "Missing provider dependencies: "
                 f"{paths['provider_server'] / 'node_modules'}"
+            )
+        if not (paths["provider_server"] / "build" / "generate_once.js").exists():
+            missing.append(
+                "Missing compiled provider generator: "
+                f"{paths['provider_server'] / 'build' / 'generate_once.js'}"
             )
 
         if missing:
@@ -192,7 +198,7 @@ class DownloadManager:
             "--extractor-retries", "3",
             "--socket-timeout", "40",
             "--plugin-dirs", str(paths["plugins"]),
-            "--js-runtimes", f"deno:{paths['deno']}",
+            "--js-runtimes", f"node:{paths['node']}",
             "--extractor-args", youtube_arg,
             "--extractor-args", provider_arg,
             "--ffmpeg-location", str(paths["root"]),
@@ -244,7 +250,7 @@ class DownloadManager:
         DownloadManager._latest_log_path = log_path
         log = _DiagnosticLog(log_path)
 
-        log.add("[banjofy] BANJOFY MODULE 17 BUILD 021 EAA DIAGNOSTIC")
+        log.add("[banjofy] BANJOFY MODULE 17 BUILD 022 EAA DIAGNOSTIC")
         log.add(f"[banjofy] Timestamp: {datetime.now().isoformat(timespec='seconds')}")
         log.add(f"[banjofy] Title: {result.title}")
         log.add(f"[banjofy] Channel: {result.channel}")

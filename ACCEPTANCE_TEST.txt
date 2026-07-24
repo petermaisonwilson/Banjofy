@@ -1,21 +1,11 @@
-BANJOFY BUILD 021 — EXACT TEST
+BANJOFY BUILD 022 — EXACT TEST
 
-1. Commit and push this package through GitHub Desktop.
-2. Confirm GitHub passes:
-   - Exact Banjofy application imports
-   - Main-window/chord-engine API consistency
-   - Prepare External Acquisition Agent
-   - Test External Acquisition Agent as a separate product
-   - Compile and internal audits
-   - PyInstaller build
-   - Banjofy.exe startup smoke test
-   - assembled EAA test
-3. Download:
-   Banjofy-006.4.0-Module-17-Integration-Build-021-Windows
-4. Extract the complete artifact to C:\B21.
+1. Push through GitHub Desktop.
+2. Confirm 'Live External Acquisition Agent probe' passes.
+3. Download Banjofy-006.4.0-Module-17-Integration-Build-022-Windows.
+4. Extract the complete artifact to C:\B22.
 5. Keep Banjofy.exe and Acquisition beside one another.
 6. Run Banjofy.exe.
-7. Search for and download:
-   Bryan Adams - (Everything I Do) I Do It For You
-8. Open View Full Download Diagnostic.
-9. On failure, copy and paste the complete Build 021 diagnostic.
+7. Search for Bryan Adams - (Everything I Do) I Do It For You.
+8. Select the correct result and click Download Selected Audio.
+9. On failure, copy the complete Build 022 diagnostic.

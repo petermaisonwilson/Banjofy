@@ -34,7 +34,7 @@ def main() -> None:
 
     required_switches = {
         "--plugin-dirs": Path(str(health["plugin_root"])).resolve(),
-        "--js-runtimes": Path(str(health["deno"])).resolve(),
+        "--js-runtimes": Path(str(health["node"])).resolve(),
         "--ffmpeg-location": Path(str(health["agent_root"])).resolve(),
     }
 
@@ -45,7 +45,7 @@ def main() -> None:
         raw_value = command[index + 1]
         if switch == "--js-runtimes":
             require(
-                raw_value.startswith("deno:"),
+                raw_value.startswith("node:"),
                 f"Unexpected --js-runtimes value: {raw_value}",
             )
             raw_value = raw_value.split(":", 1)[1]
@@ -54,6 +54,11 @@ def main() -> None:
             actual_path == expected_path,
             f"{switch} path mismatch: command={actual_path} expected={expected_path}",
         )
+
+    require(
+        bool(health.get("provider_compiled_generator")),
+        "Compiled build/generate_once.js is missing",
+    )
 
     require(
         "--extractor-args" in command,

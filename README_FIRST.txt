@@ -1,18 +1,8 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 021
-EXTERNAL ACQUISITION AGENT
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 022
 
-ROOT-CAUSE CORRECTION
-Build 020 proved the EAA itself was complete and ready. The workflow then
-failed because an inline PowerShell/Python test over-escaped a Windows path.
+Build 021 proved the EAA launched correctly, but the provider had not been
+compiled. Build 022 packages portable Node.js, runs npm ci and npx tsc, requires
+build\generate_once.js and build\main.js, directly starts the compiled
+generator, and runs a live YouTube PO-token probe before building Banjofy.
 
-Build 021 removes that inline quoted test completely.
-
-It now runs eaa_release_gate.py, which:
-- reads the real EAA health result;
-- builds the real command;
-- compares resolved pathlib paths;
-- checks each required switch and its exact value;
-- checks the provider configuration and selected URL;
-- raises named RuntimeError messages rather than a bare AssertionError.
-
-The External Acquisition Agent design and application code are unchanged.
+Keep the complete Acquisition folder beside Banjofy.exe.

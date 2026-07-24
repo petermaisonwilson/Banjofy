@@ -1,40 +1,17 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 021
-RELEASE-GATE AUDIT
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 022
 
-BUILD 020 EVIDENCE
-The GitHub log showed:
-- yt-dlp started;
-- Deno started;
-- FFmpeg started;
-- plugin files existed;
-- provider server existed;
-- provider node_modules existed;
-- health_check returned ready=True and missing=[].
+ROOT CAUSE
+Build 021 had ready=True, but server\build\generate_once.js was absent.
+The Deno source fallback then failed on a missing form-data package.
 
-The subsequent bare AssertionError came from the workflow's over-escaped
-Windows suffix comparison. It was not an EAA failure.
+CORRECTION
+- Portable Node.js 22.22.2 LTS.
+- npm ci.
+- npx tsc.
+- build\generate_once.js and build\main.js required.
+- Compiled generator started directly.
+- Banjofy's real EAA command uses packaged Node.
+- GitHub runs a genuine live simulated request against the same Bryan Adams
+  video and requires successful GVS PO-token retrieval.
 
-BUILD 021 CORRECTION
-- Removed the one-line quoted handoff assertion.
-- Added eaa_release_gate.py as a real source-controlled test.
-- Uses Path.resolve() equality instead of slash-count string matching.
-- Verifies the real command values, not textual formatting.
-- Every failure has a named diagnostic message.
-- Retains exact application imports consistency check.
-- Retains EAA, startup smoke test and repeat corrections.
-- Complete clean rebuild from confirmed Build 002.
-
-LOCAL PROOF
-- replacement Python files compile;
-- release-gate script compiles;
-- no old endswith path assertion remains;
-- workflow invokes eaa_release_gate.py;
-- release-gate semantics validated with a controlled fake health/command;
-- deterministic repeat tests pass;
-- ZIP integrity and checksums pass.
-
-GITHUB PROOF
-Not yet claimed.
-
-PETER'S WINDOWS PROOF
-Not yet claimed.
+Complete clean rebuild from confirmed Build 002.

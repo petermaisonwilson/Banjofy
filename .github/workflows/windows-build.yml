@@ -1,4 +1,4 @@
-name: Build Banjofy Module 17 Build 021
+name: Build Banjofy Module 17 Build 022
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Verify Build 021 clean-rebuild files
+      - name: Verify Build 022 clean-rebuild files
         shell: pwsh
         run: |
           $required = @(
@@ -37,14 +37,14 @@ jobs:
             "replacements/module17integration/eaa_release_gate.py"
           )
           foreach ($file in $required) {
-            if (-not (Test-Path $file)) { throw "Missing Build 019 file: $file" }
+            if (-not (Test-Path $file)) { throw "Missing Build 022 file: $file" }
           }
 
       - name: Preserve repository window
         shell: pwsh
         run: Copy-Item "src/banjofy/ui/main_window.py" "src/banjofy/ui/main_window_legacy.py" -Force
 
-      - name: Install complete Build 019 source
+      - name: Install complete Build 022 source
         shell: pwsh
         run: |
           Copy-Item "replacements/module17integration/main_window.py" "src/banjofy/ui/main_window.py" -Force
@@ -100,11 +100,15 @@ jobs:
           if (-not (Test-Path "Acquisition/yt-dlp.exe")) { throw "Official yt-dlp.exe missing" }
 
           Invoke-WebRequest `
-            -Uri "https://github.com/denoland/deno/releases/download/v2.8.1/deno-x86_64-pc-windows-msvc.zip" `
-            -OutFile "Acquisition/deno.zip"
-          Expand-Archive "Acquisition/deno.zip" -DestinationPath "Acquisition" -Force
-          Remove-Item "Acquisition/deno.zip"
-          if (-not (Test-Path "Acquisition/deno.exe")) { throw "deno.exe missing" }
+            -Uri "https://nodejs.org/dist/v22.22.2/node-v22.22.2-win-x64.zip" `
+            -OutFile "Acquisition/node.zip"
+          Expand-Archive "Acquisition/node.zip" -DestinationPath "Acquisition/node-stage" -Force
+          Remove-Item "Acquisition/node.zip"
+          Move-Item "Acquisition/node-stage/node-v22.22.2-win-x64" "Acquisition/node"
+          Remove-Item "Acquisition/node-stage" -Recurse -Force
+          if (-not (Test-Path "Acquisition/node/node.exe")) { throw "Portable Node.js missing" }
+          if (-not (Test-Path "Acquisition/node/npm.cmd")) { throw "Portable npm missing" }
+          if (-not (Test-Path "Acquisition/node/npx.cmd")) { throw "Portable npx missing" }
 
           python -c "import imageio_ffmpeg, pathlib, shutil; src=pathlib.Path(imageio_ffmpeg.get_ffmpeg_exe()); dst=pathlib.Path('Acquisition/ffmpeg.exe'); shutil.copy2(src,dst); print(src, '->', dst)"
           if ($LASTEXITCODE -ne 0) { throw "FFmpeg staging failed" }
@@ -116,9 +120,19 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "bgutil provider clone failed" }
 
           Push-Location "Acquisition/runtime/bgutil-ytdlp-pot-provider/server"
-          & "$env:GITHUB_WORKSPACE/Acquisition/deno.exe" install --allow-scripts=npm:canvas --frozen
-          if ($LASTEXITCODE -ne 0) { throw "bgutil provider dependency installation failed" }
+          $env:PATH = "$env:GITHUB_WORKSPACE/Acquisition/node;$env:PATH"
+          & "$env:GITHUB_WORKSPACE/Acquisition/node/npm.cmd" ci
+          if ($LASTEXITCODE -ne 0) { throw "bgutil provider npm ci failed" }
+          & "$env:GITHUB_WORKSPACE/Acquisition/node/npx.cmd" tsc
+          if ($LASTEXITCODE -ne 0) { throw "bgutil provider TypeScript compilation failed" }
           Pop-Location
+
+          if (-not (Test-Path "Acquisition/runtime/bgutil-ytdlp-pot-provider/server/build/generate_once.js")) {
+            throw "Compiled generate_once.js missing"
+          }
+          if (-not (Test-Path "Acquisition/runtime/bgutil-ytdlp-pot-provider/server/build/main.js")) {
+            throw "Compiled main.js missing"
+          }
 
           python -c "import importlib.metadata as m, pathlib, shutil; d=m.distribution('bgutil-ytdlp-pot-provider'); files=[f for f in (d.files or []) if 'yt_dlp_plugins' in f.parts and f.suffix=='.py']; assert files; root=pathlib.Path('Acquisition/yt-dlp-plugins/bgutil-ytdlp-pot-provider'); [(lambda src,dst: (dst.parent.mkdir(parents=True, exist_ok=True), shutil.copy2(src,dst)))(pathlib.Path(d.locate_file(f)), root/pathlib.Path(*f.parts[f.parts.index('yt_dlp_plugins'):])) for f in files]; print('\n'.join(str(root/pathlib.Path(*f.parts[f.parts.index('yt_dlp_plugins'):])) for f in files))"
           if ($LASTEXITCODE -ne 0) { throw "External agent plugin staging failed" }
@@ -129,8 +143,10 @@ jobs:
           & "Acquisition/yt-dlp.exe" --version
           if ($LASTEXITCODE -ne 0) { throw "yt-dlp executable self-test failed" }
 
-          & "Acquisition/deno.exe" --version
-          if ($LASTEXITCODE -ne 0) { throw "Deno executable self-test failed" }
+          & "Acquisition/node/node.exe" --version
+          if ($LASTEXITCODE -ne 0) { throw "Node executable self-test failed" }
+          & "Acquisition/node/npm.cmd" --version
+          if ($LASTEXITCODE -ne 0) { throw "npm executable self-test failed" }
 
           & "Acquisition/ffmpeg.exe" -version
           if ($LASTEXITCODE -ne 0) { throw "FFmpeg executable self-test failed" }
@@ -141,9 +157,38 @@ jobs:
           if (-not (Test-Path "Acquisition/runtime/bgutil-ytdlp-pot-provider/server/node_modules")) {
             throw "External agent provider dependencies missing"
           }
+          if (-not (Test-Path "Acquisition/runtime/bgutil-ytdlp-pot-provider/server/build/generate_once.js")) {
+            throw "External agent compiled generator missing"
+          }
+
+          & "Acquisition/node/node.exe" `
+            "Acquisition/runtime/bgutil-ytdlp-pot-provider/server/build/generate_once.js" `
+            --help
+          if ($LASTEXITCODE -ne 0) { throw "Compiled provider generator could not start" }
 
           python eaa_release_gate.py
           if ($LASTEXITCODE -ne 0) { throw "Banjofy-to-EAA handoff failed" }
+
+      - name: Live External Acquisition Agent probe
+        shell: pwsh
+        run: |
+          $output = & "Acquisition/yt-dlp.exe" `
+            --ignore-config `
+            --verbose `
+            --no-playlist `
+            --simulate `
+            --plugin-dirs "$env:GITHUB_WORKSPACE/Acquisition/yt-dlp-plugins" `
+            --js-runtimes "node:$env:GITHUB_WORKSPACE/Acquisition/node/node.exe" `
+            --extractor-args "youtube:player_client=mweb;fetch_pot=always;pot_trace=true;jsc_trace=true" `
+            --extractor-args "youtubepot-bgutilscript:server_home=$env:GITHUB_WORKSPACE/Acquisition/runtime/bgutil-ytdlp-pot-provider/server" `
+            "https://www.youtube.com/watch?v=Y0pdQU87dc8" 2>&1
+          $output | ForEach-Object { Write-Host $_ }
+          if ($LASTEXITCODE -ne 0) { throw "Live EAA probe failed" }
+          $joined = $output -join "`n"
+          if ($joined -notmatch "Retrieved a gvs PO Token") {
+            throw "Live EAA probe did not retrieve a GVS PO Token"
+          }
+          Write-Host "Live EAA PO-token probe passed"
 
       - name: Compile and internal audits
         shell: pwsh
@@ -187,27 +232,30 @@ jobs:
       - name: Assemble complete Windows package
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build021" | Out-Null
-          Copy-Item "dist/Banjofy.exe" "dist/Banjofy-Module17-Build021/Banjofy.exe" -Force
-          Copy-Item "Acquisition" "dist/Banjofy-Module17-Build021/Acquisition" -Recurse -Force
-          Copy-Item "replacements/module17integration/RUNTIME_VERSIONS.json" "dist/Banjofy-Module17-Build021/RUNTIME_VERSIONS.json" -Force
+          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build022" | Out-Null
+          Copy-Item "dist/Banjofy.exe" "dist/Banjofy-Module17-Build022/Banjofy.exe" -Force
+          Copy-Item "Acquisition" "dist/Banjofy-Module17-Build022/Acquisition" -Recurse -Force
+          Copy-Item "replacements/module17integration/RUNTIME_VERSIONS.json" "dist/Banjofy-Module17-Build022/RUNTIME_VERSIONS.json" -Force
 
-          if (-not (Test-Path "dist/Banjofy-Module17-Build021/Banjofy.exe")) { throw "Packaged Banjofy.exe missing" }
-          if (-not (Test-Path "dist/Banjofy-Module17-Build021/Acquisition/yt-dlp.exe")) { throw "Packaged EAA yt-dlp missing" }
-          if (-not (Test-Path "dist/Banjofy-Module17-Build021/Acquisition/deno.exe")) { throw "Packaged EAA Deno missing" }
-          if (-not (Test-Path "dist/Banjofy-Module17-Build021/Acquisition/ffmpeg.exe")) { throw "Packaged EAA FFmpeg missing" }
-          if (-not (Get-ChildItem "dist/Banjofy-Module17-Build021/Acquisition/yt-dlp-plugins" -Recurse -Filter "getpot_bgutil*.py")) {
+          if (-not (Test-Path "dist/Banjofy-Module17-Build022/Banjofy.exe")) { throw "Packaged Banjofy.exe missing" }
+          if (-not (Test-Path "dist/Banjofy-Module17-Build022/Acquisition/yt-dlp.exe")) { throw "Packaged EAA yt-dlp missing" }
+          if (-not (Test-Path "dist/Banjofy-Module17-Build022/Acquisition/node/node.exe")) { throw "Packaged EAA Node missing" }
+          if (-not (Test-Path "dist/Banjofy-Module17-Build022/Acquisition/runtime/bgutil-ytdlp-pot-provider/server/build/generate_once.js")) { throw "Packaged compiled provider missing" }
+          if (-not (Test-Path "dist/Banjofy-Module17-Build022/Acquisition/ffmpeg.exe")) { throw "Packaged EAA FFmpeg missing" }
+          if (-not (Get-ChildItem "dist/Banjofy-Module17-Build022/Acquisition/yt-dlp-plugins" -Recurse -Filter "getpot_bgutil*.py")) {
             throw "Packaged EAA plugin missing"
           }
 
       - name: Test assembled External Acquisition Agent
         shell: pwsh
         run: |
-          Push-Location "dist/Banjofy-Module17-Build021"
+          Push-Location "dist/Banjofy-Module17-Build022"
           & "Acquisition/yt-dlp.exe" --version
           if ($LASTEXITCODE -ne 0) { throw "Packaged yt-dlp failed" }
-          & "Acquisition/deno.exe" --version
-          if ($LASTEXITCODE -ne 0) { throw "Packaged Deno failed" }
+          & "Acquisition/node/node.exe" --version
+          if ($LASTEXITCODE -ne 0) { throw "Packaged Node failed" }
+          & "Acquisition/node/node.exe" "Acquisition/runtime/bgutil-ytdlp-pot-provider/server/build/generate_once.js" --help
+          if ($LASTEXITCODE -ne 0) { throw "Packaged compiled provider failed" }
           & "Acquisition/ffmpeg.exe" -version
           if ($LASTEXITCODE -ne 0) { throw "Packaged FFmpeg failed" }
           Pop-Location
@@ -216,6 +264,6 @@ jobs:
       - name: Upload complete Windows package
         uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-006.4.0-Module-17-Integration-Build-021-Windows
-          path: dist/Banjofy-Module17-Build021
+          name: Banjofy-006.4.0-Module-17-Integration-Build-022-Windows
+          path: dist/Banjofy-Module17-Build022
           if-no-files-found: error
