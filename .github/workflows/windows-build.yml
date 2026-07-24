@@ -1,4 +1,4 @@
-name: Build Banjofy Module 17 Build 023
+name: Build Banjofy Module 17 Build 024
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Verify Build 023 clean-rebuild files
+      - name: Verify Build 024 clean-rebuild files
         shell: pwsh
         run: |
           $required = @(
@@ -37,14 +37,14 @@ jobs:
             "replacements/module17integration/eaa_release_gate.py"
           )
           foreach ($file in $required) {
-            if (-not (Test-Path $file)) { throw "Missing Build 023 file: $file" }
+            if (-not (Test-Path $file)) { throw "Missing Build 024 file: $file" }
           }
 
       - name: Preserve repository window
         shell: pwsh
         run: Copy-Item "src/banjofy/ui/main_window.py" "src/banjofy/ui/main_window_legacy.py" -Force
 
-      - name: Install complete Build 023 source
+      - name: Install complete Build 024 source
         shell: pwsh
         run: |
           Copy-Item "replacements/module17integration/main_window.py" "src/banjofy/ui/main_window.py" -Force
@@ -206,6 +206,13 @@ jobs:
 
           Write-Host "Live EAA provider probe passed: compiled provider generated and returned a real PO Token"
 
+          # yt-dlp may legitimately return 1 when GitHub's shared cloud IP is
+          # rejected after token generation. The provider gate above has
+          # already classified that exact case as accepted, so clear the
+          # native-process exit state before PowerShell ends the step.
+          $global:LASTEXITCODE = 0
+          exit 0
+
       - name: Compile and internal audits
         shell: pwsh
         run: |
@@ -248,24 +255,24 @@ jobs:
       - name: Assemble complete Windows package
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build023" | Out-Null
-          Copy-Item "dist/Banjofy.exe" "dist/Banjofy-Module17-Build023/Banjofy.exe" -Force
-          Copy-Item "Acquisition" "dist/Banjofy-Module17-Build023/Acquisition" -Recurse -Force
-          Copy-Item "replacements/module17integration/RUNTIME_VERSIONS.json" "dist/Banjofy-Module17-Build023/RUNTIME_VERSIONS.json" -Force
+          New-Item -ItemType Directory -Force "dist/Banjofy-Module17-Build024" | Out-Null
+          Copy-Item "dist/Banjofy.exe" "dist/Banjofy-Module17-Build024/Banjofy.exe" -Force
+          Copy-Item "Acquisition" "dist/Banjofy-Module17-Build024/Acquisition" -Recurse -Force
+          Copy-Item "replacements/module17integration/RUNTIME_VERSIONS.json" "dist/Banjofy-Module17-Build024/RUNTIME_VERSIONS.json" -Force
 
-          if (-not (Test-Path "dist/Banjofy-Module17-Build023/Banjofy.exe")) { throw "Packaged Banjofy.exe missing" }
-          if (-not (Test-Path "dist/Banjofy-Module17-Build023/Acquisition/yt-dlp.exe")) { throw "Packaged EAA yt-dlp missing" }
-          if (-not (Test-Path "dist/Banjofy-Module17-Build023/Acquisition/node/node.exe")) { throw "Packaged EAA Node missing" }
-          if (-not (Test-Path "dist/Banjofy-Module17-Build023/Acquisition/runtime/bgutil-ytdlp-pot-provider/server/build/generate_once.js")) { throw "Packaged compiled provider missing" }
-          if (-not (Test-Path "dist/Banjofy-Module17-Build023/Acquisition/ffmpeg.exe")) { throw "Packaged EAA FFmpeg missing" }
-          if (-not (Get-ChildItem "dist/Banjofy-Module17-Build023/Acquisition/yt-dlp-plugins" -Recurse -Filter "getpot_bgutil*.py")) {
+          if (-not (Test-Path "dist/Banjofy-Module17-Build024/Banjofy.exe")) { throw "Packaged Banjofy.exe missing" }
+          if (-not (Test-Path "dist/Banjofy-Module17-Build024/Acquisition/yt-dlp.exe")) { throw "Packaged EAA yt-dlp missing" }
+          if (-not (Test-Path "dist/Banjofy-Module17-Build024/Acquisition/node/node.exe")) { throw "Packaged EAA Node missing" }
+          if (-not (Test-Path "dist/Banjofy-Module17-Build024/Acquisition/runtime/bgutil-ytdlp-pot-provider/server/build/generate_once.js")) { throw "Packaged compiled provider missing" }
+          if (-not (Test-Path "dist/Banjofy-Module17-Build024/Acquisition/ffmpeg.exe")) { throw "Packaged EAA FFmpeg missing" }
+          if (-not (Get-ChildItem "dist/Banjofy-Module17-Build024/Acquisition/yt-dlp-plugins" -Recurse -Filter "getpot_bgutil*.py")) {
             throw "Packaged EAA plugin missing"
           }
 
       - name: Test assembled External Acquisition Agent
         shell: pwsh
         run: |
-          Push-Location "dist/Banjofy-Module17-Build023"
+          Push-Location "dist/Banjofy-Module17-Build024"
           & "Acquisition/yt-dlp.exe" --version
           if ($LASTEXITCODE -ne 0) { throw "Packaged yt-dlp failed" }
           & "Acquisition/node/node.exe" --version
@@ -280,6 +287,6 @@ jobs:
       - name: Upload complete Windows package
         uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-006.4.0-Module-17-Integration-Build-023-Windows
-          path: dist/Banjofy-Module17-Build023
+          name: Banjofy-006.4.0-Module-17-Integration-Build-024-Windows
+          path: dist/Banjofy-Module17-Build024
           if-no-files-found: error

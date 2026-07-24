@@ -1,30 +1,21 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 023
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 024
 RELEASE-GATE AUDIT
 
-BUILD 022 EVIDENCE
-- Node 22.22.2 loaded.
-- The compiled script-node provider loaded.
-- generate_once.js executed.
-- A JSON response containing poToken was returned.
-- yt-dlp reported 'Retrieved a player PO Token'.
-- YouTube then returned LOGIN_REQUIRED for the shared GitHub cloud IP.
+BUILD 023 EVIDENCE
+- Compiled provider generated a real PO Token.
+- JSON response contained poToken.
+- yt-dlp reported Retrieved a player PO Token.
+- Workflow printed provider probe passed.
+- GitHub nevertheless ended the step with exit code 1 because PowerShell
+  preserved yt-dlp's native process exit code.
 
-ROOT CAUSE OF GITHUB FAILURE
-The Build 022 workflow required the whole simulated YouTube request to return
-exit code zero. That incorrectly treated GitHub cloud-IP acceptance as proof
-of provider construction.
+BUILD 024 CORRECTION
+After the provider result has been classified:
+- unexpected failures still throw;
+- accepted GitHub cloud-IP LOGIN_REQUIRED remains a warning;
+- successful provider proof explicitly sets $global:LASTEXITCODE = 0;
+- the step explicitly exits 0.
 
-BUILD 023 CORRECTION
-The live provider gate now requires all three real pieces of evidence:
-- 'Generating a player PO Token';
-- a JSON response containing 'poToken';
-- 'Retrieved a player PO Token'.
-
-If those are present, LOGIN_REQUIRED or 'Sign in to confirm' from the shared
-GitHub cloud IP is recorded as a warning rather than a packaging failure.
-Any other non-zero result remains a failure.
-
-This is not a text-only proxy for file presence. It is evidence from the real
-compiled provider + Node + plugin + yt-dlp route.
+No application or EAA runtime behaviour changed.
 
 Complete clean rebuild from confirmed Build 002.

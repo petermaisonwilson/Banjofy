@@ -1,21 +1,10 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 023
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 024
 
-Build 022 successfully generated and returned a real player PO Token. GitHub
-then failed because YouTube rejected the shared GitHub cloud IP with
-LOGIN_REQUIRED.
+Build 023 proved the compiled provider generated and returned a real PO Token.
+The workflow printed that the provider probe passed, but PowerShell still ended
+the step with yt-dlp's earlier native exit code 1.
 
-Build 023 separates those two facts correctly.
+Build 024 explicitly clears that accepted native exit state and exits the
+provider-probe step with code 0.
 
-GitHub must prove:
-- portable Node starts;
-- compiled provider starts;
-- plugin loads;
-- the provider generates a real PO Token;
-- yt-dlp receives that token;
-- Banjofy and the final Acquisition folder build correctly.
-
-GitHub does not fail solely because YouTube rejects the shared GitHub cloud IP
-after token generation. Peter's Windows connection remains the proper
-end-to-end download acceptance test.
-
-Keep the complete Acquisition folder beside Banjofy.exe.
+No EAA runtime logic has changed. This is a precise GitHub workflow correction.
