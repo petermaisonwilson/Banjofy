@@ -1,21 +1,25 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 024
-RELEASE-GATE AUDIT
+BANJOFY FIREFOX ACQUISITION LABORATORY 001 — RELEASE-GATE AUDIT
 
-BUILD 023 EVIDENCE
-- Compiled provider generated a real PO Token.
-- JSON response contained poToken.
-- yt-dlp reported Retrieved a player PO Token.
-- Workflow printed provider probe passed.
-- GitHub nevertheless ended the step with exit code 1 because PowerShell
-  preserved yt-dlp's native process exit code.
+CONFIRMED INPUT FACTS
+- Peter's Firefox downloader saves completed files into the normal Windows Downloads folder.
+- Confirmed path on Peter's current computer: C:\Users\Peter Wilson\Downloads.
+- Confirmed test output: Green Day - Holiday (Official Audio), MP4, 4,014 KB.
+- The downloader offers no separate destination selection.
+- Firefox's default download location must not be changed.
+- The final destination must derive from the user-selected Banjofy Library location.
 
-BUILD 024 CORRECTION
-After the provider result has been classified:
-- unexpected failures still throw;
-- accepted GitHub cloud-IP LOGIN_REQUIRED remains a warning;
-- successful provider proof explicitly sets $global:LASTEXITCODE = 0;
-- the step explicitly exits 0.
+IMPLEMENTED DIRECT TEST
+- Uses Path.home() / Downloads, so it is not hard-coded to Peter's account.
+- Requires an explicit active song request before watching.
+- Considers only supported media created after the request was armed.
+- Rejects partial-download suffixes.
+- Requires a title-word match.
+- Requires a non-zero unchanged size for three successive scans.
+- Opens the file before moving it.
+- Moves it to <selected Library>\Downloaded.
+- Writes direct JSON evidence beside the moved file.
 
-No application or EAA runtime behaviour changed.
-
-Complete clean rebuild from confirmed Build 002.
+ISOLATION
+- New laboratory workflow runs only on firefox-acquisition-lab.
+- No stable Banjofy source files are replaced.
+- No external downloader is bundled.

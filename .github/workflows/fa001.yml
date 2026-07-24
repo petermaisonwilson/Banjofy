@@ -1,0 +1,91 @@
+name: Build Firefox Acquisition Laboratory 001
+
+on:
+  push:
+    branches:
+      - firefox-acquisition-lab
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify exact laboratory files
+        shell: pwsh
+        run: |
+          $required = @(
+            "laboratories/firefox_acquisition_lab/main.py",
+            "laboratories/firefox_acquisition_lab/firefox_acquisition_lab.spec",
+            "laboratories/firefox_acquisition_lab/release_gate.py"
+          )
+          foreach ($file in $required) {
+            if (-not (Test-Path $file)) { throw "Missing laboratory file: $file" }
+          }
+
+      - name: Run release gate
+        shell: pwsh
+        run: |
+          python "laboratories/firefox_acquisition_lab/release_gate.py"
+          if ($LASTEXITCODE -ne 0) { throw "Laboratory release gate failed" }
+
+      - name: Compile source
+        shell: pwsh
+        run: |
+          python -m py_compile "laboratories/firefox_acquisition_lab/main.py"
+          if ($LASTEXITCODE -ne 0) { throw "Laboratory source compilation failed" }
+
+      - name: Install pinned builder
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller==6.14.2
+          if ($LASTEXITCODE -ne 0) { throw "PyInstaller installation failed" }
+
+      - name: Build standalone Windows laboratory
+        shell: pwsh
+        working-directory: laboratories/firefox_acquisition_lab
+        run: |
+          pyinstaller --clean --noconfirm firefox_acquisition_lab.spec
+          if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
+          if (-not (Test-Path "dist/BanjofyFirefoxAcquisitionLab001.exe")) {
+            throw "Laboratory EXE missing"
+          }
+
+      - name: Startup smoke test
+        shell: pwsh
+        run: |
+          $exe = "$env:GITHUB_WORKSPACE/laboratories/firefox_acquisition_lab/dist/BanjofyFirefoxAcquisitionLab001.exe"
+          $process = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 8
+          if ($process.HasExited) {
+            throw "Laboratory exited during startup smoke test with code $($process.ExitCode)"
+          }
+          Stop-Process -Id $process.Id -Force
+          Write-Host "Laboratory startup smoke test passed"
+
+      - name: Assemble artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "artifact" | Out-Null
+          Copy-Item "laboratories/firefox_acquisition_lab/dist/BanjofyFirefoxAcquisitionLab001.exe" "artifact/" -Force
+          Copy-Item "FIREFOX_ACQUISITION_LAB_001_TEST.txt" "artifact/" -Force
+          if (-not (Test-Path "artifact/BanjofyFirefoxAcquisitionLab001.exe")) {
+            throw "Assembled EXE missing"
+          }
+
+      - name: Upload Windows laboratory
+        uses: actions/upload-artifact@v4
+        with:
+          name: Banjofy-Firefox-Acquisition-Laboratory-001-Windows
+          path: artifact
+          if-no-files-found: error

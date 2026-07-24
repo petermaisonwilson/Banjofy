@@ -1,0 +1,23 @@
+BANJOFY FIREFOX ACQUISITION LABORATORY 001 — WINDOWS ACCEPTANCE TEST
+
+1. Extract the GitHub Actions artifact.
+2. Run BanjofyFirefoxAcquisitionLab001.exe.
+3. Confirm it reports Firefox found.
+4. Choose a separate temporary Banjofy Library folder.
+5. Enter the exact song title, for example:
+   Green Day Holiday
+6. Optionally paste the YouTube address and click Open song in Firefox.
+7. Click Start waiting for this song BEFORE starting the download.
+8. In Firefox, use the already-proven downloader extension.
+9. Wait for the download to finish.
+
+PASS
+- The matching completed MP4 is removed from the normal Downloads folder.
+- It appears in <selected Library>\Downloaded.
+- A matching .banjofy-import.json file appears beside it.
+- The laboratory reports Import successful.
+- Unrelated Firefox downloads remain untouched.
+
+FAILURE EVIDENCE
+Copy the exact text shown in the Test status box and provide a screenshot.
+Do not move or rename files before reporting the result.
