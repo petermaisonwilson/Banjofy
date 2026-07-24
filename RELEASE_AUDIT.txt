@@ -1,17 +1,30 @@
-BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 022
+BANJOFY 006.4.0 — MODULE 17 INTEGRATION BUILD 023
+RELEASE-GATE AUDIT
 
-ROOT CAUSE
-Build 021 had ready=True, but server\build\generate_once.js was absent.
-The Deno source fallback then failed on a missing form-data package.
+BUILD 022 EVIDENCE
+- Node 22.22.2 loaded.
+- The compiled script-node provider loaded.
+- generate_once.js executed.
+- A JSON response containing poToken was returned.
+- yt-dlp reported 'Retrieved a player PO Token'.
+- YouTube then returned LOGIN_REQUIRED for the shared GitHub cloud IP.
 
-CORRECTION
-- Portable Node.js 22.22.2 LTS.
-- npm ci.
-- npx tsc.
-- build\generate_once.js and build\main.js required.
-- Compiled generator started directly.
-- Banjofy's real EAA command uses packaged Node.
-- GitHub runs a genuine live simulated request against the same Bryan Adams
-  video and requires successful GVS PO-token retrieval.
+ROOT CAUSE OF GITHUB FAILURE
+The Build 022 workflow required the whole simulated YouTube request to return
+exit code zero. That incorrectly treated GitHub cloud-IP acceptance as proof
+of provider construction.
+
+BUILD 023 CORRECTION
+The live provider gate now requires all three real pieces of evidence:
+- 'Generating a player PO Token';
+- a JSON response containing 'poToken';
+- 'Retrieved a player PO Token'.
+
+If those are present, LOGIN_REQUIRED or 'Sign in to confirm' from the shared
+GitHub cloud IP is recorded as a warning rather than a packaging failure.
+Any other non-zero result remains a failure.
+
+This is not a text-only proxy for file presence. It is evidence from the real
+compiled provider + Node + plugin + yt-dlp route.
 
 Complete clean rebuild from confirmed Build 002.

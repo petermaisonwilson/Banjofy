@@ -250,7 +250,7 @@ class DownloadManager:
         DownloadManager._latest_log_path = log_path
         log = _DiagnosticLog(log_path)
 
-        log.add("[banjofy] BANJOFY MODULE 17 BUILD 022 EAA DIAGNOSTIC")
+        log.add("[banjofy] BANJOFY MODULE 17 BUILD 023 EAA DIAGNOSTIC")
         log.add(f"[banjofy] Timestamp: {datetime.now().isoformat(timespec='seconds')}")
         log.add(f"[banjofy] Title: {result.title}")
         log.add(f"[banjofy] Channel: {result.channel}")

@@ -30,7 +30,7 @@ from banjofy.ui.timing_analyzer import TimingAnalysis, TimingAnalyzer
 from banjofy.analysis.chord_engine import AnalysisResult, analyse_audio
 
 
-APP_VERSION = "Banjofy 006.4.0 Module 17 Integration Build 022"
+APP_VERSION = "Banjofy 006.4.0 Module 17 Integration Build 023"
 
 def _repeat_time_bounds_from_beats(
     beat_times_ms: list[int] | tuple[int, ...],

@@ -1,11 +1,14 @@
-BANJOFY BUILD 022 — EXACT TEST
+BANJOFY BUILD 023 — EXACT TEST
 
 1. Push through GitHub Desktop.
-2. Confirm 'Live External Acquisition Agent probe' passes.
-3. Download Banjofy-006.4.0-Module-17-Integration-Build-022-Windows.
-4. Extract the complete artifact to C:\B22.
+2. Confirm 'Live External Acquisition Agent provider probe' passes.
+3. Download:
+   Banjofy-006.4.0-Module-17-Integration-Build-023-Windows
+4. Extract the complete artifact to C:\B23.
 5. Keep Banjofy.exe and Acquisition beside one another.
 6. Run Banjofy.exe.
-7. Search for Bryan Adams - (Everything I Do) I Do It For You.
+7. Search for:
+   Bryan Adams - (Everything I Do) I Do It For You
 8. Select the correct result and click Download Selected Audio.
-9. On failure, copy the complete Build 022 diagnostic.
+9. On success, confirm the song enters the Library and can be analysed.
+10. On failure, copy the complete Build 023 diagnostic.

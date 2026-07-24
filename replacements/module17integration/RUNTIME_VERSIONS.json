@@ -1,5 +1,5 @@
 {
-  "build": "Banjofy 006.4.0 Module 17 Integration Build 022",
+  "build": "Banjofy 006.4.0 Module 17 Integration Build 023",
   "yt-dlp": "2026.6.9",
   "deno": "2.8.1",
   "bgutil-ytdlp-pot-provider": "1.3.1",
@@ -16,5 +16,6 @@
   "eaa_bgutil_provider": "1.3.1",
   "eaa_layout": "Acquisition folder beside Banjofy.exe",
   "eaa_javascript_runtime": "Node.js 22.22.2 LTS portable",
-  "eaa_provider_build": "Compiled TypeScript build/generate_once.js"
+  "eaa_provider_build": "Compiled TypeScript build/generate_once.js",
+  "github_live_probe_policy": "Passes on confirmed real PO-token generation; GitHub cloud-IP LOGIN_REQUIRED is recorded but is not a packaging failure"
 }
