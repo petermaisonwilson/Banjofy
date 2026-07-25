@@ -1,25 +1,28 @@
-BANJOFY FIREFOX ACQUISITION LABORATORY 001 — RELEASE-GATE AUDIT
+BANJOFY FIREFOX ACQUISITION LABORATORY 002 — RELEASE-GATE AUDIT
 
-CONFIRMED INPUT FACTS
-- Peter's Firefox downloader saves completed files into the normal Windows Downloads folder.
-- Confirmed path on Peter's current computer: C:\Users\Peter Wilson\Downloads.
-- Confirmed test output: Green Day - Holiday (Official Audio), MP4, 4,014 KB.
-- The downloader offers no separate destination selection.
-- Firefox's default download location must not be changed.
-- The final destination must derive from the user-selected Banjofy Library location.
+CONFIRMED BASELINE
+- Laboratory 001 succeeded on Peter's Windows computer.
+- Firefox downloaded the requested MP4 into the normal Downloads folder.
+- The laboratory detected only the armed matching file and moved it into the selected test Library.
 
-IMPLEMENTED DIRECT TEST
-- Uses Path.home() / Downloads, so it is not hard-coded to Peter's account.
-- Requires an explicit active song request before watching.
-- Considers only supported media created after the request was armed.
-- Rejects partial-download suffixes.
-- Requires a title-word match.
-- Requires a non-zero unchanged size for three successive scans.
-- Opens the file before moving it.
-- Moves it to <selected Library>\Downloaded.
-- Writes direct JSON evidence beside the moved file.
+BUILD 002 SCOPE
+- Preserve the proven watcher and title matching.
+- Stage the completed file under <Library>\Working\Incoming.
+- Validate actual media and duration using bundled FFmpeg.
+- Require an audio stream.
+- Present Keep audio only — Recommended, Keep video and audio, and Online playback only.
+- Extract 192 kbps AAC M4A Practice audio for offline choices.
+- Create a basic JSON song record under <Library>\Library\Songs.
+- Store FFmpeg validation evidence under <Library>\Diagnostics.
+
+DIRECT GITHUB PROOF
+- Pinned imageio-ffmpeg 0.6.0 and PyInstaller 6.14.2.
+- Generate a real two-second MP4 in the workflow.
+- Extract a real M4A from it and assert both outputs exist and are non-empty.
+- Build the EXE and hold it open for a ten-second startup smoke test.
 
 ISOLATION
-- New laboratory workflow runs only on firefox-acquisition-lab.
-- No stable Banjofy source files are replaced.
-- No external downloader is bundled.
+- Workflow runs only on firefox-acquisition-lab.
+- Existing fa001.yml is overwritten rather than adding a second active workflow.
+- No yt-dlp or internal YouTube downloader is included.
+- Stable Banjofy source remains untouched.

@@ -1,9 +1,9 @@
+FA002 MANIFEST
 .github/workflows/fa001.yml
 laboratories/firefox_acquisition_lab/main.py
 laboratories/firefox_acquisition_lab/firefox_acquisition_lab.spec
 laboratories/firefox_acquisition_lab/release_gate.py
+FIREFOX_ACQUISITION_LAB_002_TEST.txt
 README_FIRST.txt
-FIREFOX_ACQUISITION_LAB_001_TEST.txt
 RELEASE_AUDIT.txt
-MANIFEST.txt
 SHA256SUMS.txt
