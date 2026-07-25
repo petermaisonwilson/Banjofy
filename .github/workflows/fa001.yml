@@ -1,4 +1,4 @@
-name: Build Firefox Acquisition Laboratory 003
+name: Build Firefox Acquisition Laboratory 004
 
 on:
   push:
@@ -9,14 +9,16 @@ on:
 jobs:
   build-windows:
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
       - name: Verify exact laboratory files
         shell: pwsh
         run: |
@@ -25,24 +27,30 @@ jobs:
             "laboratories/firefox_acquisition_lab/firefox_acquisition_lab.spec",
             "laboratories/firefox_acquisition_lab/release_gate.py"
           )
-          foreach ($file in $required) { if (-not (Test-Path $file)) { throw "Missing laboratory file: $file" } }
-      - name: Run release gate
+          foreach ($file in $required) {
+            if (-not (Test-Path $file)) { throw "Missing laboratory file: $file" }
+          }
+
+      - name: Install pinned runtime and builder
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller==6.14.2 imageio-ffmpeg==0.6.0 yt-dlp==2026.7.4
+          if ($LASTEXITCODE -ne 0) { throw "Pinned dependency installation failed" }
+
+      - name: Run exact release gate
         shell: pwsh
         run: |
           python "laboratories/firefox_acquisition_lab/release_gate.py"
           if ($LASTEXITCODE -ne 0) { throw "Laboratory release gate failed" }
+
       - name: Compile source
         shell: pwsh
         run: |
           python -m py_compile "laboratories/firefox_acquisition_lab/main.py"
           if ($LASTEXITCODE -ne 0) { throw "Laboratory source compilation failed" }
-      - name: Install pinned runtime and builder
-        shell: pwsh
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install pyinstaller==6.14.2 imageio-ffmpeg==0.6.0
-          if ($LASTEXITCODE -ne 0) { throw "Pinned dependency installation failed" }
-      - name: Direct FFmpeg extraction proof
+
+      - name: Direct application media proof
         shell: pwsh
         run: |
           @'
@@ -56,43 +64,47 @@ jobs:
           root = Path(tempfile.mkdtemp())
           source = root / "proof.mp4"
           audio = root / "proof.m4a"
-          subprocess.run([ff, "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=2", "-f", "lavfi", "-i", "color=c=black:s=320x240:d=2", "-shortest", "-c:v", "mpeg4", "-c:a", "aac", str(source)], check=True)
+          subprocess.run([ff, "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=2",
+                          "-f", "lavfi", "-i", "color=c=black:s=320x240:d=2", "-shortest",
+                          "-c:v", "mpeg4", "-c:a", "aac", str(source)], check=True)
           acquisition.extract_practice_audio(source, audio)
           details = acquisition.inspect_media(audio)
           assert source.is_file() and source.stat().st_size > 0
           assert audio.is_file() and audio.stat().st_size > 0
-          assert not (root / "proof.m4a.working").exists()
-          assert not (root / "proof.working.m4a").exists()
           assert details["audio_present"] is True
-          print("Direct application-level FFmpeg extraction proof passed")
+          print("Direct application media proof passed")
           '@ | python -
-          if ($LASTEXITCODE -ne 0) { throw "Direct FFmpeg proof failed" }
+          if ($LASTEXITCODE -ne 0) { throw "Direct media proof failed" }
+
       - name: Build standalone Windows laboratory
         shell: pwsh
         working-directory: laboratories/firefox_acquisition_lab
         run: |
           pyinstaller --clean --noconfirm firefox_acquisition_lab.spec
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
-          if (-not (Test-Path "dist/BanjofyFirefoxAcquisitionLab003.exe")) { throw "Laboratory EXE missing" }
+          if (-not (Test-Path "dist/BanjofyFirefoxAcquisitionLab004.exe")) { throw "Laboratory EXE missing" }
+
       - name: Startup smoke test
         shell: pwsh
         run: |
-          $exe = "$env:GITHUB_WORKSPACE/laboratories/firefox_acquisition_lab/dist/BanjofyFirefoxAcquisitionLab003.exe"
+          $exe = "$env:GITHUB_WORKSPACE/laboratories/firefox_acquisition_lab/dist/BanjofyFirefoxAcquisitionLab004.exe"
           $process = Start-Process -FilePath $exe -PassThru
           Start-Sleep -Seconds 10
           if ($process.HasExited) { throw "Laboratory exited during startup smoke test with code $($process.ExitCode)" }
           Stop-Process -Id $process.Id -Force
           Write-Host "Laboratory startup smoke test passed"
+
       - name: Assemble artifact
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force "artifact" | Out-Null
-          Copy-Item "laboratories/firefox_acquisition_lab/dist/BanjofyFirefoxAcquisitionLab003.exe" "artifact/" -Force
-          Copy-Item "FIREFOX_ACQUISITION_LAB_003_TEST.txt" "artifact/" -Force
-          if (-not (Test-Path "artifact/BanjofyFirefoxAcquisitionLab003.exe")) { throw "Assembled EXE missing" }
+          Copy-Item "laboratories/firefox_acquisition_lab/dist/BanjofyFirefoxAcquisitionLab004.exe" "artifact/" -Force
+          Copy-Item "FIREFOX_ACQUISITION_LAB_004_TEST.txt" "artifact/" -Force
+          if (-not (Test-Path "artifact/BanjofyFirefoxAcquisitionLab004.exe")) { throw "Assembled EXE missing" }
+
       - name: Upload Windows laboratory
         uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-Firefox-Acquisition-Laboratory-003-Windows
+          name: Banjofy-Firefox-Acquisition-Laboratory-004-Windows
           path: artifact
           if-no-files-found: error

@@ -1,9 +1,9 @@
-FA003 MANIFEST
+Banjofy Firefox Acquisition Laboratory 004 — Clean Rebuild
+
+Files:
 .github/workflows/fa001.yml
-laboratories/firefox_acquisition_lab/main.py
-laboratories/firefox_acquisition_lab/firefox_acquisition_lab.spec
-laboratories/firefox_acquisition_lab/release_gate.py
-FIREFOX_ACQUISITION_LAB_003_TEST.txt
+FIREFOX_ACQUISITION_LAB_004_TEST.txt
 README_FIRST.txt
-RELEASE_AUDIT.txt
-SHA256SUMS.txt
+laboratories/firefox_acquisition_lab/firefox_acquisition_lab.spec
+laboratories/firefox_acquisition_lab/main.py
+laboratories/firefox_acquisition_lab/release_gate.py

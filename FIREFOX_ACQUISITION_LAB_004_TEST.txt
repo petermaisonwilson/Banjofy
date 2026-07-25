@@ -1,0 +1,36 @@
+BANJOFY FIREFOX ACQUISITION LABORATORY 004 — WINDOWS TEST
+
+PURPOSE
+Prove that a user can search for a song inside Banjofy, choose the exact YouTube
+recording, open it in Firefox, download it with the proven third-party extension,
+and allow Banjofy to complete the established media and Library workflow.
+
+TEST
+1. Start BanjofyFirefoxAcquisitionLab004.exe.
+2. Select an empty temporary Banjofy Library folder.
+3. Enter: Green Day Holiday
+4. Click Search YouTube.
+5. Select the desired Green Day - Holiday recording.
+6. Click Use selected recording.
+7. Confirm the title and exact YouTube address are filled automatically.
+8. Click Open selected recording in Firefox.
+9. Return to the laboratory and click Start waiting for selected song.
+10. In Firefox, download the selected recording as MP4 using the proven extension.
+11. Choose Keep audio only — Recommended.
+12. Confirm the Practice audio and Library JSON record are saved.
+
+PASS
+- Search results appear inside the laboratory.
+- Selecting a result fills the exact title and YouTube URL.
+- Firefox opens the selected recording.
+- Only the matching new completed media file is imported.
+- Practice audio plays correctly.
+- The original MP4 is removed for the audio-only choice.
+- The Library JSON includes the selected YouTube URL.
+
+LIMITATIONS
+- Search metadata uses yt-dlp; media downloading remains entirely with the proven
+  Firefox extension.
+- Search requires an internet connection.
+- Chord, beat, bar and key analysis are not yet included.
+- The stable Banjofy application and main branch are not modified.

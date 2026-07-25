@@ -1,35 +1,43 @@
-BANJOFY FIREFOX ACQUISITION LABORATORY 003 — RELEASE-GATE AUDIT
+RELEASE AUDIT — FIREFOX ACQUISITION LABORATORY 004
 
-CONFIRMED BASELINE
-- Laboratory 001 succeeded on Peter's Windows computer.
-- Firefox downloaded the requested MP4 into the normal Downloads folder.
-- The laboratory detected only the armed matching file and moved it into the selected test Library.
+Baseline inspected:
+- Branch: firefox-acquisition-lab
+- Workflow path: .github/workflows/fa001.yml
+- Application path: laboratories/firefox_acquisition_lab/main.py
+- Spec path: laboratories/firefox_acquisition_lab/firefox_acquisition_lab.spec
+- Release gate path: laboratories/firefox_acquisition_lab/release_gate.py
 
-BUILD 003 SCOPE
-- Preserve the proven watcher and title matching.
-- Stage the completed file under <Library>\Working\Incoming.
-- Validate actual media and duration using bundled FFmpeg.
-- Require an audio stream.
-- Present Keep audio only — Recommended, Keep video and audio, and Online playback only.
-- Extract 192 kbps AAC M4A Practice audio for offline choices.
-- Create a basic JSON song record under <Library>\Library\Songs.
-- Store FFmpeg validation evidence under <Library>\Diagnostics.
+Confirmed preserved behavior:
+- Firefox detection
+- Normal Windows Downloads folder remains unchanged
+- Matching completed-media watcher
+- FFmpeg media validation
+- Correct .working.m4a temporary naming
+- 192 kbps AAC Practice audio extraction
+- Keep audio only — Recommended
+- Keep video and audio
+- Online playback only
+- Basic Library JSON record and diagnostics
 
-DIRECT GITHUB PROOF
-- Pinned imageio-ffmpeg 0.6.0 and PyInstaller 6.14.2.
-- Generate a real two-second MP4 in the workflow.
-- Extract a real M4A from it and assert both outputs exist and are non-empty.
-- Build the EXE and hold it open for a ten-second startup smoke test.
+New direct behavior:
+- Search field inside the laboratory
+- Eight YouTube metadata results
+- Recording title, channel and duration
+- Exact result selection
+- Exact title and YouTube URL populated automatically
+- Selected recording opened in Firefox
+- Selected metadata carried into the Library record
 
-ISOLATION
-- Workflow runs only on firefox-acquisition-lab.
-- Existing fa001.yml is overwritten rather than adding a second active workflow.
-- No yt-dlp or internal YouTube downloader is included.
-- Stable Banjofy source remains untouched.
+Dependencies:
+- Python 3.11
+- PyInstaller 6.14.2
+- imageio-ffmpeg 0.6.0
+- yt-dlp 2026.7.4
 
+Proof boundaries:
+- Local package proof: source, AST and manifest generation completed.
+- GitHub proof required: pinned install, release gate, direct media proof, EXE build and startup.
+- Peter Windows proof required: live YouTube metadata search, exact selection, Firefox open,
+  third-party extension download, import, audio extraction and Library save.
 
-BUILD 003 ROOT-CAUSE CORRECTION
-- Build 002 created the temporary output as <name>.m4a.working.
-- FFmpeg infers the output container from the final extension, so it saw .working and could not select an M4A muxer.
-- Build 003 creates <name>.working.m4a, preserving the real .m4a extension.
-- The GitHub gate now invokes the application's actual extract_practice_audio function, not a separate proxy command.
+Main and stable Banjofy remain untouched.
