@@ -1,7 +1,12 @@
-BANJOFY FIREFOX ACQUISITION LABORATORY 004
+BANJOFY FIREFOX ACQUISITION LABORATORY 005
 
-Copy everything inside this FA004 folder into the existing local Banjofy
+Copy everything inside this FA005 folder into the existing local Banjofy
 repository while GitHub Desktop is on the firefox-acquisition-lab branch.
 
-This clean laboratory rebuild adds in-application YouTube search and exact
-recording selection to the proven Firefox handover and media-retention route.
+This clean rebuild preserves the proven Build 004 route and adds:
+- one Prepare Song action;
+- watcher armed before Firefox launch;
+- separate Firefox song window;
+- side-by-side positioning;
+- safe hiding when the matching download begins;
+- final closure after completed-file validation.

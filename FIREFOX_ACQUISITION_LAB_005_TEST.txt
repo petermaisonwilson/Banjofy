@@ -1,0 +1,49 @@
+BANJOFY FIREFOX ACQUISITION LABORATORY 005 — WINDOWS TEST
+
+PURPOSE
+Prove the improved Prepare Song experience:
+- Banjofy arms the watcher before Firefox opens.
+- Firefox opens the exact selected recording in a separate window.
+- Firefox is positioned beside Banjofy.
+- The user clicks the existing third-party Download button once.
+- When the matching media appears, Firefox disappears from view.
+- The hidden song window closes fully after the file is safely imported.
+- Banjofy completes the proven audio and Library workflow.
+
+CLEAN TEST
+1. Remove the previous test MP4 from the normal Windows Downloads folder.
+2. Delete and recreate an empty temporary Banjofy Library folder.
+3. Start BanjofyFirefoxAcquisitionLab005.exe.
+4. Select the temporary Library folder.
+5. Search for: Green Day Holiday
+6. Select the exact recording and click Use selected recording.
+7. Click Prepare Song.
+8. Confirm Firefox opens beside Banjofy.
+9. In Firefox, click the proven downloader's MP4 Download button.
+10. Confirm Firefox disappears when Banjofy detects the matching download.
+11. Confirm Banjofy returns to the front.
+12. Select Keep audio only — Recommended.
+13. Confirm the saved audio plays and the Library JSON exists.
+
+PASS
+- One Prepare Song button replaces separate open-and-wait actions.
+- Banjofy is armed before Firefox is launched.
+- Firefox opens in a separate song window beside Banjofy.
+- The matching download causes that song window to disappear.
+- Download completes successfully despite the window disappearing.
+- The hidden Firefox song window is then closed.
+- Practice audio and Library record are saved.
+- Original MP4 is removed for audio-only storage.
+- Unrelated Firefox windows and downloads remain untouched.
+
+IMPORTANT SAFETY BEHAVIOUR
+The Firefox song window is hidden, not terminated, at the first matching file
+detection. It is closed fully only after Banjofy has safely moved and validated
+the completed file. This avoids cancelling an active download.
+
+LIMITATIONS
+- Exact side-by-side placement depends on available screen space.
+- Firefox may briefly appear before positioning is applied.
+- The third-party extension remains responsible for the media download.
+- Chord, beat, bar and key analysis are not included yet.
+- Main remains untouched.

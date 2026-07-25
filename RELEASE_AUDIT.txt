@@ -1,43 +1,49 @@
-RELEASE AUDIT — FIREFOX ACQUISITION LABORATORY 004
+RELEASE AUDIT — FIREFOX ACQUISITION LABORATORY 005
 
-Baseline inspected:
+Confirmed baseline:
+- Repository: petermaisonwilson/Banjofy
 - Branch: firefox-acquisition-lab
-- Workflow path: .github/workflows/fa001.yml
-- Application path: laboratories/firefox_acquisition_lab/main.py
-- Spec path: laboratories/firefox_acquisition_lab/firefox_acquisition_lab.spec
-- Release gate path: laboratories/firefox_acquisition_lab/release_gate.py
+- Workflow: .github/workflows/fa001.yml
+- Application: laboratories/firefox_acquisition_lab/main.py
+- Spec: laboratories/firefox_acquisition_lab/firefox_acquisition_lab.spec
+- Gate: laboratories/firefox_acquisition_lab/release_gate.py
+- Proven Windows baseline: Laboratory 004
 
-Confirmed preserved behavior:
-- Firefox detection
-- Normal Windows Downloads folder remains unchanged
+Preserved direct behavior:
+- In-Banjofy YouTube metadata search
+- Exact recording selection
+- Exact title and URL
+- Proven third-party Firefox downloader
+- Normal Windows Downloads folder
 - Matching completed-media watcher
-- FFmpeg media validation
-- Correct .working.m4a temporary naming
-- 192 kbps AAC Practice audio extraction
-- Keep audio only — Recommended
-- Keep video and audio
-- Online playback only
-- Basic Library JSON record and diagnostics
+- FFmpeg validation
+- Correct .working.m4a naming
+- 192 kbps AAC Practice audio
+- Three storage choices
+- Basic Library JSON and diagnostics
 
 New direct behavior:
-- Search field inside the laboratory
-- Eight YouTube metadata results
-- Recording title, channel and duration
-- Exact result selection
-- Exact title and YouTube URL populated automatically
-- Selected recording opened in Firefox
-- Selected metadata carried into the Library record
+- One Prepare Song button
+- Watcher starts before Firefox
+- Firefox launched with -new-window
+- Windows MozillaWindowClass discovery
+- Side-by-side Firefox placement
+- download_started event from real matching file detection
+- Firefox song window hidden while download completes
+- Banjofy returned to foreground
+- Firefox song window closed after completed-file validation
 
-Dependencies:
+Pinned dependencies:
 - Python 3.11
 - PyInstaller 6.14.2
 - imageio-ffmpeg 0.6.0
 - yt-dlp 2026.7.4
 
 Proof boundaries:
-- Local package proof: source, AST and manifest generation completed.
-- GitHub proof required: pinned install, release gate, direct media proof, EXE build and startup.
-- Peter Windows proof required: live YouTube metadata search, exact selection, Firefox open,
-  third-party extension download, import, audio extraction and Library save.
+- Local proof: clean source generation, manifest and checksums.
+- GitHub proof: exact gate, AST compile, real FFmpeg extraction, direct Windows helper call,
+  EXE build and startup.
+- Peter Windows proof: real side-by-side placement, safe hiding, uninterrupted extension
+  download, completed import, audio and Library record.
 
-Main and stable Banjofy remain untouched.
+Stable Banjofy and main are untouched.
