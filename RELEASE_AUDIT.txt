@@ -1,11 +1,11 @@
-BANJOFY FIREFOX ACQUISITION LABORATORY 002 — RELEASE-GATE AUDIT
+BANJOFY FIREFOX ACQUISITION LABORATORY 003 — RELEASE-GATE AUDIT
 
 CONFIRMED BASELINE
 - Laboratory 001 succeeded on Peter's Windows computer.
 - Firefox downloaded the requested MP4 into the normal Downloads folder.
 - The laboratory detected only the armed matching file and moved it into the selected test Library.
 
-BUILD 002 SCOPE
+BUILD 003 SCOPE
 - Preserve the proven watcher and title matching.
 - Stage the completed file under <Library>\Working\Incoming.
 - Validate actual media and duration using bundled FFmpeg.
@@ -26,3 +26,10 @@ ISOLATION
 - Existing fa001.yml is overwritten rather than adding a second active workflow.
 - No yt-dlp or internal YouTube downloader is included.
 - Stable Banjofy source remains untouched.
+
+
+BUILD 003 ROOT-CAUSE CORRECTION
+- Build 002 created the temporary output as <name>.m4a.working.
+- FFmpeg infers the output container from the final extension, so it saw .working and could not select an M4A muxer.
+- Build 003 creates <name>.working.m4a, preserving the real .m4a extension.
+- The GitHub gate now invokes the application's actual extract_practice_audio function, not a separate proxy command.

@@ -1,0 +1,19 @@
+BANJOFY FIREFOX ACQUISITION LABORATORY 003 — WINDOWS TEST
+
+PURPOSE
+Prove that a completed Firefox download can be validated, converted into compact Practice audio, retained according to the user's choice, and represented by a basic Library record.
+
+TEST
+1. Use a separate test Library folder.
+2. Remove or move the previous test media from the normal Downloads folder.
+3. Run BanjofyFirefoxAcquisitionLab003.exe.
+4. Select the test Library.
+5. Enter the expected song title.
+6. Click Start waiting for this song.
+7. Download the matching MP4 through the proven Firefox extension.
+8. Confirm the media validation succeeds.
+9. Select Keep audio only — Recommended.
+10. Confirm an M4A appears under Media\Audio, the original staged MP4 is removed, and a JSON record appears under Library\Songs.
+
+SECOND OPTIONAL TEST
+Repeat with another song and select Keep video and audio. Confirm both files are retained.

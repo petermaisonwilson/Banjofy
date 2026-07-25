@@ -16,7 +16,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import imageio_ffmpeg
 
-APP_TITLE = "Banjofy Firefox Acquisition Laboratory 002"
+APP_TITLE = "Banjofy Firefox Acquisition Laboratory 003"
 SUPPORTED_MEDIA = {".mp4", ".webm", ".m4a", ".mp3", ".wav", ".ogg", ".mkv"}
 PARTIAL_SUFFIXES = {".part", ".crdownload", ".tmp", ".download"}
 POLL_SECONDS = 1.0
@@ -93,7 +93,7 @@ def inspect_media(path: Path) -> dict[str, object]:
 
 def extract_practice_audio(source: Path, target: Path) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
-    temporary = target.with_suffix(target.suffix + ".working")
+    temporary = target.with_name(f"{target.stem}.working{target.suffix}")
     temporary.unlink(missing_ok=True)
     command = [
         str(ffmpeg_exe()), "-y", "-hide_banner", "-loglevel", "error",
