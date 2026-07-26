@@ -1,49 +1,63 @@
-RELEASE AUDIT — FIREFOX ACQUISITION LABORATORY 005
+RELEASE AUDIT — BANJOFY SONG ANALYSIS LABORATORY 001
 
-Confirmed baseline:
+SOURCE BASELINE
+- Banjofy Chord Laboratory 016 Diagnostic Cleanup Clean Rebuild
+- Proven output schema:
+  key, key confidence, raw BPM, Practice BPM, beat count, chord vocabularies,
+  beat-aligned chord segments, diagnostics and detector disagreements.
+- Acquisition Library schema from Firefox Acquisition Laboratory 005:
+  song_id, title_requested, practice_audio_path, duration_seconds,
+  youtube_url and analysis_status.
+
+REPOSITORY TARGET
 - Repository: petermaisonwilson/Banjofy
-- Branch: firefox-acquisition-lab
-- Workflow: .github/workflows/fa001.yml
-- Application: laboratories/firefox_acquisition_lab/main.py
-- Spec: laboratories/firefox_acquisition_lab/firefox_acquisition_lab.spec
-- Gate: laboratories/firefox_acquisition_lab/release_gate.py
-- Proven Windows baseline: Laboratory 004
+- Branch: song-analysis-lab
+- New computer folder inside repository:
+  laboratories/song_analysis_lab
+- Workflow:
+  .github/workflows/song-analysis-lab.yml
 
-Preserved direct behavior:
-- In-Banjofy YouTube metadata search
-- Exact recording selection
-- Exact title and URL
-- Proven third-party Firefox downloader
-- Normal Windows Downloads folder
-- Matching completed-media watcher
-- FFmpeg validation
-- Correct .working.m4a naming
-- 192 kbps AAC Practice audio
-- Three storage choices
-- Basic Library JSON and diagnostics
+PRESERVED ANALYSIS ENGINE
+- ChordMini ChordNet
+- Confidence-gated independent chroma detector
+- FFmpeg model-audio preparation
+- Librosa beat detection
+- Beat-aligned chord timeline
+- Key inference
+- Beginner, Intermediate and Professional chord vocabularies
+- Laboratory 016 internal self-audit
 
-New direct behavior:
-- One Prepare Song button
-- Watcher starts before Firefox
-- Firefox launched with -new-window
-- Windows MozillaWindowClass discovery
-- Side-by-side Firefox placement
-- download_started event from real matching file detection
-- Firefox song window hidden while download completes
-- Banjofy returned to foreground
-- Firefox song window closed after completed-file validation
+NEW INTEGRATION BEHAVIOUR
+- Scan Library/Songs records
+- Resolve saved Practice-audio paths
+- Recover moved Library audio by filename
+- Select a Library song
+- Run the proven analysis engine
+- Save full song_analysis.json atomically
+- Update the original Library record atomically
+- Store analysis summary for future Practice UI
 
-Pinned dependencies:
-- Python 3.11
-- PyInstaller 6.14.2
-- imageio-ffmpeg 0.6.0
-- yt-dlp 2026.7.4
+DIRECT GITHUB PROOF
+- Exact required-path gate
+- Python AST and compilation
+- Mock Library discovery
+- Mock full AnalysisResult committed to a real temporary Library record
+- Laboratory 016 internal engine audit
+- ChordMini file and import verification
+- FFmpeg availability
+- Windows EXE build
+- 15-second startup test
 
-Proof boundaries:
-- Local proof: clean source generation, manifest and checksums.
-- GitHub proof: exact gate, AST compile, real FFmpeg extraction, direct Windows helper call,
-  EXE build and startup.
-- Peter Windows proof: real side-by-side placement, safe hiding, uninterrupted extension
-  download, completed import, audio and Library record.
+PETER WINDOWS PROOF REQUIRED
+- Real acquisition Library discovered
+- Real saved Practice audio selected
+- Real ChordMini full-song run
+- Real BPM, key, beat count and chord timeline
+- Full analysis files created
+- Existing Library JSON updated successfully
 
-Stable Banjofy and main are untouched.
+KNOWN LIMITATION
+Laboratory 016 reports meter as Unknown. Therefore this build does not claim
+proven bar or downbeat positions. Those require a later direct laboratory proof.
+
+Main and firefox-acquisition-lab remain untouched.

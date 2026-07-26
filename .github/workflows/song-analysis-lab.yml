@@ -1,0 +1,115 @@
+name: Build Banjofy Song Analysis Laboratory 001
+
+on:
+  push:
+    branches:
+      - song-analysis-lab
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 100
+
+    steps:
+      - name: Checkout song analysis branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify exact laboratory files
+        shell: pwsh
+        run: |
+          $required = @(
+            "laboratories/song_analysis_lab/main.py",
+            "laboratories/song_analysis_lab/analysis_engine.py",
+            "laboratories/song_analysis_lab/song_analysis_lab.spec",
+            "laboratories/song_analysis_lab/release_gate.py",
+            "laboratories/song_analysis_lab/requirements.txt"
+          )
+          foreach ($file in $required) {
+            if (-not (Test-Path $file)) { throw "Missing laboratory file: $file" }
+          }
+
+      - name: Clone exact dedicated ChordMini model
+        shell: pwsh
+        working-directory: laboratories/song_analysis_lab
+        run: |
+          git clone --depth 1 https://github.com/ptnghia-j/ChordMini.git ChordMini
+          if (-not (Test-Path "ChordMini/checkpoints/2e1d_model_best.pth")) { throw "ChordNet checkpoint missing" }
+          if (-not (Test-Path "ChordMini/src/evaluation/test.py")) { throw "ChordMini inference script missing" }
+          if (-not (Test-Path "ChordMini/config/ChordMini.yaml")) { throw "ChordMini configuration missing" }
+
+      - name: Install pinned analysis dependencies
+        working-directory: laboratories/song_analysis_lab
+        run: |
+          python -m pip install --upgrade pip wheel
+          python -m pip install -r requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw "Analysis dependency installation failed" }
+
+      - name: Verify full model import chain
+        shell: pwsh
+        working-directory: laboratories/song_analysis_lab
+        run: |
+          $env:PYTHONPATH = "$PWD/ChordMini"
+          python -c "import torch, librosa, numpy, scipy.signal, mir_eval, imageio_ffmpeg, seaborn, pandas, matplotlib, tqdm, soundfile, yaml; print('All runtime imports available')"
+          python -c "from src.evaluation.utils import quality_analysis; print('ChordMini evaluation import available')"
+          python -c "from src.models import load_model; print('ChordMini model loader available')"
+
+      - name: Run exact integration release gate
+        working-directory: laboratories/song_analysis_lab
+        run: |
+          python release_gate.py
+          if ($LASTEXITCODE -ne 0) { throw "Song analysis integration release gate failed" }
+
+      - name: Run proven Laboratory 016 engine audit
+        working-directory: laboratories/song_analysis_lab
+        run: |
+          python -c "import analysis_engine as e; print('\n'.join(e.run_internal_self_audit()))"
+          if ($LASTEXITCODE -ne 0) { throw "Proven analysis engine audit failed" }
+
+      - name: Compile all application sources
+        working-directory: laboratories/song_analysis_lab
+        run: |
+          python -m py_compile main.py analysis_engine.py release_gate.py
+          if ($LASTEXITCODE -ne 0) { throw "Source compilation failed" }
+
+      - name: Verify bundled FFmpeg
+        working-directory: laboratories/song_analysis_lab
+        run: |
+          python -c "import imageio_ffmpeg, os; p=imageio_ffmpeg.get_ffmpeg_exe(); assert os.path.exists(p); print('FFmpeg available:', p)"
+
+      - name: Build standalone Windows laboratory
+        working-directory: laboratories/song_analysis_lab
+        run: |
+          pyinstaller --clean --noconfirm song_analysis_lab.spec
+          if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
+          if (-not (Test-Path "dist/BanjofySongAnalysisLab001.exe")) { throw "Expected EXE was not produced" }
+
+      - name: Startup smoke test
+        shell: pwsh
+        run: |
+          $exe = "$env:GITHUB_WORKSPACE/laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab001.exe"
+          $process = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 15
+          if ($process.HasExited) { throw "Laboratory exited during startup smoke test with code $($process.ExitCode)" }
+          Stop-Process -Id $process.Id -Force
+          Write-Host "Song Analysis Laboratory startup smoke test passed"
+
+      - name: Assemble artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "artifact" | Out-Null
+          Copy-Item "laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab001.exe" "artifact/" -Force
+          Copy-Item "SONG_ANALYSIS_LAB_001_TEST.txt" "artifact/" -Force
+          if (-not (Test-Path "artifact/BanjofySongAnalysisLab001.exe")) { throw "Assembled EXE missing" }
+
+      - name: Upload Windows laboratory
+        uses: actions/upload-artifact@v4
+        with:
+          name: Banjofy-Song-Analysis-Laboratory-001-Windows
+          path: artifact
+          if-no-files-found: error

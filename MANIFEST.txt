@@ -1,9 +1,12 @@
-Banjofy Firefox Acquisition Laboratory 005 — Clean Rebuild
+Banjofy Song Analysis Laboratory 001 — Clean Rebuild
 
 Files:
-.github/workflows/fa001.yml
-FIREFOX_ACQUISITION_LAB_005_TEST.txt
+.github/workflows/song-analysis-lab.yml
 README_FIRST.txt
-laboratories/firefox_acquisition_lab/firefox_acquisition_lab.spec
-laboratories/firefox_acquisition_lab/main.py
-laboratories/firefox_acquisition_lab/release_gate.py
+RELEASE_AUDIT.txt
+SONG_ANALYSIS_LAB_001_TEST.txt
+laboratories/song_analysis_lab/analysis_engine.py
+laboratories/song_analysis_lab/main.py
+laboratories/song_analysis_lab/release_gate.py
+laboratories/song_analysis_lab/requirements.txt
+laboratories/song_analysis_lab/song_analysis_lab.spec

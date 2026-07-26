@@ -1,12 +1,15 @@
-BANJOFY FIREFOX ACQUISITION LABORATORY 005
+BANJOFY SONG ANALYSIS LABORATORY 001
 
-Copy everything inside this FA005 folder into the existing local Banjofy
-repository while GitHub Desktop is on the firefox-acquisition-lab branch.
+BRANCH
+Copy this build only while GitHub Desktop shows:
+song-analysis-lab
 
-This clean rebuild preserves the proven Build 004 route and adds:
-- one Prepare Song action;
-- watcher armed before Firefox launch;
-- separate Firefox song window;
-- side-by-side positioning;
-- safe hiding when the matching download begins;
-- final closure after completed-file validation.
+COMPUTER FOLDER CREATED BY THIS ZIP
+laboratories\song_analysis_lab
+
+Do not create a second Banjofy repository folder.
+Do not copy this build onto main or firefox-acquisition-lab.
+
+This clean build wraps the proven Chord Laboratory 016 engine with a Library
+integration layer. It reads Practice audio created by the acquisition stage and
+writes analysis results back into the same Library song record.

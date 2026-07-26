@@ -1,0 +1,48 @@
+BANJOFY SONG ANALYSIS LABORATORY 001 — WINDOWS TEST
+
+PURPOSE
+Prove the handover from the successful Firefox Acquisition Library into the
+proven Chord Laboratory 016 analysis engine.
+
+THIS BUILD DOES
+- Opens the existing Banjofy Library folder.
+- Finds song JSON records with valid saved Practice audio.
+- Lets the user select a Library song.
+- Runs the proven Laboratory 016 engine on that Practice audio.
+- Saves the complete analysis under LibraryRoot\Analysis\<song-id>.
+- Updates the existing Library song JSON with analysis status and summary.
+
+CLEAN TEST
+1. Keep the successful Build 005 test Library exactly as it is.
+2. Run BanjofySongAnalysisLab001.exe.
+3. Choose that Build 005 Library root—not Media, Audio or Library\Songs.
+4. Confirm the saved song appears in the list.
+5. Select the song.
+6. Click Analyse Selected Library Song.
+7. Allow several minutes, especially on the first run.
+8. Confirm the completion message appears.
+
+PASS EVIDENCE
+The selected song's Library JSON must now contain:
+- analysis_status: completed
+- analysis_engine: Banjofy Chord Laboratory 016
+- analysis_summary.key
+- analysis_summary.raw_bpm
+- analysis_summary.practice_bpm
+- analysis_summary.beat_count
+- analysis_summary.main_chords
+- analysis_summary.beginner_chords
+- analysis_summary.chord_segment_count
+
+The following must also exist:
+LibraryRoot\Analysis\<song-id>\song_analysis.json
+LibraryRoot\Analysis\<song-id>\<audio-name>_dedicated_chord_report.txt
+LibraryRoot\Analysis\<song-id>\<audio-name>_dedicated_chords.csv
+LibraryRoot\Analysis\<song-id>\<audio-name>_dedicated_chords.json
+
+LIMITATIONS
+- This is the first integration proof, not the finished Banjofy Practice screen.
+- Meter remains Unknown because Laboratory 016 did not yet prove bar/downbeat detection.
+- Chord diagrams remain separate and instrument-specific.
+- Analysis can take several minutes.
+- Main and firefox-acquisition-lab remain untouched.
