@@ -16,8 +16,14 @@ spec_text = (root / "song_analysis_lab.spec").read_text(encoding="utf-8")
 ast.parse(main_text)
 ast.parse(engine_text)
 
+assert main_text.index("self.library_var = tk.StringVar") < main_text.index("self._load_settings()"), (
+    "library_var must be created before settings are loaded"
+)
+assert 'def load_library_setting(path: Path | None = None) -> str:' in main_text
+assert 'if hasattr(self, "library_var"):' in main_text
+
 for required in [
-    'APP_TITLE = "Banjofy Song Analysis Laboratory 003 — Meter, Bars and Downbeats"',
+    'APP_TITLE = "Banjofy Song Analysis Laboratory 004 — Meter, Bars and Downbeats"',
     'def discover_analysed_songs(library_root: Path)',
     'def commit_structure(',
     'text="Detect Meter, Bars and Downbeats"',
@@ -34,12 +40,22 @@ for required in [
 ]:
     assert required in engine_text, f"Missing structure implementation: {required}"
 
-assert 'name="BanjofySongAnalysisLab003"' in spec_text
+assert 'name="BanjofySongAnalysisLab004"' in spec_text
 assert '"torch"' in spec_text and 'excludes=' in spec_text
 
 sys.path.insert(0, str(root))
 import main
 import structure_engine
+
+with tempfile.TemporaryDirectory(prefix="banjofy_sal004_settings_") as saved:
+    saved_path = Path(saved) / "song_analysis_lab_settings.json"
+    saved_path.write_text(
+        json.dumps({"library_root": r"C:\\Existing Banjofy Library"}),
+        encoding="utf-8",
+    )
+    assert main.load_library_setting(saved_path) == r"C:\Existing Banjofy Library"
+    saved_path.write_text("{broken", encoding="utf-8")
+    assert main.load_library_setting(saved_path) == ""
 
 # Direct deterministic meter proof: strong accent every four beats.
 accents = np.asarray([3.0 if index % 4 == 1 else 0.2 for index in range(48)], dtype=float)
@@ -112,4 +128,4 @@ with tempfile.TemporaryDirectory(prefix="banjofy_sal002_gate_") as temporary:
     assert analysis["bar_count"] == len(bars)
     assert analysis["bar_aligned_chords"]
 
-print("Banjofy Song Analysis Laboratory 003 release gate: passed")
+print("Banjofy Song Analysis Laboratory 004 release gate: passed")

@@ -1,4 +1,4 @@
-RELEASE AUDIT — BANJOFY SONG ANALYSIS LABORATORY 003
+RELEASE AUDIT — BANJOFY SONG ANALYSIS LABORATORY 004
 
 CONFIRMED PASSED BASELINE
 - Song Analysis Laboratory 001
@@ -51,3 +51,14 @@ ROOT-CAUSE CORRECTION
 - The real analyse_structure() function must detect at least 40 beats, 4/4
   meter, at least eight bars, downbeats and bar-aligned chords.
 - No application fallback or threshold was weakened to make the test pass.
+
+WINDOWS STARTUP ROOT CAUSE AND CORRECTION
+- Peter's computer had an existing song_analysis_lab_settings.json.
+- The failing EXE attempted to use library_var while loading that file.
+- Clean GitHub runners did not have a settings file, so the path escaped the
+  earlier startup smoke test.
+- Laboratory 004 creates all Tk variables before loading settings.
+- Settings parsing is isolated in load_library_setting().
+- The release gate verifies constructor order and malformed/valid settings.
+- GitHub creates a populated settings file and launches the finished EXE for
+  twelve seconds before uploading the artifact.

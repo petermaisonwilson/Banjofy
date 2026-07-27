@@ -14,7 +14,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import structure_engine
 
-APP_TITLE = "Banjofy Song Analysis Laboratory 003 — Meter, Bars and Downbeats"
+APP_TITLE = "Banjofy Song Analysis Laboratory 004 — Meter, Bars and Downbeats"
 SETTINGS_FILENAME = "song_analysis_lab_settings.json"
 
 
@@ -27,6 +27,17 @@ def app_data_dir() -> Path:
 
 def settings_path() -> Path:
     return app_data_dir() / SETTINGS_FILENAME
+
+
+def load_library_setting(path: Path | None = None) -> str:
+    target = path or settings_path()
+    try:
+        data = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError):
+        return ""
+    if not isinstance(data, dict):
+        return ""
+    return str(data.get("library_root") or "")
 
 
 def read_json(path: Path) -> dict:
@@ -150,8 +161,12 @@ class App(tk.Tk):
         self.title(APP_TITLE)
         self.geometry("1020x760")
         self.minsize(880, 650)
-        self.library_var = tk.StringVar()
-        self.status_var = tk.StringVar(value="Choose the Library that passed Song Analysis Laboratory 001")
+        # Tk variables must exist before any persisted settings are read.
+        self.library_var = tk.StringVar(master=self, value="")
+        self.status_var = tk.StringVar(
+            master=self,
+            value="Choose the Library that passed Song Analysis Laboratory 001",
+        )
         self.messages: queue.Queue[tuple[str, object]] = queue.Queue()
         self.songs: list[dict] = []
         self.selected_song: dict | None = None
@@ -162,11 +177,11 @@ class App(tk.Tk):
             self.after(300, self._refresh)
 
     def _load_settings(self) -> None:
-        try:
-            data = read_json(settings_path())
-        except Exception:
-            return
-        self.library_var.set(str(data.get("library_root") or ""))
+        # This method is deliberately safe when a settings file already exists.
+        # GitHub now proves this exact persisted-settings startup path.
+        library_value = load_library_setting()
+        if hasattr(self, "library_var"):
+            self.library_var.set(library_value)
 
     def _save_settings(self) -> None:
         write_json_atomic(settings_path(), {"library_root": self.library_var.get().strip()})

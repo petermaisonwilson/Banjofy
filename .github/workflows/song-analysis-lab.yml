@@ -1,4 +1,4 @@
-name: Build Banjofy Song Analysis Laboratory 003
+name: Build Banjofy Song Analysis Laboratory 004
 
 on:
   push:
@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Verify exact Laboratory 003 files
+      - name: Verify exact Laboratory 004 files
         shell: pwsh
         run: |
           $required = @(
@@ -31,7 +31,7 @@ jobs:
             "laboratories/song_analysis_lab/requirements.txt"
           )
           foreach ($file in $required) {
-            if (-not (Test-Path $file)) { throw "Missing Laboratory 003 file: $file" }
+            if (-not (Test-Path $file)) { throw "Missing Laboratory 004 file: $file" }
           }
 
       - name: Install pinned structure-analysis dependencies
@@ -45,9 +45,9 @@ jobs:
         working-directory: laboratories/song_analysis_lab
         run: |
           python release_gate.py
-          if ($LASTEXITCODE -ne 0) { throw "Laboratory 003 release gate failed" }
+          if ($LASTEXITCODE -ne 0) { throw "Laboratory 004 release gate failed" }
 
-      - name: Compile all Laboratory 003 sources
+      - name: Compile all Laboratory 004 sources
         working-directory: laboratories/song_analysis_lab
         run: |
           python -m py_compile main.py structure_engine.py release_gate.py
@@ -112,34 +112,41 @@ jobs:
         run: |
           python -c "import imageio_ffmpeg, os; p=imageio_ffmpeg.get_ffmpeg_exe(); assert os.path.exists(p); print('FFmpeg available:', p)"
 
-      - name: Build standalone Windows Laboratory 003
+      - name: Build standalone Windows Laboratory 004
         working-directory: laboratories/song_analysis_lab
         run: |
           pyinstaller --clean --noconfirm song_analysis_lab.spec
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
-          if (-not (Test-Path "dist/BanjofySongAnalysisLab003.exe")) { throw "Expected EXE was not produced" }
+          if (-not (Test-Path "dist/BanjofySongAnalysisLab004.exe")) { throw "Expected EXE was not produced" }
 
-      - name: Startup smoke test
+      - name: Persisted-settings startup proof
         shell: pwsh
         run: |
-          $exe = "$env:GITHUB_WORKSPACE/laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab003.exe"
+          $settingsFolder = Join-Path $env:LOCALAPPDATA "Banjofy\SongAnalysisLab"
+          New-Item -ItemType Directory -Force $settingsFolder | Out-Null
+          $settingsFile = Join-Path $settingsFolder "song_analysis_lab_settings.json"
+          '{"library_root":"C:\\Existing Banjofy Library"}' | Set-Content -Path $settingsFile -Encoding UTF8
+
+          $exe = "$env:GITHUB_WORKSPACE/laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab004.exe"
           $process = Start-Process -FilePath $exe -PassThru
           Start-Sleep -Seconds 12
-          if ($process.HasExited) { throw "Laboratory exited during startup smoke test with code $($process.ExitCode)" }
+          if ($process.HasExited) {
+            throw "Laboratory failed with a populated settings file; exit code $($process.ExitCode)"
+          }
           Stop-Process -Id $process.Id -Force
-          Write-Host "Laboratory 003 startup smoke test passed"
+          Write-Host "Persisted-settings startup proof passed"
 
       - name: Assemble artifact
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force "artifact" | Out-Null
-          Copy-Item "laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab003.exe" "artifact/" -Force
-          Copy-Item "SONG_ANALYSIS_LAB_003_TEST.txt" "artifact/" -Force
-          if (-not (Test-Path "artifact/BanjofySongAnalysisLab003.exe")) { throw "Assembled EXE missing" }
+          Copy-Item "laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab004.exe" "artifact/" -Force
+          Copy-Item "SONG_ANALYSIS_LAB_004_TEST.txt" "artifact/" -Force
+          if (-not (Test-Path "artifact/BanjofySongAnalysisLab004.exe")) { throw "Assembled EXE missing" }
 
-      - name: Upload Windows Laboratory 003
+      - name: Upload Windows Laboratory 004
         uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-Song-Analysis-Laboratory-003-Windows
+          name: Banjofy-Song-Analysis-Laboratory-004-Windows
           path: artifact
           if-no-files-found: error
