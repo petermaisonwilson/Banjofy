@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import bisect
 import json
 import os
 import queue
@@ -14,7 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import structure_engine
 
-APP_TITLE = "Banjofy Song Analysis Laboratory 009 — 3/4 and 4/4 Meter Check"
+APP_TITLE = "Banjofy Song Analysis Laboratory 010 — Extended Audible and Visual Meter Check"
 SETTINGS_FILENAME = "song_analysis_lab_settings.json"
 
 
@@ -137,6 +138,11 @@ def commit_structure(
         "meter_status": result.meter_status,
         "best_meter_candidate": result.best_meter_candidate,
         "meter_confidence": round(float(result.meter_confidence), 4),
+        "full_track_meter_confidence": round(float(result.full_track_meter_confidence), 4),
+        "rhythmic_window_start_beat": int(result.rhythmic_window_start_beat),
+        "rhythmic_window_end_beat": int(result.rhythmic_window_end_beat),
+        "rhythmic_window_start_s": float(result.rhythmic_window_start_s),
+        "rhythmic_window_end_s": float(result.rhythmic_window_end_s),
         "beats_per_bar": int(result.beats_per_bar),
         "first_downbeat_beat_index": int(result.first_downbeat_beat_index),
         "beat_count": int(result.beat_count),
@@ -158,6 +164,11 @@ def commit_structure(
     updated_analysis["meter_status"] = result.meter_status
     updated_analysis["best_meter_candidate"] = result.best_meter_candidate
     updated_analysis["meter_confidence"] = result.meter_confidence
+    updated_analysis["full_track_meter_confidence"] = result.full_track_meter_confidence
+    updated_analysis["rhythmic_window_start_beat"] = result.rhythmic_window_start_beat
+    updated_analysis["rhythmic_window_end_beat"] = result.rhythmic_window_end_beat
+    updated_analysis["rhythmic_window_start_s"] = result.rhythmic_window_start_s
+    updated_analysis["rhythmic_window_end_s"] = result.rhythmic_window_end_s
     updated_analysis["beats_per_bar"] = result.beats_per_bar
     updated_analysis["beat_times"] = result.beat_times
     updated_analysis["downbeat_times"] = result.downbeat_times
@@ -192,6 +203,12 @@ class App(tk.Tk):
         self.messages: queue.Queue[tuple[str, object]] = queue.Queue()
         self.songs: list[dict] = []
         self.selected_song: dict | None = None
+        self.visual_window: tk.Toplevel | None = None
+        self.visual_started_at: float | None = None
+        self.visual_beat_times: list[float] = []
+        self.visual_downbeat_times: list[float] = []
+        self.visual_beats_per_bar: int = 4
+        self.visual_duration: float = 0.0
         self._load_settings()
         self._build_ui()
         self.after(150, self._poll)
@@ -260,7 +277,7 @@ class App(tk.Tk):
         self.run_button.pack(side="left")
         self.play_button = ttk.Button(
             controls,
-            text="Play Audible Bar Check",
+            text="Play 180-Second Audible + Visual Check",
             command=self._play_audible_check,
             state="disabled",
         )
@@ -393,7 +410,9 @@ class App(tk.Tk):
                 self._append(f"Meter result: {result.meter}")
                 self._append(f"Best candidate: {result.best_meter_candidate}")
                 self._append(f"Meter status: {result.meter_status}")
-                self._append(f"Meter confidence: {result.meter_confidence:.0%}")
+                self._append(f"Rhythmic-section confidence: {result.meter_confidence:.0%}")
+                self._append(f"Full-track confidence: {result.full_track_meter_confidence:.0%}")
+                self._append(f"Confidence window: {result.rhythmic_window_start_s:.1f}s to {result.rhythmic_window_end_s:.1f}s")
                 self._append(f"Beats per bar: {result.beats_per_bar}")
                 self._append(f"Detected beats: {result.beat_count}")
                 self._append(f"Estimated bars: {result.bar_count}")
@@ -417,28 +436,84 @@ class App(tk.Tk):
         if self.selected_song is None:
             messagebox.showinfo(APP_TITLE, "Select a Library song first.")
             return
-
         record = read_json(self.selected_song["record_path"])
-        raw = record.get("audible_bar_check_path")
-        if not raw:
-            messagebox.showinfo(
-                APP_TITLE,
-                "Run the 3/4 or 4/4 structure check first.",
-            )
-            return
-
-        path = Path(str(raw))
+        path = Path(str(record.get("audible_bar_check_path") or ""))
         if not path.is_file():
-            messagebox.showerror(
-                APP_TITLE,
-                f"The audible bar-check file could not be found:\n{path}",
-            )
+            messagebox.showerror(APP_TITLE, f"The audible bar-check file could not be found:\n{path}")
             return
-
+        analysis = read_json(self.selected_song["analysis_path"])
+        self.visual_beat_times = [float(v) for v in analysis.get("beat_times", [])]
+        self.visual_downbeat_times = [float(v) for v in analysis.get("downbeat_times", [])]
+        self.visual_beats_per_bar = int(analysis.get("beats_per_bar") or 4)
+        if not self.visual_beat_times or not self.visual_downbeat_times:
+            messagebox.showerror(APP_TITLE, "Beat or downbeat data is missing.")
+            return
         try:
-            os.startfile(path)  # type: ignore[attr-defined]
-        except (AttributeError, OSError):
-            webbrowser.open(path.as_uri())
+            import winsound
+            winsound.PlaySound(str(path), winsound.SND_FILENAME | winsound.SND_ASYNC)
+        except Exception as exc:
+            messagebox.showerror(APP_TITLE, f"Could not start the audible check:\n{exc}")
+            return
+        self.visual_duration = min(structure_engine.AUDIBLE_PREVIEW_SECONDS, self.visual_beat_times[-1])
+        self.visual_started_at = time.monotonic()
+        self._open_visual_window()
+        self._update_visual_marker()
+
+    def _open_visual_window(self) -> None:
+        if self.visual_window is not None and self.visual_window.winfo_exists():
+            self.visual_window.destroy()
+        self.visual_window = tk.Toplevel(self)
+        self.visual_window.title("Banjofy Audible Meter Check")
+        self.visual_window.geometry("760x300")
+        frame = ttk.Frame(self.visual_window, padding=18)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text="Audible and Visual Bar Check", font=("Segoe UI", 18, "bold")).pack()
+        self.visual_bar_var = tk.StringVar(value="Bar —")
+        self.visual_beat_var = tk.StringVar(value="Beat —")
+        self.visual_time_var = tk.StringVar(value="0:00 / 3:00")
+        self.visual_status_var = tk.StringVar(value="Starting…")
+        row = ttk.Frame(frame); row.pack(fill="x", pady=18)
+        ttk.Label(row, textvariable=self.visual_bar_var, font=("Segoe UI", 28, "bold")).pack(side="left")
+        ttk.Label(row, textvariable=self.visual_beat_var, font=("Segoe UI", 28)).pack(side="left", padx=24)
+        ttk.Label(row, textvariable=self.visual_time_var, font=("Segoe UI", 16)).pack(side="right")
+        self.visual_canvas = tk.Canvas(frame, height=90, highlightthickness=1)
+        self.visual_canvas.pack(fill="x")
+        self.visual_canvas.create_line(30,45,700,45,width=3)
+        self.visual_marker = self.visual_canvas.create_oval(22,29,38,61)
+        ttk.Label(frame, textvariable=self.visual_status_var, font=("Segoe UI", 14, "bold")).pack(pady=10)
+        ttk.Button(frame, text="Stop Test", command=self._stop_visual_test).pack(side="right")
+        self.visual_window.protocol("WM_DELETE_WINDOW", self._stop_visual_test)
+
+    def _update_visual_marker(self) -> None:
+        if self.visual_started_at is None or self.visual_window is None or not self.visual_window.winfo_exists():
+            return
+        elapsed = time.monotonic() - self.visual_started_at
+        if elapsed >= self.visual_duration:
+            self._stop_visual_test(); return
+        beat_index = max(0, bisect.bisect_right(self.visual_beat_times, elapsed)-1)
+        down_index = max(0, bisect.bisect_right(self.visual_downbeat_times, elapsed)-1)
+        down_time = self.visual_downbeat_times[down_index]
+        first_beat = bisect.bisect_left(self.visual_beat_times, down_time)
+        beat_in_bar = max(1, min(self.visual_beats_per_bar, beat_index-first_beat+1))
+        is_down = abs(elapsed-down_time) < 0.16
+        width=max(100,self.visual_canvas.winfo_width()); x=30+(elapsed/max(1,self.visual_duration))*(width-60)
+        size=26 if is_down else 16
+        self.visual_canvas.coords(self.visual_marker,x-size/2,45-size,x+size/2,45+size)
+        self.visual_bar_var.set(f"Bar {down_index+1}")
+        self.visual_beat_var.set(f"Beat {beat_in_bar} of {self.visual_beats_per_bar}")
+        self.visual_time_var.set(f"{int(elapsed)//60}:{int(elapsed)%60:02d} / 3:00")
+        self.visual_status_var.set("DOWNBEAT — estimated start of bar" if is_down else "Beat")
+        self.after(25,self._update_visual_marker)
+
+    def _stop_visual_test(self) -> None:
+        try:
+            import winsound; winsound.PlaySound(None, winsound.SND_PURGE)
+        except Exception:
+            pass
+        self.visual_started_at=None
+        if self.visual_window is not None and self.visual_window.winfo_exists():
+            self.visual_window.destroy()
+        self.visual_window=None
 
     def _open_folder(self) -> None:
         root = self._library_root()

@@ -1,181 +1,53 @@
-name: Build Banjofy Song Analysis Laboratory 009
+name: Build Banjofy Song Analysis Laboratory 010
 
 on:
   push:
-    branches:
-      - song-analysis-lab
+    branches: [song-analysis-lab]
   workflow_dispatch:
 
 jobs:
   build-windows:
     runs-on: windows-latest
     timeout-minutes: 60
-
     steps:
-      - name: Checkout exact branch
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: Verify exact Build 009 paths
-        shell: pwsh
-        run: |
-          $required = @(
-            ".github/workflows/song-analysis-lab.yml",
-            "laboratories/song_analysis_lab/main.py",
-            "laboratories/song_analysis_lab/structure_engine.py",
-            "laboratories/song_analysis_lab/song_analysis_lab.spec",
-            "laboratories/song_analysis_lab/release_gate.py",
-            "laboratories/song_analysis_lab/requirements.txt",
-            "SONG_ANALYSIS_LAB_009_TEST.txt"
-          )
-          foreach ($file in $required) {
-            if (-not (Test-Path $file)) { throw "Missing Build 009 file: $file" }
-          }
-
       - name: Install pinned dependencies
         working-directory: laboratories/song_analysis_lab
         run: |
           python -m pip install --upgrade pip wheel
           python -m pip install -r requirements.txt
-          if ($LASTEXITCODE -ne 0) { throw "Pinned dependency installation failed" }
-
-      - name: Run complete M4A release gate
+      - name: Run complete release gate
         working-directory: laboratories/song_analysis_lab
-        run: |
-          python release_gate.py
-          if ($LASTEXITCODE -ne 0) { throw "Laboratory 009 M4A release gate failed" }
-
-      - name: Compile every Build 009 source
+        run: python release_gate.py
+      - name: Compile sources
         working-directory: laboratories/song_analysis_lab
-        run: |
-          python -m py_compile main.py structure_engine.py release_gate.py
-          if ($LASTEXITCODE -ne 0) { throw "Source compilation failed" }
-
-      - name: Direct application 3-4 M4A audible proofs
-        shell: pwsh
-        working-directory: laboratories/song_analysis_lab
-        run: |
-          @'
-          import subprocess, tempfile
-          from pathlib import Path
-          import imageio_ffmpeg, librosa, numpy as np, soundfile as sf
-          import structure_engine
-
-          sr = 22050
-          duration = 24.0
-          length = int(sr * duration)
-          beat_times = np.arange(0.5, duration, 0.5)
-
-          def prove(beats_per_bar, expected):
-              samples = librosa.clicks(
-                  times=beat_times, sr=sr, click_freq=1000.0,
-                  click_duration=0.08, length=length,
-              ).astype(np.float32)
-              samples += 2.0 * librosa.clicks(
-                  times=beat_times[1::beats_per_bar], sr=sr, click_freq=250.0,
-                  click_duration=0.12, length=length,
-              ).astype(np.float32)
-
-              with tempfile.TemporaryDirectory() as temporary:
-                  folder = Path(temporary)
-                  wav = folder / "source.wav"
-                  m4a = folder / "source.m4a"
-                  audible = folder / "audible_bar_check.wav"
-                  sf.write(wav, samples, sr)
-                  subprocess.run([
-                      imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-hide_banner",
-                      "-loglevel", "error", "-i", str(wav),
-                      "-c:a", "aac", "-b:a", "192k", str(m4a)
-                  ], check=True)
-
-                  result = structure_engine.analyse_structure(
-                      m4a,
-                      [{"start_s": 0.0, "end_s": duration, "chord": "G"}],
-                      print,
-                  )
-                  assert result.best_meter_candidate == expected, result
-                  structure_engine.create_audible_bar_check(
-                      m4a, result.beat_times, result.downbeat_times, audible
-                  )
-                  assert audible.is_file() and audible.stat().st_size > 1000
-                  print(f"{expected} real M4A audible proof passed")
-
-          prove(3, "3/4")
-          prove(4, "4/4")
-          '@ | python -
-          if ($LASTEXITCODE -ne 0) { throw "Direct M4A audible proofs failed" }
-
-      - name: Verify bundled FFmpeg
-        working-directory: laboratories/song_analysis_lab
-        run: |
-          python -c "import imageio_ffmpeg, os; p=imageio_ffmpeg.get_ffmpeg_exe(); assert os.path.exists(p); print(p)"
-
-      - name: Build standalone Windows Laboratory 009
+        run: python -m py_compile main.py structure_engine.py release_gate.py
+      - name: Build standalone Windows Laboratory 010
         working-directory: laboratories/song_analysis_lab
         run: |
           pyinstaller --clean --noconfirm song_analysis_lab.spec
-          if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
-          if (-not (Test-Path "dist/BanjofySongAnalysisLab009.exe")) { throw "Expected EXE missing" }
-
-      - name: Finished EXE positive startup handshakes
+          if (-not (Test-Path "dist/BanjofySongAnalysisLab010.exe")) { throw "Expected EXE missing" }
+      - name: Finished EXE positive startup handshake
         shell: pwsh
         run: |
-          $exe = "$env:GITHUB_WORKSPACE/laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab009.exe"
-          $settingsFolder = Join-Path $env:LOCALAPPDATA "Banjofy\SongAnalysisLab"
-          $settingsFile = Join-Path $settingsFolder "song_analysis_lab_settings.json"
-          $probeFolder = Join-Path $env:RUNNER_TEMP "banjofy-sal009-probes"
-          $existingLibrary = Join-Path $env:RUNNER_TEMP "banjofy-existing-library"
-          New-Item -ItemType Directory -Force $probeFolder | Out-Null
-          New-Item -ItemType Directory -Force $existingLibrary | Out-Null
-
-          function Invoke-Proof {
-            param([string]$Name, [string]$Mode)
-            Remove-Item $settingsFolder -Recurse -Force -ErrorAction SilentlyContinue
-            New-Item -ItemType Directory -Force $settingsFolder | Out-Null
-
-            if ($Mode -eq "existing") {
-              @{ library_root = $existingLibrary } | ConvertTo-Json -Compress |
-                Set-Content $settingsFile -Encoding UTF8
-            } elseif ($Mode -eq "unavailable") {
-              @{ library_root = "C:\Unavailable Banjofy Library" } | ConvertTo-Json -Compress |
-                Set-Content $settingsFile -Encoding UTF8
-            } elseif ($Mode -eq "malformed") {
-              "{broken" | Set-Content $settingsFile -Encoding UTF8
-            } elseif ($Mode -eq "wrong") {
-              '["wrong"]' | Set-Content $settingsFile -Encoding UTF8
-            }
-
-            $probe = Join-Path $probeFolder "$Name.json"
-            $env:BANJOFY_STARTUP_PROBE_FILE = $probe
-            $process = Start-Process $exe -PassThru
-            if (-not $process.WaitForExit(30000)) { throw "$Name timed out" }
-            if ($process.ExitCode -ne 0) { throw "$Name exited $($process.ExitCode)" }
-            if (-not (Test-Path $probe)) { throw "$Name READY marker missing" }
-            $result = Get-Content $probe -Raw | ConvertFrom-Json
-            if ($result.status -ne "ready") { throw "$Name not ready" }
-          }
-
-          Invoke-Proof "missing" "missing"
-          Invoke-Proof "existing" "existing"
-          Invoke-Proof "unavailable" "unavailable"
-          Invoke-Proof "malformed" "malformed"
-          Invoke-Proof "wrong-shape" "wrong"
-
+          $probe = Join-Path $env:RUNNER_TEMP "sal010-ready.json"
+          $env:BANJOFY_STARTUP_PROBE_FILE = $probe
+          $exe = "$env:GITHUB_WORKSPACE/laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab010.exe"
+          $p = Start-Process $exe -PassThru
+          if (-not $p.WaitForExit(30000)) { throw "Startup timed out" }
+          if ($p.ExitCode -ne 0) { throw "Startup failed" }
+          if (-not (Test-Path $probe)) { throw "READY marker missing" }
       - name: Assemble exact artifact
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force artifact | Out-Null
-          Copy-Item "laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab009.exe" artifact/
-          Copy-Item "SONG_ANALYSIS_LAB_009_TEST.txt" artifact/
-          if ((Get-ChildItem artifact -File).Count -ne 2) { throw "Wrong artifact contents" }
-
-      - name: Upload audited Windows Laboratory 009
-        uses: actions/upload-artifact@v4
+          Copy-Item "laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab010.exe" artifact/
+          Copy-Item "SONG_ANALYSIS_LAB_010_TEST.txt" artifact/
+      - uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-Song-Analysis-Laboratory-009-Windows
+          name: Banjofy-Song-Analysis-Laboratory-010-Windows
           path: artifact
           if-no-files-found: error

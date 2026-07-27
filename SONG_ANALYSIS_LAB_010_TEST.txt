@@ -1,0 +1,17 @@
+BANJOFY SONG ANALYSIS LABORATORY 010 — WINDOWS TEST
+
+Scope: 3/4 and 4/4 only.
+
+1. Run the EXE and select the analysed song.
+2. Click Detect 3/4 or 4/4 and Create Audible Check.
+3. Click Play 180-Second Audible + Visual Check.
+4. Confirm the high click/ordinary marker follows each beat.
+5. Confirm the low click/DOWNBEAT marker follows each bar start.
+6. Judge the intro, established song and any drift through the three-minute test.
+7. Report meter result, best candidate, rhythmic-section confidence, full-track confidence, and confidence window.
+
+Check by filename only:
+- audible_bar_check.wav
+- song_structure.json
+
+Open the existing JSON files in Notepad and inspect their contents for the new confidence-window fields.

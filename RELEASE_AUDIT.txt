@@ -1,22 +1,8 @@
-RELEASE AUDIT — SONG ANALYSIS LABORATORY 009
-
-Scope locked: 3/4 and 4/4 only.
-
-Root cause:
-- Build 008 opened original M4A directly in Librosa for audible creation.
-- SoundFile rejected the container and packaged Audioread had no backend.
-
-Correction:
-- Audible helper always converts source through bundled FFmpeg.
-- Librosa receives PCM WAV only.
-- Real AAC/M4A is tested locally and in GitHub.
-- Audible output is verified before JSON writes.
-- Leftover 2/4 status wording removed.
-
-Preserved:
-- uncertainty threshold;
-- best candidate;
-- safe Tkinter startup;
-- Library integration;
-- existing filenames;
-- main and firefox acquisition branches untouched.
+RELEASE AUDIT — LABORATORY 010
+- 3/4 and 4/4 only
+- 180-second audible WAV
+- visual bar/beat marker
+- strongest 64-beat rhythmic confidence window
+- full-track confidence retained
+- central FFmpeg M4A route preserved
+- safe Tk startup preserved

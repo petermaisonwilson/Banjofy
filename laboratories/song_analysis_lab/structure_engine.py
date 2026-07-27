@@ -13,8 +13,10 @@ import numpy as np
 import scipy.signal
 
 
-STRUCTURE_VERSION = 4
+STRUCTURE_VERSION = 5
 METER_CONFIDENCE_THRESHOLD = 0.55
+RHYTHMIC_WINDOW_BEATS = 64
+AUDIBLE_PREVIEW_SECONDS = 180.0
 SUPPORTED_METERS = ((3, "3/4"), (4, "4/4"))
 
 
@@ -45,6 +47,11 @@ class StructureResult:
     best_meter_candidate: str
     beats_per_bar: int
     meter_confidence: float
+    full_track_meter_confidence: float
+    rhythmic_window_start_beat: int
+    rhythmic_window_end_beat: int
+    rhythmic_window_start_s: float
+    rhythmic_window_end_s: float
     first_downbeat_beat_index: int
     downbeat_times: list[float]
     bar_start_times: list[float]
@@ -127,6 +134,36 @@ def softmax_confidences(scores: list[float]) -> list[float]:
     total = float(np.sum(weights))
     return (weights / total).tolist() if total > 0 else [0.0] * len(scores)
 
+
+
+def select_strongest_rhythmic_window(
+    accents: np.ndarray,
+    beat_times: list[float],
+    window_beats: int = RHYTHMIC_WINDOW_BEATS,
+) -> tuple[np.ndarray, int, int, float, float]:
+    values = np.asarray(accents, dtype=float)
+    if values.size == 0:
+        raise RuntimeError("No beat accents were available for meter analysis.")
+    window = min(max(24, int(window_beats)), len(values))
+    if len(values) <= window:
+        start, end = 0, len(values)
+    else:
+        best_score = -float("inf")
+        start, end = 0, window
+        for candidate_start in range(0, len(values) - window + 1):
+            candidate_end = candidate_start + window
+            section = values[candidate_start:candidate_end]
+            score = (
+                float(np.mean(np.abs(section)))
+                + 0.55 * float(np.std(section))
+                + 0.35 * float(np.mean(np.maximum(section, 0.0)))
+            )
+            if score > best_score:
+                best_score = score
+                start, end = candidate_start, candidate_end
+    start_s = float(beat_times[start])
+    end_s = float(beat_times[min(end - 1, len(beat_times)-1)])
+    return values[start:end], start, end, start_s, end_s
 
 def infer_meter(accents: np.ndarray) -> tuple[MeterCandidate, list[MeterCandidate]]:
     raw: list[tuple[int, str, int, float]] = []
@@ -246,7 +283,7 @@ def create_audible_bar_check(
     beat_times: list[float],
     downbeat_times: list[float],
     target: Path,
-    preview_seconds: float = 60.0,
+    preview_seconds: float = AUDIBLE_PREVIEW_SECONDS,
 ) -> Path:
     """Create a listening proof from any supported media container.
 
@@ -341,8 +378,20 @@ def analyse_structure(audio_path: Path, chord_segments: list[dict], status_callb
         status_callback("Measuring accents at each detected beat...")
         accents = beat_accent_values(y, sr, beat_times)
 
-        status_callback("Comparing 3/4 and 4/4 bar patterns...")
-        best, candidates = infer_meter(accents)
+        status_callback("Comparing 3/4 and 4/4 across the full track...")
+        full_best, full_candidates = infer_meter(accents)
+
+        status_callback("Finding the strongest rhythmic section for confidence...")
+        rhythmic_accents, rhythmic_start, rhythmic_end, rhythmic_start_s, rhythmic_end_s = (
+            select_strongest_rhythmic_window(accents, beat_times)
+        )
+        status_callback("Comparing 3/4 and 4/4 in the strongest rhythmic section...")
+        rhythmic_best, candidates = infer_meter(rhythmic_accents)
+        global_phase = (rhythmic_best.phase + rhythmic_start) % rhythmic_best.beats_per_bar
+        best = MeterCandidate(
+            rhythmic_best.meter, rhythmic_best.beats_per_bar, global_phase,
+            rhythmic_best.score, rhythmic_best.confidence
+        )
 
         status_callback("Numbering beats and constructing estimated bars...")
         beat_grid, bars, aligned, downbeats = build_bar_grid(
@@ -369,6 +418,11 @@ def analyse_structure(audio_path: Path, chord_segments: list[dict], status_callb
             best_meter_candidate=best.meter,
             beats_per_bar=best.beats_per_bar,
             meter_confidence=best.confidence,
+            full_track_meter_confidence=full_best.confidence,
+            rhythmic_window_start_beat=rhythmic_start,
+            rhythmic_window_end_beat=rhythmic_end,
+            rhythmic_window_start_s=round(rhythmic_start_s, 6),
+            rhythmic_window_end_s=round(rhythmic_end_s, 6),
             first_downbeat_beat_index=best.phase,
             downbeat_times=[round(value, 6) for value in downbeats],
             bar_start_times=[round(value, 6) for value in downbeats],
