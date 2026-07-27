@@ -1,0 +1,67 @@
+BANJOFY SONG ANALYSIS LABORATORY 002 — WINDOWS TEST
+METER, BARS AND DOWNBEATS
+
+PURPOSE
+Prove a structural pass over a song that already passed Laboratory 001.
+
+USE THE SAME LIBRARY
+Do not delete or rename the successful Laboratory 001 Library files.
+
+TEST
+1. Run BanjofySongAnalysisLab002.exe.
+2. Choose the TOP-LEVEL Banjofy Library root.
+3. Select the song that already shows chord analysis: completed.
+4. Click Detect Meter, Bars and Downbeats.
+5. Wait for the completion message.
+
+WHAT TO READ BY FILENAME ONLY
+Confirm that this NEW file exists:
+Analysis\<song-id>\song_structure.json
+
+WHAT TO OPEN AND INSPECT IN NOTEPAD
+The following EXISTING filenames do not change. Open them and inspect their contents:
+
+A. Library\Songs\<existing-song-record-name>.json
+Confirm the existing file now contains:
+"structure_status": "completed"
+"structure_summary"
+"meter"
+"meter_confidence"
+"beats_per_bar"
+"bar_count"
+"bar_start_times"
+"downbeat_times"
+
+B. Analysis\<song-id>\song_analysis.json
+Confirm the existing file now contains:
+"meter"
+"meter_confidence"
+"beats_per_bar"
+"beat_times"
+"downbeat_times"
+"bar_start_times"
+"bar_count"
+"beat_grid"
+"bars"
+"bar_aligned_chords"
+
+PASS JUDGEMENT
+A technical pass requires:
+- the program completes without error;
+- the new song_structure.json exists;
+- both existing JSON files contain the new fields;
+- bar_count is greater than zero;
+- downbeat_times and bar_aligned_chords are populated.
+
+A MUSICAL ACCURACY PASS also requires listening and checking whether:
+- the estimated metre is credible;
+- the displayed first downbeat appears to be a real bar start;
+- later bar starts remain aligned rather than drifting.
+
+IMPORTANT
+This build estimates 2/4, 3/4 and 4/4 only.
+It does not yet distinguish compound 6/8 reliably.
+A low meter_confidence result is evidence that manual correction or a stronger
+future detector is needed; it must not be presented as certainty.
+
+The original JSON filenames remain unchanged because the contents are updated.

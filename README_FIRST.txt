@@ -1,15 +1,15 @@
-BANJOFY SONG ANALYSIS LABORATORY 001
+BANJOFY SONG ANALYSIS LABORATORY 002
 
-BRANCH
-Copy this build only while GitHub Desktop shows:
+GITHUB BRANCH
 song-analysis-lab
 
-COMPUTER FOLDER CREATED BY THIS ZIP
+COMPUTER FOLDER UPDATED
 laboratories\song_analysis_lab
 
-Do not create a second Banjofy repository folder.
-Do not copy this build onto main or firefox-acquisition-lab.
+Copy everything INSIDE the extracted SAL002 folder into the existing local
+Banjofy repository while GitHub Desktop shows song-analysis-lab.
 
-This clean build wraps the proven Chord Laboratory 016 engine with a Library
-integration layer. It reads Practice audio created by the acquisition stage and
-writes analysis results back into the same Library song record.
+This replaces the Laboratory 001 executable source with the next clean
+Laboratory 002 source. It does not alter main or firefox-acquisition-lab.
+
+Laboratory 001 results in the user's external Banjofy Library are preserved.

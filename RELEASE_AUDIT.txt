@@ -1,63 +1,45 @@
-RELEASE AUDIT — BANJOFY SONG ANALYSIS LABORATORY 001
+RELEASE AUDIT — BANJOFY SONG ANALYSIS LABORATORY 002
 
-SOURCE BASELINE
-- Banjofy Chord Laboratory 016 Diagnostic Cleanup Clean Rebuild
-- Proven output schema:
-  key, key confidence, raw BPM, Practice BPM, beat count, chord vocabularies,
-  beat-aligned chord segments, diagnostics and detector disagreements.
-- Acquisition Library schema from Firefox Acquisition Laboratory 005:
-  song_id, title_requested, practice_audio_path, duration_seconds,
-  youtube_url and analysis_status.
+CONFIRMED PASSED BASELINE
+- Song Analysis Laboratory 001
+- Existing Library record updated internally without filename change
+- song_analysis.json created
+- BPM, beats, key and chord timeline present
 
-REPOSITORY TARGET
-- Repository: petermaisonwilson/Banjofy
-- Branch: song-analysis-lab
-- New computer folder inside repository:
-  laboratories/song_analysis_lab
-- Workflow:
-  .github/workflows/song-analysis-lab.yml
-
-PRESERVED ANALYSIS ENGINE
-- ChordMini ChordNet
-- Confidence-gated independent chroma detector
-- FFmpeg model-audio preparation
-- Librosa beat detection
-- Beat-aligned chord timeline
-- Key inference
-- Beginner, Intermediate and Professional chord vocabularies
-- Laboratory 016 internal self-audit
-
-NEW INTEGRATION BEHAVIOUR
-- Scan Library/Songs records
-- Resolve saved Practice-audio paths
-- Recover moved Library audio by filename
-- Select a Library song
-- Run the proven analysis engine
-- Save full song_analysis.json atomically
-- Update the original Library record atomically
-- Store analysis summary for future Practice UI
+SCOPE
+- No repeat of ChordMini chord analysis
+- Read existing Laboratory 001 chord segments
+- Direct beat detection from saved Practice audio
+- Beat accent measurement
+- Candidate comparison: 2/4, 3/4 and 4/4
+- First-downbeat phase estimation
+- Beat and bar numbering
+- Bar-aligned chord timeline
+- New song_structure.json
+- Atomic internal update of existing Library JSON and song_analysis.json
 
 DIRECT GITHUB PROOF
-- Exact required-path gate
-- Python AST and compilation
-- Mock Library discovery
-- Mock full AnalysisResult committed to a real temporary Library record
-- Laboratory 016 internal engine audit
-- ChordMini file and import verification
-- FFmpeg availability
+- Exact source and path verification
+- AST and compilation
+- Deterministic 4/4 accent-array proof
+- Mock Library discovery and atomic JSON commit
+- Real synthetic 4/4 WAV through the application structure engine
+- FFmpeg verification
 - Windows EXE build
-- 15-second startup test
+- Startup smoke test
 
 PETER WINDOWS PROOF REQUIRED
-- Real acquisition Library discovered
-- Real saved Practice audio selected
-- Real ChordMini full-song run
-- Real BPM, key, beat count and chord timeline
-- Full analysis files created
-- Existing Library JSON updated successfully
+- Existing passed Library song discovered
+- Real audio structure pass completes
+- New song_structure.json exists
+- Existing JSON contents updated
+- Estimated metre and downbeats checked musically
 
-KNOWN LIMITATION
-Laboratory 016 reports meter as Unknown. Therefore this build does not claim
-proven bar or downbeat positions. Those require a later direct laboratory proof.
+LIMITATION
+2/4, 3/4 and 4/4 only. Compound 6/8 is not claimed.
+The output is an estimate until Peter's listening test confirms alignment.
 
-Main and firefox-acquisition-lab remain untouched.
+BRANCH SAFETY
+- song-analysis-lab only
+- main untouched
+- firefox-acquisition-lab untouched

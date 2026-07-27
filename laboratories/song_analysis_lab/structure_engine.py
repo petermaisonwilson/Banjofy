@@ -1,0 +1,294 @@
+from __future__ import annotations
+
+import json
+import math
+import subprocess
+import tempfile
+from dataclasses import dataclass, asdict
+from pathlib import Path
+
+import imageio_ffmpeg
+import librosa
+import numpy as np
+import scipy.signal
+
+
+STRUCTURE_VERSION = 2
+SUPPORTED_METERS = ((2, "2/4"), (3, "3/4"), (4, "4/4"))
+
+
+def ensure_scipy_signal_compatibility() -> None:
+    for name in ("hann", "hamming", "blackman", "blackmanharris", "bartlett", "boxcar"):
+        if not hasattr(scipy.signal, name) and hasattr(scipy.signal.windows, name):
+            setattr(scipy.signal, name, getattr(scipy.signal.windows, name))
+
+
+@dataclass(frozen=True)
+class MeterCandidate:
+    meter: str
+    beats_per_bar: int
+    phase: int
+    score: float
+    confidence: float
+
+
+@dataclass(frozen=True)
+class StructureResult:
+    structure_version: int
+    source_audio: str
+    raw_bpm: float
+    beat_times: list[float]
+    beat_count: int
+    meter: str
+    beats_per_bar: int
+    meter_confidence: float
+    first_downbeat_beat_index: int
+    downbeat_times: list[float]
+    bar_start_times: list[float]
+    bar_count: int
+    beat_grid: list[dict]
+    bars: list[dict]
+    bar_aligned_chords: list[dict]
+    candidate_meters: list[dict]
+    diagnostics: list[str]
+
+
+def prepare_wav(source: Path, folder: Path) -> Path:
+    target = folder / "structure_input.wav"
+    command = [
+        imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-hide_banner", "-loglevel", "error",
+        "-i", str(source), "-vn", "-ac", "1", "-ar", "22050", "-sample_fmt", "s16",
+        str(target),
+    ]
+    completed = subprocess.run(command, capture_output=True, text=True, errors="replace")
+    if completed.returncode != 0 or not target.is_file() or target.stat().st_size == 0:
+        detail = (completed.stderr or completed.stdout or "Unknown FFmpeg error").strip()
+        raise RuntimeError(f"Could not prepare rhythm-analysis audio: {detail[-900:]}")
+    return target
+
+
+def robust_normalise(values: np.ndarray) -> np.ndarray:
+    values = np.asarray(values, dtype=float)
+    if values.size == 0:
+        return values
+    median = float(np.median(values))
+    mad = float(np.median(np.abs(values - median)))
+    scale = max(1e-8, 1.4826 * mad)
+    return np.clip((values - median) / scale, -4.0, 4.0)
+
+
+def beat_accent_values(y: np.ndarray, sr: int, beat_times: list[float]) -> np.ndarray:
+    onset = librosa.onset.onset_strength(y=y, sr=sr)
+    frame_times = librosa.frames_to_time(np.arange(len(onset)), sr=sr)
+    accents: list[float] = []
+    half_window = 0.09
+    for beat_time in beat_times:
+        mask = (frame_times >= beat_time - half_window) & (frame_times <= beat_time + half_window)
+        if np.any(mask):
+            accents.append(float(np.max(onset[mask])))
+        else:
+            accents.append(0.0)
+    return robust_normalise(np.asarray(accents, dtype=float))
+
+
+def periodic_support(accents: np.ndarray, beats_per_bar: int) -> float:
+    if len(accents) <= beats_per_bar * 3:
+        return 0.0
+    left = accents[:-beats_per_bar]
+    right = accents[beats_per_bar:]
+    if np.std(left) < 1e-8 or np.std(right) < 1e-8:
+        return 0.0
+    correlation = float(np.corrcoef(left, right)[0, 1])
+    if not math.isfinite(correlation):
+        return 0.0
+    return max(-1.0, min(1.0, correlation))
+
+
+def score_candidate(accents: np.ndarray, beats_per_bar: int, phase: int) -> float:
+    indices = np.arange(len(accents))
+    down_mask = ((indices - phase) % beats_per_bar) == 0
+    if np.sum(down_mask) < 3 or np.sum(~down_mask) < 3:
+        return -999.0
+    down = accents[down_mask]
+    other = accents[~down_mask]
+    contrast = float(np.mean(down) - np.mean(other))
+    consistency = -float(np.std(down)) * 0.10
+    periodicity = periodic_support(accents, beats_per_bar) * 0.35
+    return contrast + consistency + periodicity
+
+
+def softmax_confidences(scores: list[float]) -> list[float]:
+    finite = np.asarray([score if math.isfinite(score) else -999.0 for score in scores], dtype=float)
+    shifted = finite - np.max(finite)
+    weights = np.exp(np.clip(shifted * 1.7, -50.0, 50.0))
+    total = float(np.sum(weights))
+    return (weights / total).tolist() if total > 0 else [0.0] * len(scores)
+
+
+def infer_meter(accents: np.ndarray) -> tuple[MeterCandidate, list[MeterCandidate]]:
+    raw: list[tuple[int, str, int, float]] = []
+    for beats_per_bar, label in SUPPORTED_METERS:
+        for phase in range(beats_per_bar):
+            raw.append((beats_per_bar, label, phase, score_candidate(accents, beats_per_bar, phase)))
+
+    confidences = softmax_confidences([item[3] for item in raw])
+    candidates = [
+        MeterCandidate(
+            meter=label,
+            beats_per_bar=beats_per_bar,
+            phase=phase,
+            score=round(score, 6),
+            confidence=round(confidence, 6),
+        )
+        for (beats_per_bar, label, phase, score), confidence in zip(raw, confidences)
+    ]
+    candidates.sort(key=lambda item: item.score, reverse=True)
+
+    best = candidates[0]
+    second = candidates[1]
+    margin = max(0.0, best.score - second.score)
+    evidence = min(1.0, max(0.0, (best.score + 0.5) / 2.0))
+    confidence = min(0.99, max(0.05, 0.45 * best.confidence + 0.35 * min(1.0, margin) + 0.20 * evidence))
+    best = MeterCandidate(best.meter, best.beats_per_bar, best.phase, best.score, round(confidence, 6))
+    return best, candidates
+
+
+def chord_at_time(segments: list[dict], moment: float) -> str:
+    for segment in segments:
+        try:
+            start = float(segment.get("start_s", 0.0))
+            end = float(segment.get("end_s", 0.0))
+        except (TypeError, ValueError):
+            continue
+        if start <= moment < end:
+            return str(segment.get("chord") or "N")
+    return "N"
+
+
+def build_bar_grid(
+    beat_times: list[float],
+    beats_per_bar: int,
+    phase: int,
+    segments: list[dict],
+) -> tuple[list[dict], list[dict], list[dict], list[float]]:
+    beat_grid: list[dict] = []
+    for index, beat_time in enumerate(beat_times):
+        relative = index - phase
+        if relative < 0:
+            bar_number = 0
+            beat_in_bar = relative
+        else:
+            bar_number = relative // beats_per_bar + 1
+            beat_in_bar = relative % beats_per_bar + 1
+        beat_grid.append({
+            "beat_index": index,
+            "time_s": round(float(beat_time), 6),
+            "bar_number": bar_number,
+            "beat_in_bar": beat_in_bar,
+            "is_downbeat": relative >= 0 and beat_in_bar == 1,
+        })
+
+    valid = [item for item in beat_grid if item["bar_number"] >= 1]
+    bar_numbers = sorted({int(item["bar_number"]) for item in valid})
+    bars: list[dict] = []
+    downbeats: list[float] = []
+    aligned: list[dict] = []
+
+    for bar_number in bar_numbers:
+        beats = [item for item in valid if item["bar_number"] == bar_number]
+        if not beats:
+            continue
+        start_s = float(beats[0]["time_s"])
+        next_bar = next((item for item in valid if item["bar_number"] == bar_number + 1 and item["beat_in_bar"] == 1), None)
+        end_s = float(next_bar["time_s"]) if next_bar else (
+            float(beat_times[-1]) + (float(np.median(np.diff(beat_times))) if len(beat_times) > 1 else 0.5)
+        )
+        downbeats.append(start_s)
+
+        beat_chords = []
+        for beat in beats:
+            chord = chord_at_time(segments, float(beat["time_s"]))
+            beat_chords.append({
+                "beat_in_bar": int(beat["beat_in_bar"]),
+                "time_s": float(beat["time_s"]),
+                "chord": chord,
+            })
+
+        compressed: list[str] = []
+        for item in beat_chords:
+            if not compressed or compressed[-1] != item["chord"]:
+                compressed.append(item["chord"])
+
+        bars.append({
+            "bar_number": bar_number,
+            "start_s": round(start_s, 6),
+            "end_s": round(end_s, 6),
+            "beats_present": len(beats),
+            "beat_chords": beat_chords,
+        })
+        aligned.append({
+            "bar_number": bar_number,
+            "start_s": round(start_s, 6),
+            "end_s": round(end_s, 6),
+            "chords": compressed,
+            "display": " | ".join(compressed) if compressed else "N",
+        })
+
+    return beat_grid, bars, aligned, downbeats
+
+
+def analyse_structure(audio_path: Path, chord_segments: list[dict], status_callback) -> StructureResult:
+    ensure_scipy_signal_compatibility()
+    diagnostics = [
+        "Metre is estimated from recurring beat-level accent patterns.",
+        "Supported candidates in this laboratory are 2/4, 3/4 and 4/4.",
+        "Downbeats are estimates and must be checked on real songs before Practice integration.",
+    ]
+
+    with tempfile.TemporaryDirectory(prefix="banjofy_structure_002_") as temporary:
+        status_callback("Preparing rhythm-analysis audio...")
+        wav = prepare_wav(audio_path, Path(temporary))
+
+        status_callback("Detecting the musical pulse and beat positions...")
+        y, sr = librosa.load(wav, sr=22050, mono=True)
+        if y is None or len(y) == 0:
+            raise RuntimeError("Rhythm-analysis audio was empty.")
+
+        tempo, frames = librosa.beat.beat_track(y=y, sr=sr, units="frames")
+        bpm = float(np.asarray(tempo).reshape(-1)[0]) if np.size(tempo) else 0.0
+        beat_times = [float(value) for value in librosa.frames_to_time(frames, sr=sr).tolist()]
+        if bpm <= 0.0 or len(beat_times) < 12:
+            raise RuntimeError("Not enough dependable beats were detected to estimate bars.")
+
+        status_callback("Measuring accents at each detected beat...")
+        accents = beat_accent_values(y, sr, beat_times)
+
+        status_callback("Comparing 2/4, 3/4 and 4/4 bar patterns...")
+        best, candidates = infer_meter(accents)
+
+        status_callback("Numbering beats and constructing estimated bars...")
+        beat_grid, bars, aligned, downbeats = build_bar_grid(
+            beat_times, best.beats_per_bar, best.phase, chord_segments
+        )
+        if len(bars) < 3:
+            raise RuntimeError("Too few complete bars were available for a useful structure result.")
+
+        return StructureResult(
+            structure_version=STRUCTURE_VERSION,
+            source_audio=str(audio_path),
+            raw_bpm=round(bpm, 6),
+            beat_times=[round(value, 6) for value in beat_times],
+            beat_count=len(beat_times),
+            meter=best.meter,
+            beats_per_bar=best.beats_per_bar,
+            meter_confidence=best.confidence,
+            first_downbeat_beat_index=best.phase,
+            downbeat_times=[round(value, 6) for value in downbeats],
+            bar_start_times=[round(value, 6) for value in downbeats],
+            bar_count=len(bars),
+            beat_grid=beat_grid,
+            bars=bars,
+            bar_aligned_chords=aligned,
+            candidate_meters=[asdict(item) for item in candidates],
+            diagnostics=diagnostics,
+        )
