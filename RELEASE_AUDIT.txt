@@ -1,4 +1,4 @@
-RELEASE AUDIT — BANJOFY SONG ANALYSIS LABORATORY 002
+RELEASE AUDIT — BANJOFY SONG ANALYSIS LABORATORY 003
 
 CONFIRMED PASSED BASELINE
 - Song Analysis Laboratory 001
@@ -43,3 +43,11 @@ BRANCH SAFETY
 - song-analysis-lab only
 - main untouched
 - firefox-acquisition-lab untouched
+
+ROOT-CAUSE CORRECTION
+- Failed proof: smooth Hann-window pulses did not produce dependable onsets.
+- Correction: librosa.clicks creates sharp beat events at 120 BPM.
+- Strong low-frequency accent repeats every four beats.
+- The real analyse_structure() function must detect at least 40 beats, 4/4
+  meter, at least eight bars, downbeats and bar-aligned chords.
+- No application fallback or threshold was weakened to make the test pass.

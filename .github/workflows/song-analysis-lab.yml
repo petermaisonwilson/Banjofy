@@ -1,4 +1,4 @@
-name: Build Banjofy Song Analysis Laboratory 002
+name: Build Banjofy Song Analysis Laboratory 003
 
 on:
   push:
@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Verify exact Laboratory 002 files
+      - name: Verify exact Laboratory 003 files
         shell: pwsh
         run: |
           $required = @(
@@ -31,7 +31,7 @@ jobs:
             "laboratories/song_analysis_lab/requirements.txt"
           )
           foreach ($file in $required) {
-            if (-not (Test-Path $file)) { throw "Missing Laboratory 002 file: $file" }
+            if (-not (Test-Path $file)) { throw "Missing Laboratory 003 file: $file" }
           }
 
       - name: Install pinned structure-analysis dependencies
@@ -45,85 +45,101 @@ jobs:
         working-directory: laboratories/song_analysis_lab
         run: |
           python release_gate.py
-          if ($LASTEXITCODE -ne 0) { throw "Laboratory 002 release gate failed" }
+          if ($LASTEXITCODE -ne 0) { throw "Laboratory 003 release gate failed" }
 
-      - name: Compile all Laboratory 002 sources
+      - name: Compile all Laboratory 003 sources
         working-directory: laboratories/song_analysis_lab
         run: |
           python -m py_compile main.py structure_engine.py release_gate.py
           if ($LASTEXITCODE -ne 0) { throw "Source compilation failed" }
 
-      - name: Direct synthetic audio structure proof
+      - name: Direct application-level click-track structure proof
         shell: pwsh
         working-directory: laboratories/song_analysis_lab
         run: |
           @'
-          import math, tempfile
+          import tempfile
           from pathlib import Path
+          import librosa
           import numpy as np
           import soundfile as sf
           import structure_engine
 
           sr = 22050
           duration = 24.0
-          samples = np.zeros(int(sr * duration), dtype=np.float32)
-          beat_interval = 0.5
-          for beat in range(int(duration / beat_interval)):
-              start = int(beat * beat_interval * sr)
-              length = int(0.05 * sr)
-              amplitude = 1.0 if beat % 4 == 1 else 0.35
-              click = amplitude * np.hanning(length).astype(np.float32)
-              samples[start:start + length] += click
+          length = int(sr * duration)
+          beat_times = np.arange(0.5, duration, 0.5)
+
+          # Sharp click on every beat so the real Librosa beat tracker must
+          # detect the pulse. A stronger low click marks beat 2 of each
+          # four-beat group, giving the meter-phase detector an exact target.
+          samples = librosa.clicks(
+              times=beat_times,
+              sr=sr,
+              click_freq=1000.0,
+              click_duration=0.08,
+              length=length,
+          ).astype(np.float32)
+
+          downbeat_times = beat_times[1::4]
+          samples += 2.0 * librosa.clicks(
+              times=downbeat_times,
+              sr=sr,
+              click_freq=250.0,
+              click_duration=0.12,
+              length=length,
+          ).astype(np.float32)
 
           with tempfile.TemporaryDirectory() as temporary:
-              audio = Path(temporary) / "four_four.wav"
+              audio = Path(temporary) / "four_four_click_track.wav"
               sf.write(audio, samples, sr)
               result = structure_engine.analyse_structure(
                   audio,
                   [{"start_s": 0.0, "end_s": duration, "chord": "G"}],
                   print,
               )
+              assert result.beat_count >= 40, result
               assert result.meter == "4/4", result
-              assert result.bar_count >= 8
+              assert result.bar_count >= 8, result
               assert len(result.downbeat_times) == result.bar_count
               assert result.bar_aligned_chords
-              print("Direct synthetic 4/4 structure proof passed")
+              print("Direct application-level 4/4 click-track proof passed")
           '@ | python -
-          if ($LASTEXITCODE -ne 0) { throw "Direct synthetic structure proof failed" }
+          if ($LASTEXITCODE -ne 0) { throw "Direct application-level click-track proof failed" }
 
       - name: Verify bundled FFmpeg
         working-directory: laboratories/song_analysis_lab
         run: |
           python -c "import imageio_ffmpeg, os; p=imageio_ffmpeg.get_ffmpeg_exe(); assert os.path.exists(p); print('FFmpeg available:', p)"
 
-      - name: Build standalone Windows Laboratory 002
+      - name: Build standalone Windows Laboratory 003
         working-directory: laboratories/song_analysis_lab
         run: |
           pyinstaller --clean --noconfirm song_analysis_lab.spec
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
-          if (-not (Test-Path "dist/BanjofySongAnalysisLab002.exe")) { throw "Expected EXE was not produced" }
+          if (-not (Test-Path "dist/BanjofySongAnalysisLab003.exe")) { throw "Expected EXE was not produced" }
 
       - name: Startup smoke test
         shell: pwsh
         run: |
-          $exe = "$env:GITHUB_WORKSPACE/laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab002.exe"
+          $exe = "$env:GITHUB_WORKSPACE/laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab003.exe"
           $process = Start-Process -FilePath $exe -PassThru
           Start-Sleep -Seconds 12
           if ($process.HasExited) { throw "Laboratory exited during startup smoke test with code $($process.ExitCode)" }
           Stop-Process -Id $process.Id -Force
-          Write-Host "Laboratory 002 startup smoke test passed"
+          Write-Host "Laboratory 003 startup smoke test passed"
 
       - name: Assemble artifact
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force "artifact" | Out-Null
-          Copy-Item "laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab002.exe" "artifact/" -Force
-          Copy-Item "SONG_ANALYSIS_LAB_002_TEST.txt" "artifact/" -Force
-          if (-not (Test-Path "artifact/BanjofySongAnalysisLab002.exe")) { throw "Assembled EXE missing" }
+          Copy-Item "laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab003.exe" "artifact/" -Force
+          Copy-Item "SONG_ANALYSIS_LAB_003_TEST.txt" "artifact/" -Force
+          if (-not (Test-Path "artifact/BanjofySongAnalysisLab003.exe")) { throw "Assembled EXE missing" }
 
-      - name: Upload Windows Laboratory 002
+      - name: Upload Windows Laboratory 003
         uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-Song-Analysis-Laboratory-002-Windows
+          name: Banjofy-Song-Analysis-Laboratory-003-Windows
           path: artifact
           if-no-files-found: error

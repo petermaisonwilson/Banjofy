@@ -14,7 +14,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import structure_engine
 
-APP_TITLE = "Banjofy Song Analysis Laboratory 002 — Meter, Bars and Downbeats"
+APP_TITLE = "Banjofy Song Analysis Laboratory 003 — Meter, Bars and Downbeats"
 SETTINGS_FILENAME = "song_analysis_lab_settings.json"
 
 

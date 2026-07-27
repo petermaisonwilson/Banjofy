@@ -17,7 +17,7 @@ ast.parse(main_text)
 ast.parse(engine_text)
 
 for required in [
-    'APP_TITLE = "Banjofy Song Analysis Laboratory 002 — Meter, Bars and Downbeats"',
+    'APP_TITLE = "Banjofy Song Analysis Laboratory 003 — Meter, Bars and Downbeats"',
     'def discover_analysed_songs(library_root: Path)',
     'def commit_structure(',
     'text="Detect Meter, Bars and Downbeats"',
@@ -34,7 +34,7 @@ for required in [
 ]:
     assert required in engine_text, f"Missing structure implementation: {required}"
 
-assert 'name="BanjofySongAnalysisLab002"' in spec_text
+assert 'name="BanjofySongAnalysisLab003"' in spec_text
 assert '"torch"' in spec_text and 'excludes=' in spec_text
 
 sys.path.insert(0, str(root))
@@ -112,4 +112,4 @@ with tempfile.TemporaryDirectory(prefix="banjofy_sal002_gate_") as temporary:
     assert analysis["bar_count"] == len(bars)
     assert analysis["bar_aligned_chords"]
 
-print("Banjofy Song Analysis Laboratory 002 release gate: passed")
+print("Banjofy Song Analysis Laboratory 003 release gate: passed")
