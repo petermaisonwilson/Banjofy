@@ -1,32 +1,22 @@
-RELEASE AUDIT — SONG ANALYSIS LABORATORY 012
+RELEASE AUDIT — SONG ANALYSIS LABORATORY 013
 
-SCOPE LOCK
-- 3/4 and 4/4 only
-- Build 011 whole-track primary decision unchanged
-- no confidence recalibration
-- no chord reanalysis
+Purpose:
+- audition each possible Beat 1 phase;
+- preserve proven chord and beat timing;
+- identify the musically correct bar phase.
 
-NEW VALIDATION VIEW
-- current saved chord
-- next saved chord
-- countdown to stored chord change
-- existing bar number
-- existing beat number
-- existing visual downbeat
-- existing 180-second audible proof
+Preserved:
+- 3/4 and 4/4 only;
+- whole-track primary meter candidate;
+- chord timeline;
+- beat times;
+- 180-second playback;
+- central FFmpeg M4A conversion;
+- existing JSON filenames;
+- no JSON writes while switching phases.
 
-DIRECT PROOFS
-- chord before first segment
-- exact segment start
-- inside segment countdown
-- exact chord transition
-- final segment
-- after final segment
-- playback route performs no JSON write or new analysis
-
-PRESERVED
-- FFmpeg M4A route
-- atomic JSON updates
-- Library integration
-- existing filenames
-- safe Tkinter startup
+New:
+- audible_phase_1.wav through audible_phase_4.wav for 4/4;
+- phase buttons;
+- phase-specific visual DOWNBEAT;
+- selected effective first-downbeat index display.

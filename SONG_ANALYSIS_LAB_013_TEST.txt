@@ -1,0 +1,53 @@
+BANJOFY SONG ANALYSIS LABORATORY 013 — WINDOWS TEST
+DOWNBEAT PHASE AUDITION
+
+AGREED SCOPE
+3/4 and 4/4 only.
+
+PURPOSE
+Build 012 proved the chord names, chord-change timing and beat timing, but the
+selected DOWNBEAT phase did not consistently match true bar starts. Build 013
+lets you audition every possible Beat 1 phase without altering the chord
+timeline or beat spacing.
+
+TEST
+1. Run BanjofySongAnalysisLab013.exe.
+2. Select Hotel California.
+3. Run Detect 3/4 or 4/4 and Create Audible Check once.
+4. Click Play 180-Second Chord + Downbeat Phase Check.
+5. Listen to Phase 1.
+6. Click Phase 2, Phase 3 and Phase 4 in turn.
+   Playback restarts from the beginning after each selection.
+7. Identify the phase whose strong low click and DOWNBEAT marker coincide with
+   the true first beat of the musical bar.
+
+WHAT MUST STAY UNCHANGED
+- chord names;
+- chord-change times;
+- beat speed;
+- beat spacing;
+- primary 4/4 candidate;
+- existing Library JSON filenames.
+
+CHECK FILENAME ONLY
+Analysis\<song-id>\audible_phase_1.wav
+Analysis\<song-id>\audible_phase_2.wav
+Analysis\<song-id>\audible_phase_3.wav
+Analysis\<song-id>\audible_phase_4.wav
+Analysis\<song-id>\song_structure.json
+
+OPEN IN NOTEPAD AND INSPECT CONTENTS
+Existing Library song JSON and song_analysis.json:
+downbeat_phase_audition_paths
+best_meter_candidate
+beats_per_bar
+first_downbeat_beat_index
+beat_times
+downbeat_times
+bar_aligned_chords
+
+REPORT
+- Which phase sounds correct?
+- Which phase places DOWNBEAT on the genuine first beat of each bar?
+- Does that phase remain aligned without drift?
+- Do chord names and chord-change timing remain correct?

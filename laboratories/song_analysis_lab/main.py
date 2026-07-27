@@ -15,7 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import structure_engine
 
-APP_TITLE = "Banjofy Song Analysis Laboratory 012 — Visual Chord and Bar Alignment Check"
+APP_TITLE = "Banjofy Song Analysis Laboratory 013 — Downbeat Phase Audition"
 SETTINGS_FILENAME = "song_analysis_lab_settings.json"
 
 
@@ -116,7 +116,6 @@ def commit_structure(
     folder = library_root / "Analysis" / song_id
     folder.mkdir(parents=True, exist_ok=True)
 
-    # Complete the new media output before changing any passed JSON record.
     audible_check_path = folder / "audible_bar_check.wav"
     structure_engine.create_audible_bar_check(
         Path(result.source_audio),
@@ -127,11 +126,37 @@ def commit_structure(
     if not audible_check_path.is_file() or audible_check_path.stat().st_size == 0:
         raise RuntimeError("The audible bar-check file was not created successfully.")
 
+    # Create one full 180-second audition file for each possible phase.
+    # Chord times and beat spacing are unchanged; only the strong downbeat click moves.
+    phase_check_paths: list[str] = []
+    beats_per_bar = int(result.beats_per_bar)
+    for phase_offset in range(beats_per_bar):
+        effective_phase = (
+            int(result.first_downbeat_beat_index) + phase_offset
+        ) % beats_per_bar
+        phase_downbeats = [
+            float(result.beat_times[index])
+            for index in range(effective_phase, len(result.beat_times), beats_per_bar)
+        ]
+        phase_path = folder / f"audible_phase_{phase_offset + 1}.wav"
+        structure_engine.create_audible_bar_check(
+            Path(result.source_audio),
+            result.beat_times,
+            phase_downbeats,
+            phase_path,
+        )
+        if not phase_path.is_file() or phase_path.stat().st_size == 0:
+            raise RuntimeError(
+                f"Downbeat phase audition file {phase_offset + 1} was not created."
+            )
+        phase_check_paths.append(str(phase_path))
+
     structure_path = folder / "song_structure.json"
     payload = asdict(result)
     payload["integration_laboratory"] = APP_TITLE
     payload["completed_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
     payload["audible_bar_check_path"] = str(audible_check_path)
+    payload["downbeat_phase_audition_paths"] = phase_check_paths
 
     summary = {
         "meter": result.meter,
@@ -161,6 +186,7 @@ def commit_structure(
     updated_record["structure_completed_at"] = payload["completed_at"]
     updated_record["structure_summary"] = summary
     updated_record["audible_bar_check_path"] = str(audible_check_path)
+    updated_record["downbeat_phase_audition_paths"] = phase_check_paths
 
     updated_analysis = dict(analysis)
     updated_analysis["meter"] = result.meter
@@ -176,6 +202,7 @@ def commit_structure(
     updated_analysis["rhythmic_window_start_s"] = result.rhythmic_window_start_s
     updated_analysis["rhythmic_window_end_s"] = result.rhythmic_window_end_s
     updated_analysis["beats_per_bar"] = result.beats_per_bar
+    updated_analysis["first_downbeat_beat_index"] = result.first_downbeat_beat_index
     updated_analysis["beat_times"] = result.beat_times
     updated_analysis["downbeat_times"] = result.downbeat_times
     updated_analysis["bar_start_times"] = result.bar_start_times
@@ -185,8 +212,8 @@ def commit_structure(
     updated_analysis["bar_aligned_chords"] = result.bar_aligned_chords
     updated_analysis["structure_version"] = result.structure_version
     updated_analysis["audible_bar_check_path"] = str(audible_check_path)
+    updated_analysis["downbeat_phase_audition_paths"] = phase_check_paths
 
-    # Commit all JSON only after the audible WAV is safely present.
     write_json_atomic(structure_path, payload)
     write_json_atomic(record_path, updated_record)
     write_json_atomic(analysis_path, updated_analysis)
@@ -216,6 +243,10 @@ class App(tk.Tk):
         self.visual_chord_segments: list[dict] = []
         self.visual_beats_per_bar: int = 4
         self.visual_duration: float = 0.0
+        self.visual_phase_offset: int = 0
+        self.visual_base_first_downbeat_index: int = 0
+        self.visual_phase_paths: list[Path] = []
+        self.visual_phase_buttons: list[ttk.Button] = []
         self._load_settings()
         self._build_ui()
         self.after(150, self._poll)
@@ -284,7 +315,7 @@ class App(tk.Tk):
         self.run_button.pack(side="left")
         self.play_button = ttk.Button(
             controls,
-            text="Play 180-Second Audible + Visual Check",
+            text="Play 180-Second Chord + Downbeat Phase Check",
             command=self._play_audible_check,
             state="disabled",
         )
@@ -445,12 +476,21 @@ class App(tk.Tk):
         if self.selected_song is None:
             messagebox.showinfo(APP_TITLE, "Select a Library song first.")
             return
+
         record = read_json(self.selected_song["record_path"])
-        path = Path(str(record.get("audible_bar_check_path") or ""))
-        if not path.is_file():
-            messagebox.showerror(APP_TITLE, f"The audible bar-check file could not be found:\n{path}")
-            return
         analysis = read_json(self.selected_song["analysis_path"])
+
+        raw_phase_paths = (
+            record.get("downbeat_phase_audition_paths")
+            or analysis.get("downbeat_phase_audition_paths")
+            or []
+        )
+        self.visual_phase_paths = [
+            Path(str(value))
+            for value in raw_phase_paths
+            if isinstance(value, str) and Path(str(value)).is_file()
+        ]
+
         self.visual_beat_times = [float(v) for v in analysis.get("beat_times", [])]
         self.visual_downbeat_times = [float(v) for v in analysis.get("downbeat_times", [])]
         raw_segments = analysis.get("segments", [])
@@ -461,7 +501,15 @@ class App(tk.Tk):
             and isinstance(segment.get("end_s"), (int, float))
         ] if isinstance(raw_segments, list) else []
         self.visual_chord_segments.sort(key=lambda item: float(item.get("start_s", 0.0)))
+
         self.visual_beats_per_bar = int(analysis.get("beats_per_bar") or 4)
+        self.visual_base_first_downbeat_index = int(
+            analysis.get("first_downbeat_beat_index")
+            or record.get("structure_summary", {}).get("first_downbeat_beat_index")
+            or 0
+        )
+        self.visual_phase_offset = 0
+
         if not self.visual_beat_times or not self.visual_downbeat_times:
             messagebox.showerror(APP_TITLE, "Beat or downbeat data is missing.")
             return
@@ -471,40 +519,101 @@ class App(tk.Tk):
                 "The saved song analysis contains no chord segments to display.",
             )
             return
+        if len(self.visual_phase_paths) != self.visual_beats_per_bar:
+            messagebox.showerror(
+                APP_TITLE,
+                "The downbeat phase audition files are missing. "
+                "Run the structure analysis once in Build 013.",
+            )
+            return
+
+        self.visual_duration = min(
+            structure_engine.AUDIBLE_PREVIEW_SECONDS,
+            self.visual_beat_times[-1],
+        )
+        self._open_visual_window()
+        self._start_selected_phase()
+
+    def _start_selected_phase(self) -> None:
+        if not self.visual_phase_paths:
+            return
+        path = self.visual_phase_paths[self.visual_phase_offset]
+        if not path.is_file():
+            messagebox.showerror(APP_TITLE, f"The selected phase file is missing:\n{path}")
+            return
         try:
             import winsound
-            winsound.PlaySound(str(path), winsound.SND_FILENAME | winsound.SND_ASYNC)
+            winsound.PlaySound(
+                str(path),
+                winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT,
+            )
         except Exception as exc:
-            messagebox.showerror(APP_TITLE, f"Could not start the audible check:\n{exc}")
+            messagebox.showerror(APP_TITLE, f"Could not start the phase audition:\n{exc}")
             return
-        self.visual_duration = min(structure_engine.AUDIBLE_PREVIEW_SECONDS, self.visual_beat_times[-1])
         self.visual_started_at = time.monotonic()
-        self._open_visual_window()
+        self._refresh_phase_display()
         self._update_visual_marker()
+
+    def _set_visual_phase(self, phase_offset: int) -> None:
+        if self.visual_beats_per_bar <= 0:
+            return
+        self.visual_phase_offset = int(phase_offset) % self.visual_beats_per_bar
+        self._start_selected_phase()
+
+    def _effective_first_downbeat_index(self) -> int:
+        return (
+            self.visual_base_first_downbeat_index + self.visual_phase_offset
+        ) % max(1, self.visual_beats_per_bar)
+
+    def _phase_downbeat_times(self) -> list[float]:
+        effective = self._effective_first_downbeat_index()
+        return [
+            float(self.visual_beat_times[index])
+            for index in range(
+                effective,
+                len(self.visual_beat_times),
+                self.visual_beats_per_bar,
+            )
+        ]
+
+    def _refresh_phase_display(self) -> None:
+        if hasattr(self, "visual_phase_var"):
+            self.visual_phase_var.set(
+                f"Selected Phase {self.visual_phase_offset + 1} · "
+                f"first downbeat beat index {self._effective_first_downbeat_index()}"
+            )
+        for index, button in enumerate(self.visual_phase_buttons):
+            button.state(
+                ["disabled"]
+                if index == self.visual_phase_offset
+                else ["!disabled"]
+            )
 
     def _open_visual_window(self) -> None:
         if self.visual_window is not None and self.visual_window.winfo_exists():
             self.visual_window.destroy()
+
         self.visual_window = tk.Toplevel(self)
-        self.visual_window.title("Banjofy Chord, Beat and Bar Alignment Check")
-        self.visual_window.geometry("900x520")
-        self.visual_window.minsize(780, 470)
+        self.visual_window.title("Banjofy Downbeat Phase Audition")
+        self.visual_window.geometry("960x620")
+        self.visual_window.minsize(840, 560)
 
         frame = ttk.Frame(self.visual_window, padding=18)
         frame.pack(fill="both", expand=True)
 
         ttk.Label(
             frame,
-            text="Visual Chord and Bar Alignment Check",
+            text="Chord, Beat and Downbeat Phase Audition",
             font=("Segoe UI", 18, "bold"),
         ).pack(anchor="center")
         ttk.Label(
             frame,
             text=(
-                "The chord names come from the existing song_analysis.json timeline. "
-                "This test does not reanalyse or alter the chord detector."
+                "The chord names and beat spacing remain unchanged. "
+                "Choose each phase in turn; playback restarts from the beginning "
+                "and only the strong downbeat click moves."
             ),
-            wraplength=840,
+            wraplength=900,
         ).pack(anchor="center", pady=(4, 14))
 
         self.visual_bar_var = tk.StringVar(value="Bar —")
@@ -514,12 +623,46 @@ class App(tk.Tk):
         self.visual_current_chord_var = tk.StringVar(value="—")
         self.visual_next_chord_var = tk.StringVar(value="Next chord: —")
         self.visual_change_var = tk.StringVar(value="Change in: —")
+        self.visual_phase_var = tk.StringVar(value="")
 
         timing = ttk.Frame(frame)
         timing.pack(fill="x", pady=(4, 12))
-        ttk.Label(timing, textvariable=self.visual_bar_var, font=("Segoe UI", 26, "bold")).pack(side="left")
-        ttk.Label(timing, textvariable=self.visual_beat_var, font=("Segoe UI", 26)).pack(side="left", padx=24)
-        ttk.Label(timing, textvariable=self.visual_time_var, font=("Segoe UI", 16)).pack(side="right")
+        ttk.Label(
+            timing,
+            textvariable=self.visual_bar_var,
+            font=("Segoe UI", 26, "bold"),
+        ).pack(side="left")
+        ttk.Label(
+            timing,
+            textvariable=self.visual_beat_var,
+            font=("Segoe UI", 26),
+        ).pack(side="left", padx=24)
+        ttk.Label(
+            timing,
+            textvariable=self.visual_time_var,
+            font=("Segoe UI", 16),
+        ).pack(side="right")
+
+        phase_frame = ttk.LabelFrame(frame, text="Audition every possible Beat 1 phase")
+        phase_frame.pack(fill="x", pady=(0, 12))
+        ttk.Label(
+            phase_frame,
+            text="Choose a phase; playback restarts from the beginning:",
+        ).pack(side="left", padx=10, pady=10)
+        self.visual_phase_buttons = []
+        for phase in range(self.visual_beats_per_bar):
+            button = ttk.Button(
+                phase_frame,
+                text=f"Phase {phase + 1}",
+                command=lambda value=phase: self._set_visual_phase(value),
+            )
+            button.pack(side="left", padx=4, pady=8)
+            self.visual_phase_buttons.append(button)
+        ttk.Label(
+            phase_frame,
+            textvariable=self.visual_phase_var,
+            font=("Segoe UI", 10, "bold"),
+        ).pack(side="right", padx=10)
 
         chord_box = ttk.LabelFrame(frame, text="Current chord from saved timeline")
         chord_box.pack(fill="x", pady=(4, 14))
@@ -544,7 +687,7 @@ class App(tk.Tk):
 
         self.visual_canvas = tk.Canvas(frame, height=90, highlightthickness=1)
         self.visual_canvas.pack(fill="x")
-        self.visual_canvas.create_line(30, 45, 830, 45, width=3)
+        self.visual_canvas.create_line(30, 45, 890, 45, width=3)
         self.visual_marker = self.visual_canvas.create_oval(22, 29, 38, 61)
 
         ttk.Label(
@@ -552,8 +695,13 @@ class App(tk.Tk):
             textvariable=self.visual_status_var,
             font=("Segoe UI", 14, "bold"),
         ).pack(pady=10)
-        ttk.Button(frame, text="Stop Test", command=self._stop_visual_test).pack(side="right")
+        ttk.Button(
+            frame,
+            text="Stop Test",
+            command=self._stop_visual_test,
+        ).pack(side="right")
         self.visual_window.protocol("WM_DELETE_WINDOW", self._stop_visual_test)
+        self._refresh_phase_display()
 
     def _chord_display_at(self, elapsed: float) -> tuple[str, str, float | None]:
         current_index = None
@@ -566,14 +714,21 @@ class App(tk.Tk):
 
         if current_index is None:
             next_segment = next(
-                (segment for segment in self.visual_chord_segments
-                 if float(segment.get("start_s", 0.0)) > elapsed),
+                (
+                    segment
+                    for segment in self.visual_chord_segments
+                    if float(segment.get("start_s", 0.0)) > elapsed
+                ),
                 None,
             )
             if next_segment is None:
                 return "—", "—", None
             next_chord = str(next_segment.get("chord") or "N")
-            return "—", next_chord, max(0.0, float(next_segment.get("start_s", 0.0)) - elapsed)
+            return (
+                "—",
+                next_chord,
+                max(0.0, float(next_segment.get("start_s", 0.0)) - elapsed),
+            )
 
         current = self.visual_chord_segments[current_index]
         current_chord = str(current.get("chord") or "N")
@@ -585,28 +740,71 @@ class App(tk.Tk):
         if next_segment is None:
             return current_chord, "—", None
         next_chord = str(next_segment.get("chord") or "N")
-        change_in = max(0.0, float(next_segment.get("start_s", 0.0)) - elapsed)
+        change_in = max(
+            0.0,
+            float(next_segment.get("start_s", 0.0)) - elapsed,
+        )
         return current_chord, next_chord, change_in
 
     def _update_visual_marker(self) -> None:
-        if self.visual_started_at is None or self.visual_window is None or not self.visual_window.winfo_exists():
+        if (
+            self.visual_started_at is None
+            or self.visual_window is None
+            or not self.visual_window.winfo_exists()
+        ):
             return
+
         elapsed = time.monotonic() - self.visual_started_at
         if elapsed >= self.visual_duration:
-            self._stop_visual_test(); return
-        beat_index = max(0, bisect.bisect_right(self.visual_beat_times, elapsed)-1)
-        down_index = max(0, bisect.bisect_right(self.visual_downbeat_times, elapsed)-1)
-        down_time = self.visual_downbeat_times[down_index]
+            self._stop_visual_test()
+            return
+
+        phase_downbeats = self._phase_downbeat_times()
+        if not phase_downbeats:
+            return
+
+        beat_index = max(
+            0,
+            bisect.bisect_right(self.visual_beat_times, elapsed) - 1,
+        )
+        down_index = max(
+            0,
+            bisect.bisect_right(phase_downbeats, elapsed) - 1,
+        )
+        down_time = phase_downbeats[down_index]
         first_beat = bisect.bisect_left(self.visual_beat_times, down_time)
-        beat_in_bar = max(1, min(self.visual_beats_per_bar, beat_index-first_beat+1))
-        is_down = abs(elapsed-down_time) < 0.16
-        width=max(100,self.visual_canvas.winfo_width()); x=30+(elapsed/max(1,self.visual_duration))*(width-60)
-        size=26 if is_down else 16
-        self.visual_canvas.coords(self.visual_marker,x-size/2,45-size,x+size/2,45+size)
-        self.visual_bar_var.set(f"Bar {down_index+1}")
-        self.visual_beat_var.set(f"Beat {beat_in_bar} of {self.visual_beats_per_bar}")
-        self.visual_time_var.set(f"{int(elapsed)//60}:{int(elapsed)%60:02d} / 3:00")
-        self.visual_status_var.set("DOWNBEAT — estimated start of bar" if is_down else "Beat")
+        beat_in_bar = max(
+            1,
+            min(
+                self.visual_beats_per_bar,
+                beat_index - first_beat + 1,
+            ),
+        )
+        is_down = abs(elapsed - down_time) < 0.16
+
+        width = max(100, self.visual_canvas.winfo_width())
+        x = 30 + (elapsed / max(1, self.visual_duration)) * (width - 60)
+        size = 26 if is_down else 16
+        self.visual_canvas.coords(
+            self.visual_marker,
+            x - size / 2,
+            45 - size,
+            x + size / 2,
+            45 + size,
+        )
+
+        self.visual_bar_var.set(f"Bar {down_index + 1}")
+        self.visual_beat_var.set(
+            f"Beat {beat_in_bar} of {self.visual_beats_per_bar}"
+        )
+        self.visual_time_var.set(
+            f"{int(elapsed)//60}:{int(elapsed)%60:02d} / 3:00"
+        )
+        self.visual_status_var.set(
+            "DOWNBEAT — selected phase"
+            if is_down
+            else "Beat"
+        )
 
         current_chord, next_chord, change_in = self._chord_display_at(elapsed)
         self.visual_current_chord_var.set(current_chord)
@@ -617,17 +815,18 @@ class App(tk.Tk):
             else f"Change in: {change_in:.1f}s"
         )
 
-        self.after(25,self._update_visual_marker)
+        self.after(25, self._update_visual_marker)
 
     def _stop_visual_test(self) -> None:
         try:
-            import winsound; winsound.PlaySound(None, winsound.SND_PURGE)
+            import winsound
+            winsound.PlaySound(None, winsound.SND_PURGE)
         except Exception:
             pass
-        self.visual_started_at=None
+        self.visual_started_at = None
         if self.visual_window is not None and self.visual_window.winfo_exists():
             self.visual_window.destroy()
-        self.visual_window=None
+        self.visual_window = None
 
     def _open_folder(self) -> None:
         root = self._library_root()
