@@ -1,16 +1,16 @@
-BANJOFY SONG ANALYSIS LABORATORY 007
+BANJOFY SONG ANALYSIS LABORATORY 008
 
-GITHUB BRANCH
+BRANCH
 song-analysis-lab
+
+AGREED METER SCOPE
+3/4 and 4/4 only.
 
 COMPUTER FOLDER UPDATED
 laboratories\song_analysis_lab
 
-Copy everything INSIDE the extracted SAL007 folder into the existing local
-Banjofy repository while GitHub Desktop shows song-analysis-lab.
+Copy everything INSIDE SAL008 into the existing repository while GitHub Desktop
+shows song-analysis-lab.
 
-Do not copy this build onto main or firefox-acquisition-lab.
-
-This build safely handles remembered Library folders that exist or are
-currently unavailable. GitHub performs five positive finished-EXE startup
-handshakes before releasing the artifact.
+This build removes 2/4, adds explicit uncertainty handling and creates an
+audible bar/downbeat check.

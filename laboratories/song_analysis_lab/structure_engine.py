@@ -13,8 +13,9 @@ import numpy as np
 import scipy.signal
 
 
-STRUCTURE_VERSION = 2
-SUPPORTED_METERS = ((2, "2/4"), (3, "3/4"), (4, "4/4"))
+STRUCTURE_VERSION = 3
+METER_CONFIDENCE_THRESHOLD = 0.55
+SUPPORTED_METERS = ((3, "3/4"), (4, "4/4"))
 
 
 def ensure_scipy_signal_compatibility() -> None:
@@ -40,6 +41,8 @@ class StructureResult:
     beat_times: list[float]
     beat_count: int
     meter: str
+    meter_status: str
+    best_meter_candidate: str
     beats_per_bar: int
     meter_confidence: float
     first_downbeat_beat_index: int
@@ -237,11 +240,71 @@ def build_bar_grid(
     return beat_grid, bars, aligned, downbeats
 
 
+
+def create_audible_bar_check(
+    audio_path: Path,
+    beat_times: list[float],
+    downbeat_times: list[float],
+    target: Path,
+    preview_seconds: float = 60.0,
+) -> Path:
+    """Create a short listening proof with distinct beat and downbeat clicks."""
+    ensure_scipy_signal_compatibility()
+    y, sr = librosa.load(audio_path, sr=22050, mono=True, duration=preview_seconds)
+    if y is None or len(y) == 0:
+        raise RuntimeError("Could not create the audible bar check because the audio was empty.")
+
+    duration = len(y) / sr
+    ordinary_times = np.asarray(
+        [value for value in beat_times if 0.0 <= value < duration],
+        dtype=float,
+    )
+    strong_times = np.asarray(
+        [value for value in downbeat_times if 0.0 <= value < duration],
+        dtype=float,
+    )
+
+    beat_clicks = librosa.clicks(
+        times=ordinary_times,
+        sr=sr,
+        click_freq=1200.0,
+        click_duration=0.035,
+        length=len(y),
+    ).astype(np.float32)
+    downbeat_clicks = librosa.clicks(
+        times=strong_times,
+        sr=sr,
+        click_freq=320.0,
+        click_duration=0.10,
+        length=len(y),
+    ).astype(np.float32)
+
+    audio = y.astype(np.float32)
+    peak = float(np.max(np.abs(audio))) if audio.size else 0.0
+    if peak > 0.95:
+        audio = audio / (peak / 0.95)
+
+    mixed = audio * 0.82 + beat_clicks * 0.18 + downbeat_clicks * 0.42
+    mixed_peak = float(np.max(np.abs(mixed))) if mixed.size else 0.0
+    if mixed_peak > 0.98:
+        mixed = mixed / (mixed_peak / 0.98)
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(target.stem + ".working" + target.suffix)
+    temporary.unlink(missing_ok=True)
+
+    import soundfile as sf
+    sf.write(temporary, mixed, sr, subtype="PCM_16")
+    if not temporary.is_file() or temporary.stat().st_size == 0:
+        raise RuntimeError("The audible bar-check file was not created.")
+    temporary.replace(target)
+    return target
+
 def analyse_structure(audio_path: Path, chord_segments: list[dict], status_callback) -> StructureResult:
     ensure_scipy_signal_compatibility()
     diagnostics = [
         "Metre is estimated from recurring beat-level accent patterns.",
-        "Supported candidates in this laboratory are 2/4, 3/4 and 4/4.",
+        "Supported candidates in this laboratory are 3/4 and 4/4 only.",
         "Downbeats are estimates and must be checked on real songs before Practice integration.",
     ]
 
@@ -273,13 +336,22 @@ def analyse_structure(audio_path: Path, chord_segments: list[dict], status_callb
         if len(bars) < 3:
             raise RuntimeError("Too few complete bars were available for a useful structure result.")
 
+        meter_status = (
+            "confirmed"
+            if best.confidence >= METER_CONFIDENCE_THRESHOLD
+            else "uncertain"
+        )
+        reported_meter = best.meter if meter_status == "confirmed" else "Uncertain"
+
         return StructureResult(
             structure_version=STRUCTURE_VERSION,
             source_audio=str(audio_path),
             raw_bpm=round(bpm, 6),
             beat_times=[round(value, 6) for value in beat_times],
             beat_count=len(beat_times),
-            meter=best.meter,
+            meter=reported_meter,
+            meter_status=meter_status,
+            best_meter_candidate=best.meter,
             beats_per_bar=best.beats_per_bar,
             meter_confidence=best.confidence,
             first_downbeat_beat_index=best.phase,

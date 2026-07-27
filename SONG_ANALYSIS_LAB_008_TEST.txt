@@ -1,0 +1,89 @@
+BANJOFY SONG ANALYSIS LABORATORY 008 — WINDOWS TEST
+3/4 AND 4/4 ONLY
+
+AGREED SCOPE
+This laboratory compares only:
+- 3/4
+- 4/4
+
+2/4 is not included anywhere in the detector, user interface or release gate.
+
+NEW BEHAVIOUR
+- Low-confidence meter results are reported as Uncertain.
+- The best candidate is retained separately for review.
+- A 60-second audible_bar_check.wav is created.
+- Ordinary beats use a short high click.
+- Estimated downbeats use a stronger low click.
+
+USE THE SAME LIBRARY
+Keep the Library that passed Laboratories 001 and 007.
+
+WINDOWS TEST
+1. Run BanjofySongAnalysisLab008.exe.
+2. Confirm the application opens normally.
+3. Select the analysed song.
+4. Click Detect 3/4 or 4/4 and Create Audible Check.
+5. Wait for completion.
+
+CHECK BY FILENAME ONLY
+Confirm this NEW file exists:
+Analysis\<song-id>\audible_bar_check.wav
+
+Also confirm this structure file exists:
+Analysis\<song-id>\song_structure.json
+
+PLAY AND LISTEN
+Select the song and click:
+Play Audible Bar Check
+
+Listen for:
+- short high click = every detected beat;
+- stronger low click = estimated start of each bar.
+
+For a correct 4/4 result, the stronger click should repeat every four beats.
+For a correct 3/4 result, it should repeat every three beats.
+
+OPEN AND INSPECT IN NOTEPAD
+A. Existing Library song JSON:
+Library\Songs\<existing-song-record-name>.json
+
+Confirm its CONTENTS include:
+"meter"
+"meter_status"
+"best_meter_candidate"
+"meter_confidence"
+"beats_per_bar"
+"bar_count"
+"audible_bar_check_path"
+
+B. Existing analysis JSON:
+Analysis\<song-id>\song_analysis.json
+
+Confirm its CONTENTS include:
+"meter"
+"meter_status"
+"best_meter_candidate"
+"meter_confidence"
+"beats_per_bar"
+"downbeat_times"
+"bar_aligned_chords"
+"audible_bar_check_path"
+
+PASS
+Technical pass:
+- no startup exception;
+- analysis completes;
+- audible_bar_check.wav exists;
+- existing JSON contents are updated.
+
+Musical pass:
+- best candidate is 3/4 or 4/4;
+- strong low clicks coincide with real bar starts;
+- alignment remains stable during the preview.
+
+UNCERTAIN RESULT
+When confidence is below 55%, the meter field must say:
+Uncertain
+
+The best_meter_candidate still records whether 3/4 or 4/4 scored highest.
+This is evidence for review, not a confirmed result.

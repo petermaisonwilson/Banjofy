@@ -14,7 +14,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import structure_engine
 
-APP_TITLE = "Banjofy Song Analysis Laboratory 007 — Meter, Bars and Downbeats"
+APP_TITLE = "Banjofy Song Analysis Laboratory 008 — 3/4 and 4/4 Meter Check"
 SETTINGS_FILENAME = "song_analysis_lab_settings.json"
 
 
@@ -121,8 +121,18 @@ def commit_structure(
     payload["completed_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
     write_json_atomic(structure_path, payload)
 
+    audible_check_path = folder / "audible_bar_check.wav"
+    structure_engine.create_audible_bar_check(
+        Path(result.source_audio),
+        result.beat_times,
+        result.downbeat_times,
+        audible_check_path,
+    )
+
     summary = {
         "meter": result.meter,
+        "meter_status": result.meter_status,
+        "best_meter_candidate": result.best_meter_candidate,
         "meter_confidence": round(float(result.meter_confidence), 4),
         "beats_per_bar": int(result.beats_per_bar),
         "first_downbeat_beat_index": int(result.first_downbeat_beat_index),
@@ -137,9 +147,12 @@ def commit_structure(
     record["structure_path"] = str(structure_path)
     record["structure_completed_at"] = payload["completed_at"]
     record["structure_summary"] = summary
+    record["audible_bar_check_path"] = str(audible_check_path)
     write_json_atomic(record_path, record)
 
     analysis["meter"] = result.meter
+    analysis["meter_status"] = result.meter_status
+    analysis["best_meter_candidate"] = result.best_meter_candidate
     analysis["meter_confidence"] = result.meter_confidence
     analysis["beats_per_bar"] = result.beats_per_bar
     analysis["beat_times"] = result.beat_times
@@ -150,9 +163,10 @@ def commit_structure(
     analysis["bars"] = result.bars
     analysis["bar_aligned_chords"] = result.bar_aligned_chords
     analysis["structure_version"] = result.structure_version
+    analysis["audible_bar_check_path"] = str(audible_check_path)
     write_json_atomic(analysis_path, analysis)
 
-    return structure_path, record_path, analysis_path
+    return structure_path, record_path, analysis_path, audible_check_path
 
 
 class App(tk.Tk):
@@ -232,10 +246,17 @@ class App(tk.Tk):
         controls = ttk.Frame(outer)
         controls.pack(fill="x", pady=10)
         self.run_button = ttk.Button(
-            controls, text="Detect Meter, Bars and Downbeats",
+            controls, text="Detect 3/4 or 4/4 and Create Audible Check",
             command=self._start, state="disabled",
         )
         self.run_button.pack(side="left")
+        self.play_button = ttk.Button(
+            controls,
+            text="Play Audible Bar Check",
+            command=self._play_audible_check,
+            state="disabled",
+        )
+        self.play_button.pack(side="left", padx=8)
         ttk.Button(controls, text="Open Analysis Folder", command=self._open_folder).pack(side="right")
 
         status = ttk.LabelFrame(outer, text="Structure-analysis status")
@@ -298,6 +319,13 @@ class App(tk.Tk):
             return
         self.selected_song = self.songs[int(selected[0])]
         self.run_button.configure(state="normal")
+
+        existing_check = self.selected_song["record"].get("audible_bar_check_path")
+        if existing_check and Path(str(existing_check)).is_file():
+            self.play_button.configure(state="normal")
+        else:
+            self.play_button.configure(state="disabled")
+
         self.status_var.set(f"Selected: {self.selected_song['title']}")
 
     def _start(self) -> None:
@@ -351,10 +379,12 @@ class App(tk.Tk):
                 messagebox.showerror(APP_TITLE, "Structure analysis failed. The exact error is shown in the window.")
             elif kind == "done":
                 result = payload["result"]
-                structure_path, record_path, analysis_path = payload["paths"]
+                structure_path, record_path, analysis_path, audible_check_path = payload["paths"]
                 self.status_var.set("Meter, bars and downbeats saved successfully")
                 self._append("")
-                self._append(f"Estimated meter: {result.meter}")
+                self._append(f"Meter result: {result.meter}")
+                self._append(f"Best candidate: {result.best_meter_candidate}")
+                self._append(f"Meter status: {result.meter_status}")
                 self._append(f"Meter confidence: {result.meter_confidence:.0%}")
                 self._append(f"Beats per bar: {result.beats_per_bar}")
                 self._append(f"Detected beats: {result.beat_count}")
@@ -363,15 +393,44 @@ class App(tk.Tk):
                 self._append(f"New structure file: {structure_path}")
                 self._append(f"Updated existing Library JSON: {record_path}")
                 self._append(f"Updated existing song analysis JSON: {analysis_path}")
+                self._append(f"Audible bar check: {audible_check_path}")
+                self.play_button.configure(state="normal")
                 self.run_button.configure(state="normal")
                 self._refresh()
                 messagebox.showinfo(
                     APP_TITLE,
-                    "The structure pass completed.\n\n"
+                    "The 3/4 or 4/4 structure pass completed.\n\n"
                     "The existing JSON filenames have not changed. Open them in Notepad "
                     "to inspect the new meter, bar and downbeat fields.",
                 )
         self.after(150, self._poll)
+
+    def _play_audible_check(self) -> None:
+        if self.selected_song is None:
+            messagebox.showinfo(APP_TITLE, "Select a Library song first.")
+            return
+
+        record = read_json(self.selected_song["record_path"])
+        raw = record.get("audible_bar_check_path")
+        if not raw:
+            messagebox.showinfo(
+                APP_TITLE,
+                "Run the 3/4 or 4/4 structure check first.",
+            )
+            return
+
+        path = Path(str(raw))
+        if not path.is_file():
+            messagebox.showerror(
+                APP_TITLE,
+                f"The audible bar-check file could not be found:\n{path}",
+            )
+            return
+
+        try:
+            os.startfile(path)  # type: ignore[attr-defined]
+        except (AttributeError, OSError):
+            webbrowser.open(path.as_uri())
 
     def _open_folder(self) -> None:
         root = self._library_root()

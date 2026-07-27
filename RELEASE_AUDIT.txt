@@ -1,55 +1,63 @@
-RELEASE AUDIT — BANJOFY SONG ANALYSIS LABORATORY 007
+RELEASE AUDIT — BANJOFY SONG ANALYSIS LABORATORY 008
 
-BASELINE
-- Song Analysis Laboratory 001 passed on Peter's Windows computer.
-- Practice audio, BPM, beats, key and chord timeline are present.
+AGREED SCOPE LOCK
+- 3/4
+- 4/4
+- No 2/4
+- No 6/8
+- No other meter added without approval
 
-BUILD 006 GITHUB FAILURE
-- Missing settings handshake passed.
-- Valid settings used a fictitious non-existent Library path.
-- The non-empty setting scheduled an automatic refresh.
-- Startup probe scheduled window destruction at nearly the same time.
-- Competing Tk callbacks produced Windows access violation -1073741819.
-
-BUILD 007 CORRECTION
-- Automatic refresh occurs only when the remembered Library path exists.
-- Unavailable remembered paths show an ordinary status message.
-- Startup-probe mode suppresses automatic refresh.
-- No threshold or musical-analysis behaviour is weakened.
-
-FULL SOURCE GATE
-- Exact Build 007 identity
-- AST parse and compilation
-- Tkinter _root collision ban
-- _library_root presence
-- Tk variable initialization order
-- Safe saved-Library path logic
-- Positive READY handshake
-- Missing, valid, malformed and wrong-shape settings parser
-- Deterministic 2/4, 3/4 and 4/4
-- Beat, bar, downbeat and chord grid
-- Temporary Library discovery
+PRESERVED PASSED BEHAVIOUR
+- Laboratory 001 Library analysis handover
+- Practice audio
+- Key, BPM, beats and chord timeline
+- Laboratory 007 technical structure persistence
+- Safe Tkinter startup
+- Safe remembered-Library handling
 - Atomic JSON updates
 - Existing filenames unchanged
 
+NEW BEHAVIOUR
+- Candidate set restricted to 3/4 and 4/4
+- Confidence threshold: 55%
+- Below threshold: meter = Uncertain
+- best_meter_candidate remains 3/4 or 4/4
+- meter_status = confirmed or uncertain
+- audible_bar_check.wav
+- ordinary beat clicks
+- stronger downbeat clicks
+- Play Audible Bar Check button
+
+FULL LOCAL GATE
+- AST and compilation
+- Exact Build 008 identity
+- Ban on 2/4 in engine and UI
+- Deterministic 3/4 proof
+- Deterministic 4/4 proof
+- Weak evidence becomes Uncertain
+- Audible WAV generation
+- Bar and chord grids
+- Library discovery
+- Atomic JSON updates
+- Audible path persistence
+- Existing filenames unchanged
+- Five real Tk startup handshakes
+
 GITHUB WINDOWS PROOF
-- Real click-track 2/4
-- Real click-track 3/4
-- Real click-track 4/4
-- Clean PyInstaller build
-- Finished EXE positive handshake: missing settings
-- Finished EXE positive handshake: valid existing folder
-- Finished EXE positive handshake: valid unavailable folder
-- Finished EXE positive handshake: malformed settings
-- Finished EXE positive handshake: wrong-shape settings
+- Pinned dependencies
+- Complete release gate
+- Direct 3/4 audio proof
+- Direct 4/4 audio proof
+- Audible WAV proof
+- PyInstaller clean build
+- Five positive finished-EXE startup handshakes
 - Exact two-file artifact
 
 PETER WINDOWS PROOF REQUIRED
-- Application opens
-- Existing analysed Library discovered
-- Real song structure analysis completes
-- JSON contents updated
-- Musical alignment judged by listening
+- Real song completes
+- Audible file plays
+- Strong clicks align with musical bar starts
+- Result correctly confirmed or marked Uncertain
 
 BRANCH SAFETY
 - song-analysis-lab only

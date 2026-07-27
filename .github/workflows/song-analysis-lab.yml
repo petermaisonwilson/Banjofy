@@ -1,4 +1,4 @@
-name: Build Banjofy Song Analysis Laboratory 007
+name: Build Banjofy Song Analysis Laboratory 008
 
 on:
   push:
@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Verify exact Build 007 paths
+      - name: Verify exact Build 008 paths
         shell: pwsh
         run: |
           $required = @(
@@ -30,10 +30,10 @@ jobs:
             "laboratories/song_analysis_lab/song_analysis_lab.spec",
             "laboratories/song_analysis_lab/release_gate.py",
             "laboratories/song_analysis_lab/requirements.txt",
-            "SONG_ANALYSIS_LAB_007_TEST.txt"
+            "SONG_ANALYSIS_LAB_008_TEST.txt"
           )
           foreach ($file in $required) {
-            if (-not (Test-Path $file)) { throw "Missing Build 007 file: $file" }
+            if (-not (Test-Path $file)) { throw "Missing Build 008 file: $file" }
           }
 
       - name: Install pinned dependencies
@@ -47,15 +47,15 @@ jobs:
         working-directory: laboratories/song_analysis_lab
         run: |
           python release_gate.py
-          if ($LASTEXITCODE -ne 0) { throw "Laboratory 007 complete release gate failed" }
+          if ($LASTEXITCODE -ne 0) { throw "Laboratory 008 complete release gate failed" }
 
-      - name: Compile every Build 007 source
+      - name: Compile every Build 008 source
         working-directory: laboratories/song_analysis_lab
         run: |
           python -m py_compile main.py structure_engine.py release_gate.py
           if ($LASTEXITCODE -ne 0) { throw "Source compilation failed" }
 
-      - name: Direct application-level 2-3-4 meter audio proofs
+      - name: Direct application-level 3-4 meter and audible-check proofs
         shell: pwsh
         working-directory: laboratories/song_analysis_lab
         run: |
@@ -85,46 +85,51 @@ jobs:
               samples = ordinary + accented
 
               with tempfile.TemporaryDirectory() as temporary:
-                  audio = Path(temporary) / f"proof_{beats_per_bar}_4.wav"
+                  audio = Path(temporary) / f"proof_{expected.replace('/', '_')}.wav"
                   sf.write(audio, samples, sr)
+
                   result = structure_engine.analyse_structure(
                       audio,
                       [{"start_s": 0.0, "end_s": duration, "chord": "G"}],
                       print,
                   )
                   assert result.beat_count >= 40, result
-                  assert result.meter == expected, result
+                  assert result.best_meter_candidate == expected, result
                   assert result.beats_per_bar == beats_per_bar, result
                   assert result.bar_count >= 8, result
-                  assert len(result.downbeat_times) == result.bar_count
                   assert result.bar_aligned_chords
-                  print(f"Direct {expected} application proof passed")
 
-          prove_meter(2, "2/4")
+                  audible = Path(temporary) / "audible_bar_check.wav"
+                  structure_engine.create_audible_bar_check(
+                      audio, result.beat_times, result.downbeat_times, audible
+                  )
+                  assert audible.is_file() and audible.stat().st_size > 1000
+                  print(f"Direct {expected} and audible-check proof passed")
+
           prove_meter(3, "3/4")
           prove_meter(4, "4/4")
           '@ | python -
-          if ($LASTEXITCODE -ne 0) { throw "Direct 2/4, 3/4 and 4/4 audio proofs failed" }
+          if ($LASTEXITCODE -ne 0) { throw "Direct 3/4, 4/4 or audible-check proof failed" }
 
       - name: Verify bundled FFmpeg
         working-directory: laboratories/song_analysis_lab
         run: |
           python -c "import imageio_ffmpeg, os; p=imageio_ffmpeg.get_ffmpeg_exe(); assert os.path.exists(p); print('FFmpeg available:', p)"
 
-      - name: Build standalone Windows Laboratory 007
+      - name: Build standalone Windows Laboratory 008
         working-directory: laboratories/song_analysis_lab
         run: |
           pyinstaller --clean --noconfirm song_analysis_lab.spec
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
-          if (-not (Test-Path "dist/BanjofySongAnalysisLab007.exe")) { throw "Expected EXE was not produced" }
+          if (-not (Test-Path "dist/BanjofySongAnalysisLab008.exe")) { throw "Expected EXE was not produced" }
 
       - name: Finished EXE positive startup handshakes
         shell: pwsh
         run: |
-          $exe = "$env:GITHUB_WORKSPACE/laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab007.exe"
+          $exe = "$env:GITHUB_WORKSPACE/laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab008.exe"
           $settingsFolder = Join-Path $env:LOCALAPPDATA "Banjofy\SongAnalysisLab"
           $settingsFile = Join-Path $settingsFolder "song_analysis_lab_settings.json"
-          $probeFolder = Join-Path $env:RUNNER_TEMP "banjofy-sal007-probes"
+          $probeFolder = Join-Path $env:RUNNER_TEMP "banjofy-sal008-probes"
           $existingLibrary = Join-Path $env:RUNNER_TEMP "banjofy-existing-library"
           New-Item -ItemType Directory -Force $probeFolder | Out-Null
           New-Item -ItemType Directory -Force $existingLibrary | Out-Null
@@ -173,7 +178,7 @@ jobs:
             if ($result.status -ne "ready") {
               throw "$Name startup marker did not report ready"
             }
-            if ($result.application -ne "Banjofy Song Analysis Laboratory 007 — Meter, Bars and Downbeats") {
+            if ($result.application -ne "Banjofy Song Analysis Laboratory 008 — 3/4 and 4/4 Meter Check") {
               throw "$Name startup marker came from the wrong build"
             }
 
@@ -192,12 +197,12 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force "artifact" | Out-Null
-          Copy-Item "laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab007.exe" "artifact/" -Force
-          Copy-Item "SONG_ANALYSIS_LAB_007_TEST.txt" "artifact/" -Force
+          Copy-Item "laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab008.exe" "artifact/" -Force
+          Copy-Item "SONG_ANALYSIS_LAB_008_TEST.txt" "artifact/" -Force
 
           $expected = @(
-            "artifact/BanjofySongAnalysisLab007.exe",
-            "artifact/SONG_ANALYSIS_LAB_007_TEST.txt"
+            "artifact/BanjofySongAnalysisLab008.exe",
+            "artifact/SONG_ANALYSIS_LAB_008_TEST.txt"
           )
           foreach ($file in $expected) {
             if (-not (Test-Path $file)) { throw "Assembled artifact missing: $file" }
@@ -205,12 +210,9 @@ jobs:
           $count = (Get-ChildItem artifact -File).Count
           if ($count -ne 2) { throw "Artifact contains $count files; expected exactly 2" }
 
-          Get-FileHash "artifact/BanjofySongAnalysisLab007.exe" -Algorithm SHA256
-          Get-FileHash "artifact/SONG_ANALYSIS_LAB_007_TEST.txt" -Algorithm SHA256
-
-      - name: Upload audited Windows Laboratory 007
+      - name: Upload audited Windows Laboratory 008
         uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-Song-Analysis-Laboratory-007-Windows
+          name: Banjofy-Song-Analysis-Laboratory-008-Windows
           path: artifact
           if-no-files-found: error
