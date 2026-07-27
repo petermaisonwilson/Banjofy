@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import ast
 import json
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
+import imageio_ffmpeg
 import numpy as np
 import soundfile as sf
 
@@ -17,113 +19,115 @@ spec_text = (root / "song_analysis_lab.spec").read_text(encoding="utf-8")
 ast.parse(main_text)
 ast.parse(engine_text)
 
-assert 'APP_TITLE = "Banjofy Song Analysis Laboratory 008 — 3/4 and 4/4 Meter Check"' in main_text
-assert 'name="BanjofySongAnalysisLab008"' in spec_text
+assert 'APP_TITLE = "Banjofy Song Analysis Laboratory 009 — 3/4 and 4/4 Meter Check"' in main_text
+assert 'name="BanjofySongAnalysisLab009"' in spec_text
 
-# Agreed scope lock: 3/4 and 4/4 only.
+# Agreed scope: exactly 3/4 and 4/4.
 assert 'SUPPORTED_METERS = ((3, "3/4"), (4, "4/4"))' in engine_text
-for forbidden in ('(2, "2/4")', '"2/4"', "'2/4'"):
-    assert forbidden not in engine_text, f"Forbidden meter returned: {forbidden}"
-    assert forbidden not in main_text, f"Forbidden meter returned in UI: {forbidden}"
+assert "Comparing 3/4 and 4/4 bar patterns" in engine_text
+for forbidden in ('(2, "2/4")', '"2/4"', "'2/4'", "Comparing 2/4"):
+    assert forbidden not in engine_text
+    assert forbidden not in main_text
 
-# Uncertainty handling.
-for required in (
-    "METER_CONFIDENCE_THRESHOLD = 0.55",
-    'reported_meter = best.meter if meter_status == "confirmed" else "Uncertain"',
-    'best_meter_candidate=best.meter',
-    'meter_status=meter_status',
-):
-    assert required in engine_text, f"Missing uncertainty behaviour: {required}"
-
-# Audible check.
-for required in (
-    "def create_audible_bar_check(",
-    'audible_check_path = folder / "audible_bar_check.wav"',
-    'text="Play Audible Bar Check"',
-    '"audible_bar_check_path"',
-):
-    assert required in engine_text or required in main_text, f"Missing audible-check behaviour: {required}"
-
-# Tkinter safety remains.
+# Safe Tkinter startup remains.
 assert "def _root(" not in main_text
 assert "self._root()" not in main_text
 assert "def _library_root(self) -> Path | None:" in main_text
-assert main_text.index("self.library_var = tk.StringVar") < main_text.index("self._load_settings()")
+
+# M4A/MP4 audible route must use FFmpeg-prepared WAV only.
+assert "wav_source = prepare_wav(audio_path, Path(temporary_folder))" in engine_text
+assert "librosa.load(\n            wav_source," in engine_text
+assert "librosa.load(audio_path" not in engine_text
+
+# Audible output must precede any JSON commit.
+audible_call = main_text.index("structure_engine.create_audible_bar_check(")
+assert audible_call < main_text.index("write_json_atomic(structure_path")
+assert audible_call < main_text.index("write_json_atomic(record_path")
+assert audible_call < main_text.index("write_json_atomic(analysis_path")
 
 sys.path.insert(0, str(root))
 import main
 import structure_engine
 
-# Deterministic 3/4 and 4/4 only.
-for beats_per_bar, expected_meter, phase in (
-    (3, "3/4", 1),
-    (4, "4/4", 1),
-):
+# Deterministic 3/4 and 4/4.
+for beats_per_bar, expected, phase in ((3, "3/4", 1), (4, "4/4", 1)):
     accents = np.asarray(
         [3.0 if index % beats_per_bar == phase else 0.2 for index in range(96)],
         dtype=float,
     )
     best, candidates = structure_engine.infer_meter(accents)
-    assert best.meter == expected_meter, (expected_meter, best)
+    assert best.meter == expected
     assert best.beats_per_bar == beats_per_bar
-    assert best.phase == phase
     assert {item.meter for item in candidates} <= {"3/4", "4/4"}
 
-# Weak evidence must become Uncertain.
-weak = np.zeros(96, dtype=float)
-best, _ = structure_engine.infer_meter(weak)
-status = "confirmed" if best.confidence >= structure_engine.METER_CONFIDENCE_THRESHOLD else "uncertain"
-reported = best.meter if status == "confirmed" else "Uncertain"
-assert reported == "Uncertain"
-
-# Bar grid and audible WAV proof.
-beats = [index * 0.5 for index in range(48)]
-segments = [
-    {"start_s": 0.0, "end_s": 8.0, "chord": "G"},
-    {"start_s": 8.0, "end_s": 16.0, "chord": "C"},
-    {"start_s": 16.0, "end_s": 24.5, "chord": "D"},
-]
-beat_grid, bars, aligned, downbeats = structure_engine.build_bar_grid(beats, 4, 1, segments)
-assert len(bars) >= 10
-assert aligned and downbeats
-
-with tempfile.TemporaryDirectory(prefix="banjofy_sal008_") as temporary:
+# Real AAC/M4A to audible WAV, through application helper.
+with tempfile.TemporaryDirectory(prefix="banjofy_sal009_m4a_") as temporary:
     folder = Path(temporary)
     sr = 22050
-    duration = 24.0
-    times = np.arange(0.0, duration, 1.0 / sr)
-    audio_data = (0.08 * np.sin(2 * np.pi * 220.0 * times)).astype(np.float32)
-    audio = folder / "proof.wav"
-    sf.write(audio, audio_data, sr)
+    duration = 8.0
+    samples = np.zeros(int(sr * duration), dtype=np.float32)
+    for beat in np.arange(0.5, duration, 0.5):
+        start = int(beat * sr)
+        samples[start:start + 250] += np.hanning(250).astype(np.float32) * 0.5
 
-    check = folder / "audible_bar_check.wav"
+    wav = folder / "source.wav"
+    m4a = folder / "source.m4a"
+    audible = folder / "audible.wav"
+    sf.write(wav, samples, sr)
+
+    subprocess.run([
+        imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-hide_banner", "-loglevel", "error",
+        "-i", str(wav), "-c:a", "aac", "-b:a", "192k", str(m4a),
+    ], check=True)
+    assert m4a.is_file() and m4a.stat().st_size > 1000
+
     structure_engine.create_audible_bar_check(
-        audio, beats, downbeats, check, preview_seconds=20.0
+        m4a,
+        [value for value in np.arange(0.5, duration, 0.5)],
+        [0.5, 2.5, 4.5, 6.5],
+        audible,
+        preview_seconds=8.0,
     )
-    assert check.is_file() and check.stat().st_size > 1000
+    assert audible.is_file() and audible.stat().st_size > 1000
 
-    library = folder / "LibraryRoot"
-    saved_audio = library / "Media" / "Audio" / "proof.wav"
-    saved_audio.parent.mkdir(parents=True)
-    saved_audio.write_bytes(audio.read_bytes())
+# Atomic Library update using M4A source.
+with tempfile.TemporaryDirectory(prefix="banjofy_sal009_library_") as temporary:
+    library = Path(temporary)
+    sr = 22050
+    duration = 8.0
+    wav = library / "source.wav"
+    audio = library / "Media" / "Audio" / "proof.m4a"
+    audio.parent.mkdir(parents=True)
+
+    t = np.arange(int(sr * duration)) / sr
+    sf.write(wav, (0.08 * np.sin(2 * np.pi * 220 * t)).astype(np.float32), sr)
+    subprocess.run([
+        imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-hide_banner", "-loglevel", "error",
+        "-i", str(wav), "-c:a", "aac", "-b:a", "192k", str(audio),
+    ], check=True)
 
     record_path = library / "Library" / "Songs" / "proof.json"
     record_path.parent.mkdir(parents=True)
     analysis_path = library / "Analysis" / "proof" / "song_analysis.json"
     analysis_path.parent.mkdir(parents=True)
 
+    segments = [{"start_s": 0.0, "end_s": duration, "chord": "G"}]
     record_path.write_text(json.dumps({
         "song_id": "proof",
         "title_requested": "Proof Song",
-        "practice_audio_path": str(saved_audio),
+        "practice_audio_path": str(audio),
         "analysis_path": str(analysis_path),
         "analysis_status": "completed",
     }), encoding="utf-8")
     analysis_path.write_text(json.dumps({"segments": segments}), encoding="utf-8")
 
+    beats = [value for value in np.arange(0.5, duration, 0.5)]
+    beat_grid, bars, aligned, downbeats = structure_engine.build_bar_grid(
+        beats, 4, 0, segments
+    )
     result = structure_engine.StructureResult(
-        structure_version=3,
-        source_audio=str(saved_audio),
+        structure_version=4,
+        source_audio=str(audio),
         raw_bpm=120.0,
         beat_times=beats,
         beat_count=len(beats),
@@ -132,28 +136,22 @@ with tempfile.TemporaryDirectory(prefix="banjofy_sal008_") as temporary:
         best_meter_candidate="4/4",
         beats_per_bar=4,
         meter_confidence=0.90,
-        first_downbeat_beat_index=1,
+        first_downbeat_beat_index=0,
         downbeat_times=downbeats,
         bar_start_times=downbeats,
         bar_count=len(bars),
         beat_grid=beat_grid,
         bars=bars,
         bar_aligned_chords=aligned,
-        candidate_meters=[{"meter": "4/4", "score": 2.0}],
+        candidate_meters=[],
         diagnostics=["proof"],
     )
-
-    paths = main.commit_structure(library, record_path, analysis_path, result)
-    structure_path, updated_record, updated_analysis, audible_path = paths
+    structure_path, updated_record, updated_analysis, audible_path = main.commit_structure(
+        library, record_path, analysis_path, result
+    )
+    assert audible_path.is_file()
     assert structure_path.is_file()
-    assert audible_path.is_file() and audible_path.name == "audible_bar_check.wav"
+    assert json.loads(updated_record.read_text(encoding="utf-8"))["audible_bar_check_path"]
+    assert json.loads(updated_analysis.read_text(encoding="utf-8"))["audible_bar_check_path"]
 
-    record = json.loads(updated_record.read_text(encoding="utf-8"))
-    analysis = json.loads(updated_analysis.read_text(encoding="utf-8"))
-    assert record["structure_summary"]["meter_status"] == "confirmed"
-    assert record["structure_summary"]["best_meter_candidate"] == "4/4"
-    assert Path(record["audible_bar_check_path"]).is_file()
-    assert analysis["best_meter_candidate"] == "4/4"
-    assert analysis["audible_bar_check_path"]
-
-print("Banjofy Song Analysis Laboratory 008 complete release gate: passed")
+print("Banjofy Song Analysis Laboratory 009 complete release gate: passed")

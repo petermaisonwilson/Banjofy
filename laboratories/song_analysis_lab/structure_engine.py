@@ -13,7 +13,7 @@ import numpy as np
 import scipy.signal
 
 
-STRUCTURE_VERSION = 3
+STRUCTURE_VERSION = 4
 METER_CONFIDENCE_THRESHOLD = 0.55
 SUPPORTED_METERS = ((3, "3/4"), (4, "4/4"))
 
@@ -248,56 +248,71 @@ def create_audible_bar_check(
     target: Path,
     preview_seconds: float = 60.0,
 ) -> Path:
-    """Create a short listening proof with distinct beat and downbeat clicks."""
+    """Create a listening proof from any supported media container.
+
+    M4A and MP4 are first converted to PCM WAV through the bundled FFmpeg route.
+    Librosa never opens the original compressed container directly.
+    """
     ensure_scipy_signal_compatibility()
-    y, sr = librosa.load(audio_path, sr=22050, mono=True, duration=preview_seconds)
-    if y is None or len(y) == 0:
-        raise RuntimeError("Could not create the audible bar check because the audio was empty.")
 
-    duration = len(y) / sr
-    ordinary_times = np.asarray(
-        [value for value in beat_times if 0.0 <= value < duration],
-        dtype=float,
-    )
-    strong_times = np.asarray(
-        [value for value in downbeat_times if 0.0 <= value < duration],
-        dtype=float,
-    )
+    with tempfile.TemporaryDirectory(prefix="banjofy_audible_check_") as temporary_folder:
+        wav_source = prepare_wav(audio_path, Path(temporary_folder))
+        y, sr = librosa.load(
+            wav_source,
+            sr=22050,
+            mono=True,
+            duration=preview_seconds,
+        )
+        if y is None or len(y) == 0:
+            raise RuntimeError(
+                "Could not create the audible bar check because the converted audio was empty."
+            )
 
-    beat_clicks = librosa.clicks(
-        times=ordinary_times,
-        sr=sr,
-        click_freq=1200.0,
-        click_duration=0.035,
-        length=len(y),
-    ).astype(np.float32)
-    downbeat_clicks = librosa.clicks(
-        times=strong_times,
-        sr=sr,
-        click_freq=320.0,
-        click_duration=0.10,
-        length=len(y),
-    ).astype(np.float32)
+        duration = len(y) / sr
+        ordinary_times = np.asarray(
+            [value for value in beat_times if 0.0 <= value < duration],
+            dtype=float,
+        )
+        strong_times = np.asarray(
+            [value for value in downbeat_times if 0.0 <= value < duration],
+            dtype=float,
+        )
 
-    audio = y.astype(np.float32)
-    peak = float(np.max(np.abs(audio))) if audio.size else 0.0
-    if peak > 0.95:
-        audio = audio / (peak / 0.95)
+        beat_clicks = librosa.clicks(
+            times=ordinary_times,
+            sr=sr,
+            click_freq=1200.0,
+            click_duration=0.035,
+            length=len(y),
+        ).astype(np.float32)
+        downbeat_clicks = librosa.clicks(
+            times=strong_times,
+            sr=sr,
+            click_freq=320.0,
+            click_duration=0.10,
+            length=len(y),
+        ).astype(np.float32)
 
-    mixed = audio * 0.82 + beat_clicks * 0.18 + downbeat_clicks * 0.42
-    mixed_peak = float(np.max(np.abs(mixed))) if mixed.size else 0.0
-    if mixed_peak > 0.98:
-        mixed = mixed / (mixed_peak / 0.98)
+        audio = y.astype(np.float32)
+        peak = float(np.max(np.abs(audio))) if audio.size else 0.0
+        if peak > 0.95:
+            audio = audio / (peak / 0.95)
 
-    target.parent.mkdir(parents=True, exist_ok=True)
-    temporary = target.with_name(target.stem + ".working" + target.suffix)
-    temporary.unlink(missing_ok=True)
+        mixed = audio * 0.82 + beat_clicks * 0.18 + downbeat_clicks * 0.42
+        mixed_peak = float(np.max(np.abs(mixed))) if mixed.size else 0.0
+        if mixed_peak > 0.98:
+            mixed = mixed / (mixed_peak / 0.98)
 
-    import soundfile as sf
-    sf.write(temporary, mixed, sr, subtype="PCM_16")
-    if not temporary.is_file() or temporary.stat().st_size == 0:
-        raise RuntimeError("The audible bar-check file was not created.")
-    temporary.replace(target)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temporary = target.with_name(target.stem + ".working" + target.suffix)
+        temporary.unlink(missing_ok=True)
+
+        import soundfile as sf
+        sf.write(temporary, mixed, sr, subtype="PCM_16")
+        if not temporary.is_file() or temporary.stat().st_size == 0:
+            raise RuntimeError("The audible bar-check file was not created.")
+        temporary.replace(target)
+
     return target
 
 def analyse_structure(audio_path: Path, chord_segments: list[dict], status_callback) -> StructureResult:
@@ -326,7 +341,7 @@ def analyse_structure(audio_path: Path, chord_segments: list[dict], status_callb
         status_callback("Measuring accents at each detected beat...")
         accents = beat_accent_values(y, sr, beat_times)
 
-        status_callback("Comparing 2/4, 3/4 and 4/4 bar patterns...")
+        status_callback("Comparing 3/4 and 4/4 bar patterns...")
         best, candidates = infer_meter(accents)
 
         status_callback("Numbering beats and constructing estimated bars...")

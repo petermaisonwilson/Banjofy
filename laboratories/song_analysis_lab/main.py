@@ -14,7 +14,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import structure_engine
 
-APP_TITLE = "Banjofy Song Analysis Laboratory 008 — 3/4 and 4/4 Meter Check"
+APP_TITLE = "Banjofy Song Analysis Laboratory 009 — 3/4 and 4/4 Meter Check"
 SETTINGS_FILENAME = "song_analysis_lab_settings.json"
 
 
@@ -108,19 +108,14 @@ def commit_structure(
     record_path: Path,
     analysis_path: Path,
     result: structure_engine.StructureResult,
-) -> tuple[Path, Path, Path]:
+) -> tuple[Path, Path, Path, Path]:
     record = read_json(record_path)
     analysis = read_json(analysis_path)
     song_id = str(record.get("song_id") or record_path.stem)
     folder = library_root / "Analysis" / song_id
     folder.mkdir(parents=True, exist_ok=True)
 
-    structure_path = folder / "song_structure.json"
-    payload = asdict(result)
-    payload["integration_laboratory"] = APP_TITLE
-    payload["completed_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
-    write_json_atomic(structure_path, payload)
-
+    # Complete the new media output before changing any passed JSON record.
     audible_check_path = folder / "audible_bar_check.wav"
     structure_engine.create_audible_bar_check(
         Path(result.source_audio),
@@ -128,6 +123,14 @@ def commit_structure(
         result.downbeat_times,
         audible_check_path,
     )
+    if not audible_check_path.is_file() or audible_check_path.stat().st_size == 0:
+        raise RuntimeError("The audible bar-check file was not created successfully.")
+
+    structure_path = folder / "song_structure.json"
+    payload = asdict(result)
+    payload["integration_laboratory"] = APP_TITLE
+    payload["completed_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    payload["audible_bar_check_path"] = str(audible_check_path)
 
     summary = {
         "meter": result.meter,
@@ -142,29 +145,34 @@ def commit_structure(
         "downbeat_times": list(result.downbeat_times),
     }
 
-    record["structure_status"] = "completed"
-    record["structure_version"] = result.structure_version
-    record["structure_path"] = str(structure_path)
-    record["structure_completed_at"] = payload["completed_at"]
-    record["structure_summary"] = summary
-    record["audible_bar_check_path"] = str(audible_check_path)
-    write_json_atomic(record_path, record)
+    updated_record = dict(record)
+    updated_record["structure_status"] = "completed"
+    updated_record["structure_version"] = result.structure_version
+    updated_record["structure_path"] = str(structure_path)
+    updated_record["structure_completed_at"] = payload["completed_at"]
+    updated_record["structure_summary"] = summary
+    updated_record["audible_bar_check_path"] = str(audible_check_path)
 
-    analysis["meter"] = result.meter
-    analysis["meter_status"] = result.meter_status
-    analysis["best_meter_candidate"] = result.best_meter_candidate
-    analysis["meter_confidence"] = result.meter_confidence
-    analysis["beats_per_bar"] = result.beats_per_bar
-    analysis["beat_times"] = result.beat_times
-    analysis["downbeat_times"] = result.downbeat_times
-    analysis["bar_start_times"] = result.bar_start_times
-    analysis["bar_count"] = result.bar_count
-    analysis["beat_grid"] = result.beat_grid
-    analysis["bars"] = result.bars
-    analysis["bar_aligned_chords"] = result.bar_aligned_chords
-    analysis["structure_version"] = result.structure_version
-    analysis["audible_bar_check_path"] = str(audible_check_path)
-    write_json_atomic(analysis_path, analysis)
+    updated_analysis = dict(analysis)
+    updated_analysis["meter"] = result.meter
+    updated_analysis["meter_status"] = result.meter_status
+    updated_analysis["best_meter_candidate"] = result.best_meter_candidate
+    updated_analysis["meter_confidence"] = result.meter_confidence
+    updated_analysis["beats_per_bar"] = result.beats_per_bar
+    updated_analysis["beat_times"] = result.beat_times
+    updated_analysis["downbeat_times"] = result.downbeat_times
+    updated_analysis["bar_start_times"] = result.bar_start_times
+    updated_analysis["bar_count"] = result.bar_count
+    updated_analysis["beat_grid"] = result.beat_grid
+    updated_analysis["bars"] = result.bars
+    updated_analysis["bar_aligned_chords"] = result.bar_aligned_chords
+    updated_analysis["structure_version"] = result.structure_version
+    updated_analysis["audible_bar_check_path"] = str(audible_check_path)
+
+    # Commit all JSON only after the audible WAV is safely present.
+    write_json_atomic(structure_path, payload)
+    write_json_atomic(record_path, updated_record)
+    write_json_atomic(analysis_path, updated_analysis)
 
     return structure_path, record_path, analysis_path, audible_check_path
 

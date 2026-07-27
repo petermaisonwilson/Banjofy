@@ -1,16 +1,7 @@
-BANJOFY SONG ANALYSIS LABORATORY 008
+BANJOFY SONG ANALYSIS LABORATORY 009
 
-BRANCH
-song-analysis-lab
+Branch: song-analysis-lab
+Scope: 3/4 and 4/4 only.
 
-AGREED METER SCOPE
-3/4 and 4/4 only.
-
-COMPUTER FOLDER UPDATED
-laboratories\song_analysis_lab
-
-Copy everything INSIDE SAL008 into the existing repository while GitHub Desktop
-shows song-analysis-lab.
-
-This build removes 2/4, adds explicit uncertainty handling and creates an
-audible bar/downbeat check.
+Audible checks now use bundled FFmpeg before Librosa and are completed before
+any JSON update. Copy everything inside SAL009 into the existing repository.

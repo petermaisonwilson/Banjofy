@@ -1,65 +1,22 @@
-RELEASE AUDIT — BANJOFY SONG ANALYSIS LABORATORY 008
+RELEASE AUDIT — SONG ANALYSIS LABORATORY 009
 
-AGREED SCOPE LOCK
-- 3/4
-- 4/4
-- No 2/4
-- No 6/8
-- No other meter added without approval
+Scope locked: 3/4 and 4/4 only.
 
-PRESERVED PASSED BEHAVIOUR
-- Laboratory 001 Library analysis handover
-- Practice audio
-- Key, BPM, beats and chord timeline
-- Laboratory 007 technical structure persistence
-- Safe Tkinter startup
-- Safe remembered-Library handling
-- Atomic JSON updates
-- Existing filenames unchanged
+Root cause:
+- Build 008 opened original M4A directly in Librosa for audible creation.
+- SoundFile rejected the container and packaged Audioread had no backend.
 
-NEW BEHAVIOUR
-- Candidate set restricted to 3/4 and 4/4
-- Confidence threshold: 55%
-- Below threshold: meter = Uncertain
-- best_meter_candidate remains 3/4 or 4/4
-- meter_status = confirmed or uncertain
-- audible_bar_check.wav
-- ordinary beat clicks
-- stronger downbeat clicks
-- Play Audible Bar Check button
+Correction:
+- Audible helper always converts source through bundled FFmpeg.
+- Librosa receives PCM WAV only.
+- Real AAC/M4A is tested locally and in GitHub.
+- Audible output is verified before JSON writes.
+- Leftover 2/4 status wording removed.
 
-FULL LOCAL GATE
-- AST and compilation
-- Exact Build 008 identity
-- Ban on 2/4 in engine and UI
-- Deterministic 3/4 proof
-- Deterministic 4/4 proof
-- Weak evidence becomes Uncertain
-- Audible WAV generation
-- Bar and chord grids
-- Library discovery
-- Atomic JSON updates
-- Audible path persistence
-- Existing filenames unchanged
-- Five real Tk startup handshakes
-
-GITHUB WINDOWS PROOF
-- Pinned dependencies
-- Complete release gate
-- Direct 3/4 audio proof
-- Direct 4/4 audio proof
-- Audible WAV proof
-- PyInstaller clean build
-- Five positive finished-EXE startup handshakes
-- Exact two-file artifact
-
-PETER WINDOWS PROOF REQUIRED
-- Real song completes
-- Audible file plays
-- Strong clicks align with musical bar starts
-- Result correctly confirmed or marked Uncertain
-
-BRANCH SAFETY
-- song-analysis-lab only
-- main untouched
-- firefox-acquisition-lab untouched
+Preserved:
+- uncertainty threshold;
+- best candidate;
+- safe Tkinter startup;
+- Library integration;
+- existing filenames;
+- main and firefox acquisition branches untouched.
