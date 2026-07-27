@@ -1,8 +1,15 @@
-RELEASE AUDIT — LABORATORY 010
-- 3/4 and 4/4 only
-- 180-second audible WAV
-- visual bar/beat marker
-- strongest 64-beat rhythmic confidence window
-- full-track confidence retained
-- central FFmpeg M4A route preserved
-- safe Tk startup preserved
+RELEASE AUDIT — SONG ANALYSIS LABORATORY 011
+
+Confirmed correction:
+- whole-track candidate controls final candidate, beats per bar and phase;
+- rhythmic window cannot replace it;
+- disagreement remains Uncertain and is recorded;
+- 180-second audible and visual proof preserved;
+- M4A always uses bundled FFmpeg;
+- 3/4 and 4/4 only;
+- main and firefox-acquisition-lab untouched.
+
+Proof layers:
+- local source and M4A release gate;
+- GitHub Windows EXE and five startup handshakes;
+- Peter Windows musical listening proof.

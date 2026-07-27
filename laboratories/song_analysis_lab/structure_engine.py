@@ -13,7 +13,7 @@ import numpy as np
 import scipy.signal
 
 
-STRUCTURE_VERSION = 5
+STRUCTURE_VERSION = 6
 METER_CONFIDENCE_THRESHOLD = 0.55
 RHYTHMIC_WINDOW_BEATS = 64
 AUDIBLE_PREVIEW_SECONDS = 180.0
@@ -48,6 +48,9 @@ class StructureResult:
     beats_per_bar: int
     meter_confidence: float
     full_track_meter_confidence: float
+    rhythmic_window_candidate: str
+    rhythmic_window_meter_confidence: float
+    meter_candidate_agreement: bool
     rhythmic_window_start_beat: int
     rhythmic_window_end_beat: int
     rhythmic_window_start_s: float
@@ -352,12 +355,26 @@ def create_audible_bar_check(
 
     return target
 
+
+def choose_primary_meter(
+    full_best: MeterCandidate,
+    rhythmic_best: MeterCandidate,
+) -> tuple[MeterCandidate, bool]:
+    """Keep the whole-track candidate primary.
+
+    A short rhythmic window may support the whole-track result, but it cannot
+    overturn it. Disagreement is recorded and leaves the result uncertain.
+    """
+    agreement = full_best.meter == rhythmic_best.meter
+    return full_best, agreement
+
 def analyse_structure(audio_path: Path, chord_segments: list[dict], status_callback) -> StructureResult:
     ensure_scipy_signal_compatibility()
     diagnostics = [
         "Metre is estimated from recurring beat-level accent patterns.",
         "Supported candidates in this laboratory are 3/4 and 4/4 only.",
         "Downbeats are estimates and must be checked on real songs before Practice integration.",
+        "The whole-track candidate remains primary; a short rhythmic window cannot overturn it.",
     ]
 
     with tempfile.TemporaryDirectory(prefix="banjofy_structure_002_") as temporary:
@@ -386,12 +403,10 @@ def analyse_structure(audio_path: Path, chord_segments: list[dict], status_callb
             select_strongest_rhythmic_window(accents, beat_times)
         )
         status_callback("Comparing 3/4 and 4/4 in the strongest rhythmic section...")
-        rhythmic_best, candidates = infer_meter(rhythmic_accents)
-        global_phase = (rhythmic_best.phase + rhythmic_start) % rhythmic_best.beats_per_bar
-        best = MeterCandidate(
-            rhythmic_best.meter, rhythmic_best.beats_per_bar, global_phase,
-            rhythmic_best.score, rhythmic_best.confidence
-        )
+        rhythmic_best, rhythmic_candidates = infer_meter(rhythmic_accents)
+
+        status_callback("Keeping the whole-track meter as the primary candidate...")
+        best, meter_candidate_agreement = choose_primary_meter(full_best, rhythmic_best)
 
         status_callback("Numbering beats and constructing estimated bars...")
         beat_grid, bars, aligned, downbeats = build_bar_grid(
@@ -402,7 +417,11 @@ def analyse_structure(audio_path: Path, chord_segments: list[dict], status_callb
 
         meter_status = (
             "confirmed"
-            if best.confidence >= METER_CONFIDENCE_THRESHOLD
+            if (
+                meter_candidate_agreement
+                and best.confidence >= METER_CONFIDENCE_THRESHOLD
+                and rhythmic_best.confidence >= METER_CONFIDENCE_THRESHOLD
+            )
             else "uncertain"
         )
         reported_meter = best.meter if meter_status == "confirmed" else "Uncertain"
@@ -417,8 +436,11 @@ def analyse_structure(audio_path: Path, chord_segments: list[dict], status_callb
             meter_status=meter_status,
             best_meter_candidate=best.meter,
             beats_per_bar=best.beats_per_bar,
-            meter_confidence=best.confidence,
+            meter_confidence=full_best.confidence,
             full_track_meter_confidence=full_best.confidence,
+            rhythmic_window_candidate=rhythmic_best.meter,
+            rhythmic_window_meter_confidence=rhythmic_best.confidence,
+            meter_candidate_agreement=meter_candidate_agreement,
             rhythmic_window_start_beat=rhythmic_start,
             rhythmic_window_end_beat=rhythmic_end,
             rhythmic_window_start_s=round(rhythmic_start_s, 6),
@@ -430,6 +452,6 @@ def analyse_structure(audio_path: Path, chord_segments: list[dict], status_callb
             beat_grid=beat_grid,
             bars=bars,
             bar_aligned_chords=aligned,
-            candidate_meters=[asdict(item) for item in candidates],
+            candidate_meters=[asdict(item) for item in full_candidates],
             diagnostics=diagnostics,
         )

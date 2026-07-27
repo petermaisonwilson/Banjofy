@@ -1,13 +1,10 @@
-Banjofy Song Analysis Laboratory 010 — Audited Clean Rebuild
+Banjofy Song Analysis Laboratory 011 — Audited Clean Rebuild
 
 Files:
 .github/workflows/song-analysis-lab.yml
 README_FIRST.txt
 RELEASE_AUDIT.txt
-SONG_ANALYSIS_LAB_010_TEST.txt
-laboratories/song_analysis_lab/__pycache__/main.cpython-313.pyc
-laboratories/song_analysis_lab/__pycache__/release_gate.cpython-313.pyc
-laboratories/song_analysis_lab/__pycache__/structure_engine.cpython-313.pyc
+SONG_ANALYSIS_LAB_011_TEST.txt
 laboratories/song_analysis_lab/main.py
 laboratories/song_analysis_lab/release_gate.py
 laboratories/song_analysis_lab/requirements.txt

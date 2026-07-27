@@ -15,7 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import structure_engine
 
-APP_TITLE = "Banjofy Song Analysis Laboratory 010 — Extended Audible and Visual Meter Check"
+APP_TITLE = "Banjofy Song Analysis Laboratory 011 — Whole-Track Meter with Visual Check"
 SETTINGS_FILENAME = "song_analysis_lab_settings.json"
 
 
@@ -139,6 +139,9 @@ def commit_structure(
         "best_meter_candidate": result.best_meter_candidate,
         "meter_confidence": round(float(result.meter_confidence), 4),
         "full_track_meter_confidence": round(float(result.full_track_meter_confidence), 4),
+        "rhythmic_window_candidate": result.rhythmic_window_candidate,
+        "rhythmic_window_meter_confidence": round(float(result.rhythmic_window_meter_confidence), 4),
+        "meter_candidate_agreement": bool(result.meter_candidate_agreement),
         "rhythmic_window_start_beat": int(result.rhythmic_window_start_beat),
         "rhythmic_window_end_beat": int(result.rhythmic_window_end_beat),
         "rhythmic_window_start_s": float(result.rhythmic_window_start_s),
@@ -165,6 +168,9 @@ def commit_structure(
     updated_analysis["best_meter_candidate"] = result.best_meter_candidate
     updated_analysis["meter_confidence"] = result.meter_confidence
     updated_analysis["full_track_meter_confidence"] = result.full_track_meter_confidence
+    updated_analysis["rhythmic_window_candidate"] = result.rhythmic_window_candidate
+    updated_analysis["rhythmic_window_meter_confidence"] = result.rhythmic_window_meter_confidence
+    updated_analysis["meter_candidate_agreement"] = result.meter_candidate_agreement
     updated_analysis["rhythmic_window_start_beat"] = result.rhythmic_window_start_beat
     updated_analysis["rhythmic_window_end_beat"] = result.rhythmic_window_end_beat
     updated_analysis["rhythmic_window_start_s"] = result.rhythmic_window_start_s
@@ -410,9 +416,11 @@ class App(tk.Tk):
                 self._append(f"Meter result: {result.meter}")
                 self._append(f"Best candidate: {result.best_meter_candidate}")
                 self._append(f"Meter status: {result.meter_status}")
-                self._append(f"Rhythmic-section confidence: {result.meter_confidence:.0%}")
-                self._append(f"Full-track confidence: {result.full_track_meter_confidence:.0%}")
-                self._append(f"Confidence window: {result.rhythmic_window_start_s:.1f}s to {result.rhythmic_window_end_s:.1f}s")
+                self._append(f"Whole-track confidence: {result.full_track_meter_confidence:.0%}")
+                self._append(f"Rhythmic-window candidate: {result.rhythmic_window_candidate}")
+                self._append(f"Rhythmic-window confidence: {result.rhythmic_window_meter_confidence:.0%}")
+                self._append(f"Candidate agreement: {'Yes' if result.meter_candidate_agreement else 'No'}")
+                self._append(f"Supporting window: {result.rhythmic_window_start_s:.1f}s to {result.rhythmic_window_end_s:.1f}s")
                 self._append(f"Beats per bar: {result.beats_per_bar}")
                 self._append(f"Detected beats: {result.beat_count}")
                 self._append(f"Estimated bars: {result.bar_count}")

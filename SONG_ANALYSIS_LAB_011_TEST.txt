@@ -1,0 +1,62 @@
+BANJOFY SONG ANALYSIS LABORATORY 011 — WINDOWS TEST
+WHOLE-TRACK METER WITH EXTENDED AUDIBLE AND VISUAL CHECK
+
+AGREED SCOPE
+3/4 and 4/4 only.
+
+BUILD 010 REGRESSION CORRECTED
+Build 010 allowed a short 64-beat window to replace the whole-track meter.
+Hotel California changed from the credible 4/4 candidate to an audible wrong
+3/4 grouping. Build 011 makes that replacement impossible.
+
+BUILD 011 RULE
+- Whole-track candidate is primary.
+- Rhythmic-window candidate is supporting evidence only.
+- A short window cannot alter beats per bar or downbeat phase.
+- If whole-track and window disagree, status remains Uncertain.
+- Both must agree and both must pass 55% before confirmation.
+
+PRESERVED
+- 180-second audible WAV from the beginning.
+- Visual bar, beat and DOWNBEAT marker.
+- Central FFmpeg M4A conversion.
+- Existing Library filenames and JSON updates.
+
+WINDOWS TEST
+1. Run BanjofySongAnalysisLab011.exe.
+2. Select Hotel California.
+3. Click Detect 3/4 or 4/4 and Create Audible Check.
+4. Record:
+   Meter result
+   Best candidate
+   Meter status
+   Whole-track confidence
+   Rhythmic-window candidate
+   Rhythmic-window confidence
+   Candidate agreement
+   Supporting window
+   Beats per bar
+   First downbeat beat index
+5. Click Play 180-Second Audible + Visual Check.
+6. Confirm it shows Beat 1 of 4, not Beat 1 of 3.
+7. Confirm strong clicks and DOWNBEAT markers follow real bar starts.
+8. Confirm alignment remains stable through the preview.
+
+CHECK FILENAME ONLY
+Analysis\<song-id>\audible_bar_check.wav
+Analysis\<song-id>\song_structure.json
+
+OPEN IN NOTEPAD
+Existing Library song JSON and song_analysis.json should contain:
+meter
+meter_status
+best_meter_candidate
+meter_confidence
+full_track_meter_confidence
+rhythmic_window_candidate
+rhythmic_window_meter_confidence
+meter_candidate_agreement
+beats_per_bar
+downbeat_times
+bar_aligned_chords
+audible_bar_check_path
