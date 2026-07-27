@@ -1,0 +1,43 @@
+BANJOFY SONG ANALYSIS LABORATORY 012 — WINDOWS TEST
+VISUAL CHORD AND BAR ALIGNMENT CHECK
+
+AGREED SCOPE
+3/4 and 4/4 only. Build 011 meter logic is unchanged.
+
+PURPOSE
+Display the existing saved chord timeline beside the proven audible beat and
+bar check. This build does not run a new chord detector.
+
+TEST
+1. Run BanjofySongAnalysisLab012.exe.
+2. Select Hotel California.
+3. The existing Build 011 analysis may be reused. Re-run the structure check
+   only when the Play button remains disabled.
+4. Click Play 180-Second Audible + Visual Check.
+
+WATCH AND LISTEN
+- Current chord: large central chord name.
+- Next chord: the next saved chord segment.
+- Change in: seconds remaining until that stored change.
+- Bar and Beat: the passed Build 011 four-beat grid.
+- DOWNBEAT: the estimated first beat of each bar.
+
+REPORT
+- Does the displayed current chord match what you hear?
+- Does the chord change at the correct audible moment?
+- Do changes that occur on a downbeat visibly coincide with DOWNBEAT?
+- Are any off-downbeat changes musically genuine?
+- Does chord, beat and bar display remain synchronised without drift?
+
+IMPORTANT
+A chord does not have to change at every new bar. One chord may continue across
+several bars, and a genuine chord change may occasionally occur within a bar.
+
+CHECK BY FILENAME ONLY
+Analysis\<song-id>\audible_bar_check.wav
+Analysis\<song-id>\song_structure.json
+
+OPEN IN NOTEPAD AND INSPECT CONTENTS
+Analysis\<song-id>\song_analysis.json
+Confirm the existing segments, beat_times, downbeat_times and
+bar_aligned_chords fields remain populated.

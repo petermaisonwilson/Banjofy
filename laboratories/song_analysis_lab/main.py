@@ -15,7 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import structure_engine
 
-APP_TITLE = "Banjofy Song Analysis Laboratory 011 — Whole-Track Meter with Visual Check"
+APP_TITLE = "Banjofy Song Analysis Laboratory 012 — Visual Chord and Bar Alignment Check"
 SETTINGS_FILENAME = "song_analysis_lab_settings.json"
 
 
@@ -213,6 +213,7 @@ class App(tk.Tk):
         self.visual_started_at: float | None = None
         self.visual_beat_times: list[float] = []
         self.visual_downbeat_times: list[float] = []
+        self.visual_chord_segments: list[dict] = []
         self.visual_beats_per_bar: int = 4
         self.visual_duration: float = 0.0
         self._load_settings()
@@ -452,9 +453,23 @@ class App(tk.Tk):
         analysis = read_json(self.selected_song["analysis_path"])
         self.visual_beat_times = [float(v) for v in analysis.get("beat_times", [])]
         self.visual_downbeat_times = [float(v) for v in analysis.get("downbeat_times", [])]
+        raw_segments = analysis.get("segments", [])
+        self.visual_chord_segments = [
+            segment for segment in raw_segments
+            if isinstance(segment, dict)
+            and isinstance(segment.get("start_s"), (int, float))
+            and isinstance(segment.get("end_s"), (int, float))
+        ] if isinstance(raw_segments, list) else []
+        self.visual_chord_segments.sort(key=lambda item: float(item.get("start_s", 0.0)))
         self.visual_beats_per_bar = int(analysis.get("beats_per_bar") or 4)
         if not self.visual_beat_times or not self.visual_downbeat_times:
             messagebox.showerror(APP_TITLE, "Beat or downbeat data is missing.")
+            return
+        if not self.visual_chord_segments:
+            messagebox.showerror(
+                APP_TITLE,
+                "The saved song analysis contains no chord segments to display.",
+            )
             return
         try:
             import winsound
@@ -471,26 +486,107 @@ class App(tk.Tk):
         if self.visual_window is not None and self.visual_window.winfo_exists():
             self.visual_window.destroy()
         self.visual_window = tk.Toplevel(self)
-        self.visual_window.title("Banjofy Audible Meter Check")
-        self.visual_window.geometry("760x300")
+        self.visual_window.title("Banjofy Chord, Beat and Bar Alignment Check")
+        self.visual_window.geometry("900x520")
+        self.visual_window.minsize(780, 470)
+
         frame = ttk.Frame(self.visual_window, padding=18)
         frame.pack(fill="both", expand=True)
-        ttk.Label(frame, text="Audible and Visual Bar Check", font=("Segoe UI", 18, "bold")).pack()
+
+        ttk.Label(
+            frame,
+            text="Visual Chord and Bar Alignment Check",
+            font=("Segoe UI", 18, "bold"),
+        ).pack(anchor="center")
+        ttk.Label(
+            frame,
+            text=(
+                "The chord names come from the existing song_analysis.json timeline. "
+                "This test does not reanalyse or alter the chord detector."
+            ),
+            wraplength=840,
+        ).pack(anchor="center", pady=(4, 14))
+
         self.visual_bar_var = tk.StringVar(value="Bar —")
         self.visual_beat_var = tk.StringVar(value="Beat —")
         self.visual_time_var = tk.StringVar(value="0:00 / 3:00")
         self.visual_status_var = tk.StringVar(value="Starting…")
-        row = ttk.Frame(frame); row.pack(fill="x", pady=18)
-        ttk.Label(row, textvariable=self.visual_bar_var, font=("Segoe UI", 28, "bold")).pack(side="left")
-        ttk.Label(row, textvariable=self.visual_beat_var, font=("Segoe UI", 28)).pack(side="left", padx=24)
-        ttk.Label(row, textvariable=self.visual_time_var, font=("Segoe UI", 16)).pack(side="right")
+        self.visual_current_chord_var = tk.StringVar(value="—")
+        self.visual_next_chord_var = tk.StringVar(value="Next chord: —")
+        self.visual_change_var = tk.StringVar(value="Change in: —")
+
+        timing = ttk.Frame(frame)
+        timing.pack(fill="x", pady=(4, 12))
+        ttk.Label(timing, textvariable=self.visual_bar_var, font=("Segoe UI", 26, "bold")).pack(side="left")
+        ttk.Label(timing, textvariable=self.visual_beat_var, font=("Segoe UI", 26)).pack(side="left", padx=24)
+        ttk.Label(timing, textvariable=self.visual_time_var, font=("Segoe UI", 16)).pack(side="right")
+
+        chord_box = ttk.LabelFrame(frame, text="Current chord from saved timeline")
+        chord_box.pack(fill="x", pady=(4, 14))
+        ttk.Label(
+            chord_box,
+            textvariable=self.visual_current_chord_var,
+            font=("Segoe UI", 42, "bold"),
+            anchor="center",
+        ).pack(fill="x", padx=12, pady=(8, 2))
+        chord_details = ttk.Frame(chord_box)
+        chord_details.pack(fill="x", padx=12, pady=(0, 10))
+        ttk.Label(
+            chord_details,
+            textvariable=self.visual_next_chord_var,
+            font=("Segoe UI", 15, "bold"),
+        ).pack(side="left")
+        ttk.Label(
+            chord_details,
+            textvariable=self.visual_change_var,
+            font=("Segoe UI", 15),
+        ).pack(side="right")
+
         self.visual_canvas = tk.Canvas(frame, height=90, highlightthickness=1)
         self.visual_canvas.pack(fill="x")
-        self.visual_canvas.create_line(30,45,700,45,width=3)
-        self.visual_marker = self.visual_canvas.create_oval(22,29,38,61)
-        ttk.Label(frame, textvariable=self.visual_status_var, font=("Segoe UI", 14, "bold")).pack(pady=10)
+        self.visual_canvas.create_line(30, 45, 830, 45, width=3)
+        self.visual_marker = self.visual_canvas.create_oval(22, 29, 38, 61)
+
+        ttk.Label(
+            frame,
+            textvariable=self.visual_status_var,
+            font=("Segoe UI", 14, "bold"),
+        ).pack(pady=10)
         ttk.Button(frame, text="Stop Test", command=self._stop_visual_test).pack(side="right")
         self.visual_window.protocol("WM_DELETE_WINDOW", self._stop_visual_test)
+
+    def _chord_display_at(self, elapsed: float) -> tuple[str, str, float | None]:
+        current_index = None
+        for index, segment in enumerate(self.visual_chord_segments):
+            start = float(segment.get("start_s", 0.0))
+            end = float(segment.get("end_s", start))
+            if start <= elapsed < end:
+                current_index = index
+                break
+
+        if current_index is None:
+            next_segment = next(
+                (segment for segment in self.visual_chord_segments
+                 if float(segment.get("start_s", 0.0)) > elapsed),
+                None,
+            )
+            if next_segment is None:
+                return "—", "—", None
+            next_chord = str(next_segment.get("chord") or "N")
+            return "—", next_chord, max(0.0, float(next_segment.get("start_s", 0.0)) - elapsed)
+
+        current = self.visual_chord_segments[current_index]
+        current_chord = str(current.get("chord") or "N")
+        next_segment = (
+            self.visual_chord_segments[current_index + 1]
+            if current_index + 1 < len(self.visual_chord_segments)
+            else None
+        )
+        if next_segment is None:
+            return current_chord, "—", None
+        next_chord = str(next_segment.get("chord") or "N")
+        change_in = max(0.0, float(next_segment.get("start_s", 0.0)) - elapsed)
+        return current_chord, next_chord, change_in
 
     def _update_visual_marker(self) -> None:
         if self.visual_started_at is None or self.visual_window is None or not self.visual_window.winfo_exists():
@@ -511,6 +607,16 @@ class App(tk.Tk):
         self.visual_beat_var.set(f"Beat {beat_in_bar} of {self.visual_beats_per_bar}")
         self.visual_time_var.set(f"{int(elapsed)//60}:{int(elapsed)%60:02d} / 3:00")
         self.visual_status_var.set("DOWNBEAT — estimated start of bar" if is_down else "Beat")
+
+        current_chord, next_chord, change_in = self._chord_display_at(elapsed)
+        self.visual_current_chord_var.set(current_chord)
+        self.visual_next_chord_var.set(f"Next chord: {next_chord}")
+        self.visual_change_var.set(
+            "Change in: —"
+            if change_in is None
+            else f"Change in: {change_in:.1f}s"
+        )
+
         self.after(25,self._update_visual_marker)
 
     def _stop_visual_test(self) -> None:

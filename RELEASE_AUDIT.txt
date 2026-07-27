@@ -1,15 +1,32 @@
-RELEASE AUDIT — SONG ANALYSIS LABORATORY 011
+RELEASE AUDIT — SONG ANALYSIS LABORATORY 012
 
-Confirmed correction:
-- whole-track candidate controls final candidate, beats per bar and phase;
-- rhythmic window cannot replace it;
-- disagreement remains Uncertain and is recorded;
-- 180-second audible and visual proof preserved;
-- M4A always uses bundled FFmpeg;
-- 3/4 and 4/4 only;
-- main and firefox-acquisition-lab untouched.
+SCOPE LOCK
+- 3/4 and 4/4 only
+- Build 011 whole-track primary decision unchanged
+- no confidence recalibration
+- no chord reanalysis
 
-Proof layers:
-- local source and M4A release gate;
-- GitHub Windows EXE and five startup handshakes;
-- Peter Windows musical listening proof.
+NEW VALIDATION VIEW
+- current saved chord
+- next saved chord
+- countdown to stored chord change
+- existing bar number
+- existing beat number
+- existing visual downbeat
+- existing 180-second audible proof
+
+DIRECT PROOFS
+- chord before first segment
+- exact segment start
+- inside segment countdown
+- exact chord transition
+- final segment
+- after final segment
+- playback route performs no JSON write or new analysis
+
+PRESERVED
+- FFmpeg M4A route
+- atomic JSON updates
+- Library integration
+- existing filenames
+- safe Tkinter startup

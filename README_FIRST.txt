@@ -1,7 +1,8 @@
-BANJOFY SONG ANALYSIS LABORATORY 011
+BANJOFY SONG ANALYSIS LABORATORY 012
 
 Branch: song-analysis-lab
 Scope: 3/4 and 4/4 only.
 
-The whole-track meter is primary. A short rhythmic window is supporting
-evidence only and cannot overturn beats per bar or downbeat phase.
+Build 012 keeps the passed Build 011 meter and bar logic unchanged. It adds a
+real-time display of current chord, next chord and time to the next stored
+chord change alongside the 180-second beat and downbeat validation window.
