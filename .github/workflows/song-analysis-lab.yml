@@ -1,4 +1,4 @@
-name: Build Banjofy Song Analysis Laboratory 005
+name: Build Banjofy Song Analysis Laboratory 006
 
 on:
   push:
@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Verify exact Build 005 paths
+      - name: Verify exact Build 006 paths
         shell: pwsh
         run: |
           $required = @(
@@ -30,10 +30,10 @@ jobs:
             "laboratories/song_analysis_lab/song_analysis_lab.spec",
             "laboratories/song_analysis_lab/release_gate.py",
             "laboratories/song_analysis_lab/requirements.txt",
-            "SONG_ANALYSIS_LAB_005_TEST.txt"
+            "SONG_ANALYSIS_LAB_006_TEST.txt"
           )
           foreach ($file in $required) {
-            if (-not (Test-Path $file)) { throw "Missing Build 005 file: $file" }
+            if (-not (Test-Path $file)) { throw "Missing Build 006 file: $file" }
           }
 
       - name: Install pinned dependencies
@@ -47,9 +47,9 @@ jobs:
         working-directory: laboratories/song_analysis_lab
         run: |
           python release_gate.py
-          if ($LASTEXITCODE -ne 0) { throw "Laboratory 005 full release gate failed" }
+          if ($LASTEXITCODE -ne 0) { throw "Laboratory 006 complete release gate failed" }
 
-      - name: Compile every Build 005 source
+      - name: Compile every Build 006 source
         working-directory: laboratories/song_analysis_lab
         run: |
           python -m py_compile main.py structure_engine.py release_gate.py
@@ -62,11 +62,9 @@ jobs:
           @'
           import tempfile
           from pathlib import Path
-
           import librosa
           import numpy as np
           import soundfile as sf
-
           import structure_engine
 
           sr = 22050
@@ -123,76 +121,104 @@ jobs:
         run: |
           python -c "import imageio_ffmpeg, os; p=imageio_ffmpeg.get_ffmpeg_exe(); assert os.path.exists(p); print('FFmpeg available:', p)"
 
-      - name: Build standalone Windows Laboratory 005
+      - name: Build standalone Windows Laboratory 006
         working-directory: laboratories/song_analysis_lab
         run: |
           pyinstaller --clean --noconfirm song_analysis_lab.spec
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
-          if (-not (Test-Path "dist/BanjofySongAnalysisLab005.exe")) { throw "Expected EXE was not produced" }
+          if (-not (Test-Path "dist/BanjofySongAnalysisLab006.exe")) { throw "Expected EXE was not produced" }
 
-      - name: Finished EXE startup with no settings file
+      - name: Finished EXE positive startup handshakes
         shell: pwsh
         run: |
-          $settingsFolder = Join-Path $env:LOCALAPPDATA "Banjofy\SongAnalysisLab"
-          Remove-Item $settingsFolder -Recurse -Force -ErrorAction SilentlyContinue
-
-          $exe = "$env:GITHUB_WORKSPACE/laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab005.exe"
-          $process = Start-Process -FilePath $exe -PassThru
-          Start-Sleep -Seconds 10
-          if ($process.HasExited) { throw "EXE failed without settings; code $($process.ExitCode)" }
-          Stop-Process -Id $process.Id -Force
-          Write-Host "No-settings EXE startup passed"
-
-      - name: Finished EXE startup with valid settings file
-        shell: pwsh
-        run: |
-          $settingsFolder = Join-Path $env:LOCALAPPDATA "Banjofy\SongAnalysisLab"
-          New-Item -ItemType Directory -Force $settingsFolder | Out-Null
-          $settingsFile = Join-Path $settingsFolder "song_analysis_lab_settings.json"
-          $payload = @{ library_root = "C:\Existing Banjofy Library" } | ConvertTo-Json -Compress
-          Set-Content -Path $settingsFile -Value $payload -Encoding UTF8
-
-          $exe = "$env:GITHUB_WORKSPACE/laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab005.exe"
-          $process = Start-Process -FilePath $exe -PassThru
-          Start-Sleep -Seconds 10
-          if ($process.HasExited) { throw "EXE failed with valid settings; code $($process.ExitCode)" }
-          Stop-Process -Id $process.Id -Force
-          Write-Host "Valid-settings EXE startup passed"
-
-      - name: Finished EXE startup with malformed settings file
-        shell: pwsh
-        run: |
+          $exe = "$env:GITHUB_WORKSPACE/laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab006.exe"
           $settingsFolder = Join-Path $env:LOCALAPPDATA "Banjofy\SongAnalysisLab"
           $settingsFile = Join-Path $settingsFolder "song_analysis_lab_settings.json"
-          Set-Content -Path $settingsFile -Value "{broken" -Encoding UTF8
+          $probeFolder = Join-Path $env:RUNNER_TEMP "banjofy-sal006-probes"
+          New-Item -ItemType Directory -Force $probeFolder | Out-Null
 
-          $exe = "$env:GITHUB_WORKSPACE/laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab005.exe"
-          $process = Start-Process -FilePath $exe -PassThru
-          Start-Sleep -Seconds 10
-          if ($process.HasExited) { throw "EXE failed with malformed settings; code $($process.ExitCode)" }
-          Stop-Process -Id $process.Id -Force
-          Write-Host "Malformed-settings EXE startup passed"
+          function Invoke-StartupProof {
+            param(
+              [string]$Name,
+              [string]$SettingsMode
+            )
+
+            Remove-Item $settingsFolder -Recurse -Force -ErrorAction SilentlyContinue
+            New-Item -ItemType Directory -Force $settingsFolder | Out-Null
+
+            if ($SettingsMode -eq "valid") {
+              $payload = @{ library_root = "C:\Existing Banjofy Library" } | ConvertTo-Json -Compress
+              Set-Content -Path $settingsFile -Value $payload -Encoding UTF8
+            }
+            elseif ($SettingsMode -eq "malformed") {
+              Set-Content -Path $settingsFile -Value "{broken" -Encoding UTF8
+            }
+            elseif ($SettingsMode -eq "wrong-shape") {
+              Set-Content -Path $settingsFile -Value '["wrong","shape"]' -Encoding UTF8
+            }
+            elseif ($SettingsMode -eq "missing") {
+              Remove-Item $settingsFile -Force -ErrorAction SilentlyContinue
+            }
+
+            $probe = Join-Path $probeFolder "$Name.json"
+            Remove-Item $probe -Force -ErrorAction SilentlyContinue
+            $env:BANJOFY_STARTUP_PROBE_FILE = $probe
+
+            $process = Start-Process -FilePath $exe -PassThru
+            if (-not $process.WaitForExit(30000)) {
+              Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+              throw "$Name startup did not exit cleanly within 30 seconds"
+            }
+
+            if ($process.ExitCode -ne 0) {
+              throw "$Name startup exited with code $($process.ExitCode)"
+            }
+            if (-not (Test-Path $probe)) {
+              throw "$Name startup did not create the READY marker"
+            }
+
+            $result = Get-Content $probe -Raw | ConvertFrom-Json
+            if ($result.status -ne "ready") {
+              throw "$Name startup marker did not report ready"
+            }
+            if ($result.application -ne "Banjofy Song Analysis Laboratory 006 — Meter, Bars and Downbeats") {
+              throw "$Name startup marker came from the wrong application build"
+            }
+
+            Write-Host "$Name positive startup handshake passed"
+          }
+
+          Invoke-StartupProof -Name "missing-settings" -SettingsMode "missing"
+          Invoke-StartupProof -Name "valid-settings" -SettingsMode "valid"
+          Invoke-StartupProof -Name "malformed-settings" -SettingsMode "malformed"
+          Invoke-StartupProof -Name "wrong-shape-settings" -SettingsMode "wrong-shape"
+
+          Remove-Item Env:BANJOFY_STARTUP_PROBE_FILE -ErrorAction SilentlyContinue
 
       - name: Assemble exact artifact
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force "artifact" | Out-Null
-          Copy-Item "laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab005.exe" "artifact/" -Force
-          Copy-Item "SONG_ANALYSIS_LAB_005_TEST.txt" "artifact/" -Force
+          Copy-Item "laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab006.exe" "artifact/" -Force
+          Copy-Item "SONG_ANALYSIS_LAB_006_TEST.txt" "artifact/" -Force
 
           $expected = @(
-            "artifact/BanjofySongAnalysisLab005.exe",
-            "artifact/SONG_ANALYSIS_LAB_005_TEST.txt"
+            "artifact/BanjofySongAnalysisLab006.exe",
+            "artifact/SONG_ANALYSIS_LAB_006_TEST.txt"
           )
           foreach ($file in $expected) {
             if (-not (Test-Path $file)) { throw "Assembled artifact missing: $file" }
           }
+
           $count = (Get-ChildItem artifact -File).Count
           if ($count -ne 2) { throw "Artifact contains $count files; expected exactly 2" }
 
-      - name: Upload audited Windows Laboratory 005
+          Get-FileHash "artifact/BanjofySongAnalysisLab006.exe" -Algorithm SHA256
+          Get-FileHash "artifact/SONG_ANALYSIS_LAB_006_TEST.txt" -Algorithm SHA256
+
+      - name: Upload audited Windows Laboratory 006
         uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-Song-Analysis-Laboratory-005-Windows
+          name: Banjofy-Song-Analysis-Laboratory-006-Windows
           path: artifact
           if-no-files-found: error

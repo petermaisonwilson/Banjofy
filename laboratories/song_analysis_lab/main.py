@@ -14,7 +14,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import structure_engine
 
-APP_TITLE = "Banjofy Song Analysis Laboratory 005 — Meter, Bars and Downbeats"
+APP_TITLE = "Banjofy Song Analysis Laboratory 006 — Meter, Bars and Downbeats"
 SETTINGS_FILENAME = "song_analysis_lab_settings.json"
 
 
@@ -249,7 +249,7 @@ class App(tk.Tk):
             self._save_settings()
             self._refresh()
 
-    def _root(self) -> Path | None:
+    def _library_root(self) -> Path | None:
         text = self.library_var.get().strip()
         if not text:
             messagebox.showerror(APP_TITLE, "Choose the Banjofy Library root first.")
@@ -261,7 +261,7 @@ class App(tk.Tk):
         return root
 
     def _refresh(self) -> None:
-        root = self._root()
+        root = self._library_root()
         if root is None:
             return
         self.songs = discover_analysed_songs(root)
@@ -296,7 +296,7 @@ class App(tk.Tk):
         if self.selected_song is None:
             messagebox.showinfo(APP_TITLE, "Select an analysed song first.")
             return
-        root = self._root()
+        root = self._library_root()
         if root is None:
             return
 
@@ -366,7 +366,7 @@ class App(tk.Tk):
         self.after(150, self._poll)
 
     def _open_folder(self) -> None:
-        root = self._root()
+        root = self._library_root()
         if root is None:
             return
         folder = root / "Analysis"
@@ -378,7 +378,23 @@ class App(tk.Tk):
 
 
 def main() -> int:
-    App().mainloop()
+    app = App()
+
+    probe_file = os.environ.get("BANJOFY_STARTUP_PROBE_FILE", "").strip()
+    if probe_file:
+        probe_path = Path(probe_file)
+        probe_path.parent.mkdir(parents=True, exist_ok=True)
+        probe_path.write_text(
+            json.dumps({
+                "status": "ready",
+                "application": APP_TITLE,
+                "library_setting": app.library_var.get(),
+            }, indent=2),
+            encoding="utf-8",
+        )
+        app.after(300, app.destroy)
+
+    app.mainloop()
     return 0
 
 

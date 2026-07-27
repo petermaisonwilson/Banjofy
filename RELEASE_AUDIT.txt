@@ -1,63 +1,69 @@
-RELEASE AUDIT — BANJOFY SONG ANALYSIS LABORATORY 005
+RELEASE AUDIT — BANJOFY SONG ANALYSIS LABORATORY 006
 
-ACTUAL REPOSITORY BASELINE INSPECTED
-Repository: petermaisonwilson/Banjofy
-Branch: song-analysis-lab
-Application: laboratories/song_analysis_lab/main.py
-Structure engine: laboratories/song_analysis_lab/structure_engine.py
-Spec: laboratories/song_analysis_lab/song_analysis_lab.spec
-Workflow: .github/workflows/song-analysis-lab.yml
+CONFIRMED PASSED BASELINE
+- Song Analysis Laboratory 001
+- Practice audio, BPM, beats, key and chord timeline
+- Existing Library JSON updated internally without filename change
 
-PRESERVED PASSED BEHAVIOUR
-- Laboratory 001 Library discovery
-- Existing Practice audio resolution
-- Existing song_analysis.json resolution
-- Atomic Library JSON updates
-- New song_structure.json
-- Existing filenames remain unchanged
-- Bar-aligned chord output
+ROOT CAUSE
+- App defined _root(), colliding with Tkinter's internal _root().
+- tk.StringVar(master=self) invoked App._root() during variable construction.
+- App._root() attempted to read library_var before assignment completed.
+- Previous process-alive smoke tests were invalid because an exception dialog
+  can keep a crashed application process alive.
 
-ROOT CAUSES ADDRESSED
-- Smooth synthetic pulses replaced by sharp click-track proof.
-- Saved-settings startup path explicitly tested.
-- Faulty Windows backslash assertion removed.
-- All meter modes now receive direct application-level audio proof.
+CORRECTIONS
+- Rename App._root() to App._library_root() everywhere.
+- Release gate forbids "def _root(" and "self._root()".
+- Positive startup handshake added after complete App construction.
+- Finished EXE must write a READY JSON marker and exit with code 0.
+- Handshake repeated with missing, valid, malformed and wrong-shape settings.
 
-LOCAL FULL RELEASE GATE
-- AST parsing
-- exact names and paths
-- variable creation before settings load
-- no, valid, malformed and wrong-shape settings
-- deterministic 2/4, 3/4 and 4/4 inference
-- beat/bar/chord grid
-- real temporary Library discovery
-- atomic record, analysis and structure JSON updates
-- unchanged existing filenames
+FULL RELEASE GATE
+- Exact Build 006 identity
+- Exact repository paths
+- Python AST parse
+- Tkinter reserved-name collision ban
+- Tk-variable initialization order
+- Startup handshake source
+- Missing settings
+- Valid Windows settings path
+- Malformed settings
+- Wrong-shape settings JSON
+- Deterministic 2/4
+- Deterministic 3/4
+- Deterministic 4/4
+- Beat/bar/downbeat grid
+- Bar-aligned chord grid
+- Temporary Library discovery
+- Atomic song_structure.json creation
+- Atomic existing Library JSON update
+- Atomic existing song_analysis.json update
+- Existing filenames unchanged
 
-GITHUB FULL PROOF
-- pinned dependencies
-- complete release gate
-- compile all sources
-- direct real analyse_structure() proof for 2/4
-- direct real analyse_structure() proof for 3/4
-- direct real analyse_structure() proof for 4/4
-- FFmpeg availability
-- Windows EXE build
-- EXE startup with no settings
-- EXE startup with valid settings
-- EXE startup with malformed settings
-- exact two-file artifact verification
+GITHUB WINDOWS PROOF
+- Pinned dependency installation
+- Complete release gate
+- Source compilation
+- Real click-track 2/4 proof
+- Real click-track 3/4 proof
+- Real click-track 4/4 proof
+- FFmpeg existence
+- PyInstaller clean build
+- Positive EXE handshake with missing settings
+- Positive EXE handshake with valid settings
+- Positive EXE handshake with malformed settings
+- Positive EXE handshake with wrong-shape settings
+- Exact two-file artifact and SHA-256 output
 
 PETER WINDOWS PROOF REQUIRED
-- real Laboratory 001 song discovered
-- real audio completes structure pass
-- technical JSON fields present
-- metre and downbeats assessed by listening
-
-LIMITATION
-6/8 is not claimed.
+- Real EXE window opens
+- Existing analysed Library discovered
+- Real song structure analysis completes
+- JSON contents updated
+- Musical meter/downbeat alignment judged by listening
 
 BRANCH SAFETY
-main untouched
-firefox-acquisition-lab untouched
-song-analysis-lab only
+- song-analysis-lab only
+- main untouched
+- firefox-acquisition-lab untouched
