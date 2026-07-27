@@ -1,4 +1,4 @@
-name: Build Banjofy Song Analysis Laboratory 004
+name: Build Banjofy Song Analysis Laboratory 005
 
 on:
   push:
@@ -9,10 +9,10 @@ on:
 jobs:
   build-windows:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
-      - name: Checkout song analysis branch
+      - name: Checkout exact branch
         uses: actions/checkout@v4
 
       - name: Set up Python 3.11
@@ -20,49 +20,53 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Verify exact Laboratory 004 files
+      - name: Verify exact Build 005 paths
         shell: pwsh
         run: |
           $required = @(
+            ".github/workflows/song-analysis-lab.yml",
             "laboratories/song_analysis_lab/main.py",
             "laboratories/song_analysis_lab/structure_engine.py",
             "laboratories/song_analysis_lab/song_analysis_lab.spec",
             "laboratories/song_analysis_lab/release_gate.py",
-            "laboratories/song_analysis_lab/requirements.txt"
+            "laboratories/song_analysis_lab/requirements.txt",
+            "SONG_ANALYSIS_LAB_005_TEST.txt"
           )
           foreach ($file in $required) {
-            if (-not (Test-Path $file)) { throw "Missing Laboratory 004 file: $file" }
+            if (-not (Test-Path $file)) { throw "Missing Build 005 file: $file" }
           }
 
-      - name: Install pinned structure-analysis dependencies
+      - name: Install pinned dependencies
         working-directory: laboratories/song_analysis_lab
         run: |
           python -m pip install --upgrade pip wheel
           python -m pip install -r requirements.txt
           if ($LASTEXITCODE -ne 0) { throw "Pinned dependency installation failed" }
 
-      - name: Run exact release gate
+      - name: Run complete release gate
         working-directory: laboratories/song_analysis_lab
         run: |
           python release_gate.py
-          if ($LASTEXITCODE -ne 0) { throw "Laboratory 004 release gate failed" }
+          if ($LASTEXITCODE -ne 0) { throw "Laboratory 005 full release gate failed" }
 
-      - name: Compile all Laboratory 004 sources
+      - name: Compile every Build 005 source
         working-directory: laboratories/song_analysis_lab
         run: |
           python -m py_compile main.py structure_engine.py release_gate.py
           if ($LASTEXITCODE -ne 0) { throw "Source compilation failed" }
 
-      - name: Direct application-level click-track structure proof
+      - name: Direct application-level 2-3-4 meter audio proofs
         shell: pwsh
         working-directory: laboratories/song_analysis_lab
         run: |
           @'
           import tempfile
           from pathlib import Path
+
           import librosa
           import numpy as np
           import soundfile as sf
+
           import structure_engine
 
           sr = 22050
@@ -70,83 +74,125 @@ jobs:
           length = int(sr * duration)
           beat_times = np.arange(0.5, duration, 0.5)
 
-          # Sharp click on every beat so the real Librosa beat tracker must
-          # detect the pulse. A stronger low click marks beat 2 of each
-          # four-beat group, giving the meter-phase detector an exact target.
-          samples = librosa.clicks(
-              times=beat_times,
-              sr=sr,
-              click_freq=1000.0,
-              click_duration=0.08,
-              length=length,
-          ).astype(np.float32)
+          def prove_meter(beats_per_bar, expected):
+              ordinary = librosa.clicks(
+                  times=beat_times,
+                  sr=sr,
+                  click_freq=1000.0,
+                  click_duration=0.08,
+                  length=length,
+              ).astype(np.float32)
 
-          downbeat_times = beat_times[1::4]
-          samples += 2.0 * librosa.clicks(
-              times=downbeat_times,
-              sr=sr,
-              click_freq=250.0,
-              click_duration=0.12,
-              length=length,
-          ).astype(np.float32)
+              accent_times = beat_times[1::beats_per_bar]
+              accented = 2.0 * librosa.clicks(
+                  times=accent_times,
+                  sr=sr,
+                  click_freq=250.0,
+                  click_duration=0.12,
+                  length=length,
+              ).astype(np.float32)
 
-          with tempfile.TemporaryDirectory() as temporary:
-              audio = Path(temporary) / "four_four_click_track.wav"
-              sf.write(audio, samples, sr)
-              result = structure_engine.analyse_structure(
-                  audio,
-                  [{"start_s": 0.0, "end_s": duration, "chord": "G"}],
-                  print,
-              )
-              assert result.beat_count >= 40, result
-              assert result.meter == "4/4", result
-              assert result.bar_count >= 8, result
-              assert len(result.downbeat_times) == result.bar_count
-              assert result.bar_aligned_chords
-              print("Direct application-level 4/4 click-track proof passed")
+              samples = ordinary + accented
+
+              with tempfile.TemporaryDirectory() as temporary:
+                  audio = Path(temporary) / f"proof_{beats_per_bar}_4.wav"
+                  sf.write(audio, samples, sr)
+
+                  result = structure_engine.analyse_structure(
+                      audio,
+                      [{"start_s": 0.0, "end_s": duration, "chord": "G"}],
+                      print,
+                  )
+
+                  assert result.beat_count >= 40, result
+                  assert result.meter == expected, result
+                  assert result.beats_per_bar == beats_per_bar, result
+                  assert result.bar_count >= 8, result
+                  assert len(result.downbeat_times) == result.bar_count
+                  assert result.bar_aligned_chords
+                  print(f"Direct {expected} application proof passed")
+
+          prove_meter(2, "2/4")
+          prove_meter(3, "3/4")
+          prove_meter(4, "4/4")
           '@ | python -
-          if ($LASTEXITCODE -ne 0) { throw "Direct application-level click-track proof failed" }
+          if ($LASTEXITCODE -ne 0) { throw "Direct 2/4, 3/4 and 4/4 audio proofs failed" }
 
       - name: Verify bundled FFmpeg
         working-directory: laboratories/song_analysis_lab
         run: |
           python -c "import imageio_ffmpeg, os; p=imageio_ffmpeg.get_ffmpeg_exe(); assert os.path.exists(p); print('FFmpeg available:', p)"
 
-      - name: Build standalone Windows Laboratory 004
+      - name: Build standalone Windows Laboratory 005
         working-directory: laboratories/song_analysis_lab
         run: |
           pyinstaller --clean --noconfirm song_analysis_lab.spec
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
-          if (-not (Test-Path "dist/BanjofySongAnalysisLab004.exe")) { throw "Expected EXE was not produced" }
+          if (-not (Test-Path "dist/BanjofySongAnalysisLab005.exe")) { throw "Expected EXE was not produced" }
 
-      - name: Persisted-settings startup proof
+      - name: Finished EXE startup with no settings file
+        shell: pwsh
+        run: |
+          $settingsFolder = Join-Path $env:LOCALAPPDATA "Banjofy\SongAnalysisLab"
+          Remove-Item $settingsFolder -Recurse -Force -ErrorAction SilentlyContinue
+
+          $exe = "$env:GITHUB_WORKSPACE/laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab005.exe"
+          $process = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 10
+          if ($process.HasExited) { throw "EXE failed without settings; code $($process.ExitCode)" }
+          Stop-Process -Id $process.Id -Force
+          Write-Host "No-settings EXE startup passed"
+
+      - name: Finished EXE startup with valid settings file
         shell: pwsh
         run: |
           $settingsFolder = Join-Path $env:LOCALAPPDATA "Banjofy\SongAnalysisLab"
           New-Item -ItemType Directory -Force $settingsFolder | Out-Null
           $settingsFile = Join-Path $settingsFolder "song_analysis_lab_settings.json"
-          '{"library_root":"C:\\Existing Banjofy Library"}' | Set-Content -Path $settingsFile -Encoding UTF8
+          $payload = @{ library_root = "C:\Existing Banjofy Library" } | ConvertTo-Json -Compress
+          Set-Content -Path $settingsFile -Value $payload -Encoding UTF8
 
-          $exe = "$env:GITHUB_WORKSPACE/laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab004.exe"
+          $exe = "$env:GITHUB_WORKSPACE/laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab005.exe"
           $process = Start-Process -FilePath $exe -PassThru
-          Start-Sleep -Seconds 12
-          if ($process.HasExited) {
-            throw "Laboratory failed with a populated settings file; exit code $($process.ExitCode)"
-          }
+          Start-Sleep -Seconds 10
+          if ($process.HasExited) { throw "EXE failed with valid settings; code $($process.ExitCode)" }
           Stop-Process -Id $process.Id -Force
-          Write-Host "Persisted-settings startup proof passed"
+          Write-Host "Valid-settings EXE startup passed"
 
-      - name: Assemble artifact
+      - name: Finished EXE startup with malformed settings file
+        shell: pwsh
+        run: |
+          $settingsFolder = Join-Path $env:LOCALAPPDATA "Banjofy\SongAnalysisLab"
+          $settingsFile = Join-Path $settingsFolder "song_analysis_lab_settings.json"
+          Set-Content -Path $settingsFile -Value "{broken" -Encoding UTF8
+
+          $exe = "$env:GITHUB_WORKSPACE/laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab005.exe"
+          $process = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 10
+          if ($process.HasExited) { throw "EXE failed with malformed settings; code $($process.ExitCode)" }
+          Stop-Process -Id $process.Id -Force
+          Write-Host "Malformed-settings EXE startup passed"
+
+      - name: Assemble exact artifact
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force "artifact" | Out-Null
-          Copy-Item "laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab004.exe" "artifact/" -Force
-          Copy-Item "SONG_ANALYSIS_LAB_004_TEST.txt" "artifact/" -Force
-          if (-not (Test-Path "artifact/BanjofySongAnalysisLab004.exe")) { throw "Assembled EXE missing" }
+          Copy-Item "laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab005.exe" "artifact/" -Force
+          Copy-Item "SONG_ANALYSIS_LAB_005_TEST.txt" "artifact/" -Force
 
-      - name: Upload Windows Laboratory 004
+          $expected = @(
+            "artifact/BanjofySongAnalysisLab005.exe",
+            "artifact/SONG_ANALYSIS_LAB_005_TEST.txt"
+          )
+          foreach ($file in $expected) {
+            if (-not (Test-Path $file)) { throw "Assembled artifact missing: $file" }
+          }
+          $count = (Get-ChildItem artifact -File).Count
+          if ($count -ne 2) { throw "Artifact contains $count files; expected exactly 2" }
+
+      - name: Upload audited Windows Laboratory 005
         uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-Song-Analysis-Laboratory-004-Windows
+          name: Banjofy-Song-Analysis-Laboratory-005-Windows
           path: artifact
           if-no-files-found: error

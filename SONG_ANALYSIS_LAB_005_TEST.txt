@@ -1,0 +1,77 @@
+BANJOFY SONG ANALYSIS LABORATORY 005 — WINDOWS TEST
+FULLY AUDITED METER, BARS AND DOWNBEATS BUILD
+
+BRANCH
+song-analysis-lab
+
+PURPOSE
+Prove metre, bars, downbeats and bar-aligned chords on a real song that already
+passed Song Analysis Laboratory 001.
+
+BEFORE THIS EXE WAS RELEASED, GITHUB MUST PROVE
+- no saved settings startup;
+- valid saved settings startup;
+- malformed saved settings startup;
+- direct application-level 2/4 audio;
+- direct application-level 3/4 audio;
+- direct application-level 4/4 audio;
+- Library discovery and JSON updates;
+- exact EXE and artifact names.
+
+WINDOWS TEST
+1. Run BanjofySongAnalysisLab005.exe.
+2. Select the TOP-LEVEL Library root used by Laboratory 001.
+3. Select the song showing chord analysis: completed.
+4. Click Detect Meter, Bars and Downbeats.
+5. Wait for the completion message.
+
+CHECK BY FILENAME ONLY
+Confirm this NEW file exists:
+Analysis\<song-id>\song_structure.json
+
+OPEN IN NOTEPAD AND INSPECT CONTENTS
+A. Open the EXISTING file in:
+Library\Songs\<existing-song-record-name>.json
+
+Its filename does not change. Confirm its contents now include:
+"structure_status": "completed"
+"structure_summary"
+"meter"
+"meter_confidence"
+"beats_per_bar"
+"bar_count"
+"bar_start_times"
+"downbeat_times"
+
+B. Open the EXISTING file:
+Analysis\<song-id>\song_analysis.json
+
+Its filename does not change. Confirm its contents now include:
+"meter"
+"meter_confidence"
+"beats_per_bar"
+"beat_times"
+"downbeat_times"
+"bar_start_times"
+"bar_count"
+"beat_grid"
+"bars"
+"bar_aligned_chords"
+
+TECHNICAL PASS
+- program completes without an error;
+- song_structure.json exists;
+- both existing JSON files contain the new fields;
+- bar_count is greater than zero;
+- downbeat_times is populated;
+- bar_aligned_chords is populated.
+
+MUSICAL ACCURACY PASS
+Listen to the song and assess:
+- whether the estimated metre is credible;
+- whether the first estimated downbeat is a real bar start;
+- whether later bar starts remain aligned rather than drifting.
+
+LIMITATION
+This laboratory estimates 2/4, 3/4 and 4/4.
+It does not yet claim dependable 6/8 detection.

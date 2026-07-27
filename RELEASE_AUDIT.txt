@@ -1,64 +1,63 @@
-RELEASE AUDIT — BANJOFY SONG ANALYSIS LABORATORY 004
+RELEASE AUDIT — BANJOFY SONG ANALYSIS LABORATORY 005
 
-CONFIRMED PASSED BASELINE
-- Song Analysis Laboratory 001
-- Existing Library record updated internally without filename change
-- song_analysis.json created
-- BPM, beats, key and chord timeline present
+ACTUAL REPOSITORY BASELINE INSPECTED
+Repository: petermaisonwilson/Banjofy
+Branch: song-analysis-lab
+Application: laboratories/song_analysis_lab/main.py
+Structure engine: laboratories/song_analysis_lab/structure_engine.py
+Spec: laboratories/song_analysis_lab/song_analysis_lab.spec
+Workflow: .github/workflows/song-analysis-lab.yml
 
-SCOPE
-- No repeat of ChordMini chord analysis
-- Read existing Laboratory 001 chord segments
-- Direct beat detection from saved Practice audio
-- Beat accent measurement
-- Candidate comparison: 2/4, 3/4 and 4/4
-- First-downbeat phase estimation
-- Beat and bar numbering
-- Bar-aligned chord timeline
+PRESERVED PASSED BEHAVIOUR
+- Laboratory 001 Library discovery
+- Existing Practice audio resolution
+- Existing song_analysis.json resolution
+- Atomic Library JSON updates
 - New song_structure.json
-- Atomic internal update of existing Library JSON and song_analysis.json
+- Existing filenames remain unchanged
+- Bar-aligned chord output
 
-DIRECT GITHUB PROOF
-- Exact source and path verification
-- AST and compilation
-- Deterministic 4/4 accent-array proof
-- Mock Library discovery and atomic JSON commit
-- Real synthetic 4/4 WAV through the application structure engine
-- FFmpeg verification
+ROOT CAUSES ADDRESSED
+- Smooth synthetic pulses replaced by sharp click-track proof.
+- Saved-settings startup path explicitly tested.
+- Faulty Windows backslash assertion removed.
+- All meter modes now receive direct application-level audio proof.
+
+LOCAL FULL RELEASE GATE
+- AST parsing
+- exact names and paths
+- variable creation before settings load
+- no, valid, malformed and wrong-shape settings
+- deterministic 2/4, 3/4 and 4/4 inference
+- beat/bar/chord grid
+- real temporary Library discovery
+- atomic record, analysis and structure JSON updates
+- unchanged existing filenames
+
+GITHUB FULL PROOF
+- pinned dependencies
+- complete release gate
+- compile all sources
+- direct real analyse_structure() proof for 2/4
+- direct real analyse_structure() proof for 3/4
+- direct real analyse_structure() proof for 4/4
+- FFmpeg availability
 - Windows EXE build
-- Startup smoke test
+- EXE startup with no settings
+- EXE startup with valid settings
+- EXE startup with malformed settings
+- exact two-file artifact verification
 
 PETER WINDOWS PROOF REQUIRED
-- Existing passed Library song discovered
-- Real audio structure pass completes
-- New song_structure.json exists
-- Existing JSON contents updated
-- Estimated metre and downbeats checked musically
+- real Laboratory 001 song discovered
+- real audio completes structure pass
+- technical JSON fields present
+- metre and downbeats assessed by listening
 
 LIMITATION
-2/4, 3/4 and 4/4 only. Compound 6/8 is not claimed.
-The output is an estimate until Peter's listening test confirms alignment.
+6/8 is not claimed.
 
 BRANCH SAFETY
-- song-analysis-lab only
-- main untouched
-- firefox-acquisition-lab untouched
-
-ROOT-CAUSE CORRECTION
-- Failed proof: smooth Hann-window pulses did not produce dependable onsets.
-- Correction: librosa.clicks creates sharp beat events at 120 BPM.
-- Strong low-frequency accent repeats every four beats.
-- The real analyse_structure() function must detect at least 40 beats, 4/4
-  meter, at least eight bars, downbeats and bar-aligned chords.
-- No application fallback or threshold was weakened to make the test pass.
-
-WINDOWS STARTUP ROOT CAUSE AND CORRECTION
-- Peter's computer had an existing song_analysis_lab_settings.json.
-- The failing EXE attempted to use library_var while loading that file.
-- Clean GitHub runners did not have a settings file, so the path escaped the
-  earlier startup smoke test.
-- Laboratory 004 creates all Tk variables before loading settings.
-- Settings parsing is isolated in load_library_setting().
-- The release gate verifies constructor order and malformed/valid settings.
-- GitHub creates a populated settings file and launches the finished EXE for
-  twelve seconds before uploading the artifact.
+main untouched
+firefox-acquisition-lab untouched
+song-analysis-lab only
