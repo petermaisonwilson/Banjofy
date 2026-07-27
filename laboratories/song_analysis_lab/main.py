@@ -14,7 +14,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import structure_engine
 
-APP_TITLE = "Banjofy Song Analysis Laboratory 006 — Meter, Bars and Downbeats"
+APP_TITLE = "Banjofy Song Analysis Laboratory 007 — Meter, Bars and Downbeats"
 SETTINGS_FILENAME = "song_analysis_lab_settings.json"
 
 
@@ -173,8 +173,16 @@ class App(tk.Tk):
         self._load_settings()
         self._build_ui()
         self.after(150, self._poll)
-        if self.library_var.get():
+
+        saved_library = self.library_var.get().strip()
+        startup_probe = bool(os.environ.get("BANJOFY_STARTUP_PROBE_FILE", "").strip())
+        if saved_library and Path(saved_library).is_dir() and not startup_probe:
             self.after(300, self._refresh)
+        elif saved_library and not Path(saved_library).is_dir():
+            self.status_var.set(
+                "The remembered Library folder is currently unavailable. "
+                "Choose the correct top-level Library folder."
+            )
 
     def _load_settings(self) -> None:
         # This method is deliberately safe when a settings file already exists.

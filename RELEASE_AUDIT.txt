@@ -1,67 +1,55 @@
-RELEASE AUDIT — BANJOFY SONG ANALYSIS LABORATORY 006
+RELEASE AUDIT — BANJOFY SONG ANALYSIS LABORATORY 007
 
-CONFIRMED PASSED BASELINE
-- Song Analysis Laboratory 001
-- Practice audio, BPM, beats, key and chord timeline
-- Existing Library JSON updated internally without filename change
+BASELINE
+- Song Analysis Laboratory 001 passed on Peter's Windows computer.
+- Practice audio, BPM, beats, key and chord timeline are present.
 
-ROOT CAUSE
-- App defined _root(), colliding with Tkinter's internal _root().
-- tk.StringVar(master=self) invoked App._root() during variable construction.
-- App._root() attempted to read library_var before assignment completed.
-- Previous process-alive smoke tests were invalid because an exception dialog
-  can keep a crashed application process alive.
+BUILD 006 GITHUB FAILURE
+- Missing settings handshake passed.
+- Valid settings used a fictitious non-existent Library path.
+- The non-empty setting scheduled an automatic refresh.
+- Startup probe scheduled window destruction at nearly the same time.
+- Competing Tk callbacks produced Windows access violation -1073741819.
 
-CORRECTIONS
-- Rename App._root() to App._library_root() everywhere.
-- Release gate forbids "def _root(" and "self._root()".
-- Positive startup handshake added after complete App construction.
-- Finished EXE must write a READY JSON marker and exit with code 0.
-- Handshake repeated with missing, valid, malformed and wrong-shape settings.
+BUILD 007 CORRECTION
+- Automatic refresh occurs only when the remembered Library path exists.
+- Unavailable remembered paths show an ordinary status message.
+- Startup-probe mode suppresses automatic refresh.
+- No threshold or musical-analysis behaviour is weakened.
 
-FULL RELEASE GATE
-- Exact Build 006 identity
-- Exact repository paths
-- Python AST parse
-- Tkinter reserved-name collision ban
-- Tk-variable initialization order
-- Startup handshake source
-- Missing settings
-- Valid Windows settings path
-- Malformed settings
-- Wrong-shape settings JSON
-- Deterministic 2/4
-- Deterministic 3/4
-- Deterministic 4/4
-- Beat/bar/downbeat grid
-- Bar-aligned chord grid
+FULL SOURCE GATE
+- Exact Build 007 identity
+- AST parse and compilation
+- Tkinter _root collision ban
+- _library_root presence
+- Tk variable initialization order
+- Safe saved-Library path logic
+- Positive READY handshake
+- Missing, valid, malformed and wrong-shape settings parser
+- Deterministic 2/4, 3/4 and 4/4
+- Beat, bar, downbeat and chord grid
 - Temporary Library discovery
-- Atomic song_structure.json creation
-- Atomic existing Library JSON update
-- Atomic existing song_analysis.json update
+- Atomic JSON updates
 - Existing filenames unchanged
 
 GITHUB WINDOWS PROOF
-- Pinned dependency installation
-- Complete release gate
-- Source compilation
-- Real click-track 2/4 proof
-- Real click-track 3/4 proof
-- Real click-track 4/4 proof
-- FFmpeg existence
-- PyInstaller clean build
-- Positive EXE handshake with missing settings
-- Positive EXE handshake with valid settings
-- Positive EXE handshake with malformed settings
-- Positive EXE handshake with wrong-shape settings
-- Exact two-file artifact and SHA-256 output
+- Real click-track 2/4
+- Real click-track 3/4
+- Real click-track 4/4
+- Clean PyInstaller build
+- Finished EXE positive handshake: missing settings
+- Finished EXE positive handshake: valid existing folder
+- Finished EXE positive handshake: valid unavailable folder
+- Finished EXE positive handshake: malformed settings
+- Finished EXE positive handshake: wrong-shape settings
+- Exact two-file artifact
 
 PETER WINDOWS PROOF REQUIRED
-- Real EXE window opens
+- Application opens
 - Existing analysed Library discovered
 - Real song structure analysis completes
 - JSON contents updated
-- Musical meter/downbeat alignment judged by listening
+- Musical alignment judged by listening
 
 BRANCH SAFETY
 - song-analysis-lab only

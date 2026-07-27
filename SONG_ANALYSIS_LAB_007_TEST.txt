@@ -1,0 +1,71 @@
+BANJOFY SONG ANALYSIS LABORATORY 007 — WINDOWS TEST
+METER, BARS AND DOWNBEATS
+
+ROOT-CAUSE CORRECTIONS
+1. The application no longer collides with Tkinter's internal _root().
+2. A remembered Library folder is refreshed automatically only when it exists.
+3. An unavailable remembered folder no longer causes a startup error.
+4. GitHub requires a positive READY handshake and clean exit under five settings
+   conditions before releasing the EXE.
+
+USE THE SAME LIBRARY
+Do not delete or rename the successful Laboratory 001 Library files.
+
+WINDOWS TEST
+1. Run BanjofySongAnalysisLab007.exe.
+2. Confirm the real application window opens without an exception dialog.
+3. Choose the TOP-LEVEL Banjofy Library root when necessary.
+4. Select the song showing chord analysis: completed.
+5. Click Detect Meter, Bars and Downbeats.
+6. Wait for the completion message.
+
+CHECK BY FILENAME ONLY
+Confirm this NEW file exists:
+Analysis\<song-id>\song_structure.json
+
+OPEN AND INSPECT IN NOTEPAD
+A. Open the existing file:
+Library\Songs\<existing-song-record-name>.json
+
+Confirm its CONTENTS now include:
+"structure_status": "completed"
+"structure_summary"
+"meter"
+"meter_confidence"
+"beats_per_bar"
+"bar_count"
+"bar_start_times"
+"downbeat_times"
+
+B. Open the existing file:
+Analysis\<song-id>\song_analysis.json
+
+Confirm its CONTENTS now include:
+"meter"
+"meter_confidence"
+"beats_per_bar"
+"beat_times"
+"downbeat_times"
+"bar_start_times"
+"bar_count"
+"beat_grid"
+"bars"
+"bar_aligned_chords"
+
+TECHNICAL PASS
+- Application opens without an exception.
+- Structure analysis completes.
+- song_structure.json exists.
+- Existing JSON contents contain the new fields.
+- bar_count is greater than zero.
+- downbeat_times and bar_aligned_chords are populated.
+
+MUSICAL ACCURACY PASS
+Listen and judge whether:
+- estimated meter is credible;
+- first downbeat is a real bar start;
+- later bar starts remain aligned.
+
+LIMITATION
+This laboratory proves 2/4, 3/4 and 4/4.
+It does not yet claim dependable 6/8 detection.
