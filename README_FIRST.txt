@@ -1,8 +1,7 @@
-BANJOFY SONG ANALYSIS LABORATORY 015
+BANJOFY SONG ANALYSIS LABORATORY 016
 
 Branch: song-analysis-lab
 Scope: 3/4 and 4/4 only.
 
-Build 015 adds explicit manual meter confirmation. It preserves the detector
-result, rebuilds bars and the correct number of phase auditions, then allows the
-existing per-song phase confirmation process.
+Build 016 protects confirmed timing, repairs missing phase files itself and
+adds detected/half-pulse interpretation tests for songs where no phase works.

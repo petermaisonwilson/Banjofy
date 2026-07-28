@@ -15,7 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import structure_engine
 
-APP_TITLE = "Banjofy Song Analysis Laboratory 015 — Confirm Meter and Downbeat Phase"
+APP_TITLE = "Banjofy Song Analysis Laboratory 016 — Pulse, Meter and Phase Validation"
 SETTINGS_FILENAME = "song_analysis_lab_settings.json"
 
 
@@ -103,6 +103,230 @@ def discover_analysed_songs(library_root: Path) -> list[dict]:
         })
     return songs
 
+
+
+
+PULSE_MODES = {
+    "detected": "Detected pulse",
+    "half_a": "Half pulse A",
+    "half_b": "Half pulse B",
+}
+
+
+def detected_beat_times_from_analysis(analysis: dict) -> list[float]:
+    raw = analysis.get("detected_beat_times")
+    if not isinstance(raw, list) or not raw:
+        raw = analysis.get("beat_times", [])
+    return [
+        float(value)
+        for value in raw
+        if isinstance(value, (int, float))
+    ]
+
+
+def pulse_times_for_mode(analysis: dict, pulse_mode: str) -> list[float]:
+    detected = detected_beat_times_from_analysis(analysis)
+    if not detected:
+        raise RuntimeError("The saved analysis contains no detected beat times.")
+
+    mode = str(pulse_mode)
+    if mode == "detected":
+        return detected
+    if mode == "half_a":
+        result = detected[0::2]
+    elif mode == "half_b":
+        result = detected[1::2]
+    else:
+        raise RuntimeError(f"Unknown pulse interpretation: {mode}")
+
+    if len(result) < 8:
+        raise RuntimeError(
+            "The selected half-pulse interpretation contains too few beats."
+        )
+    return result
+
+
+def build_confirmed_pulse_updates(
+    record: dict,
+    analysis: dict,
+    pulse_mode: str,
+    confirmed_at: str,
+) -> tuple[dict, dict, dict]:
+    """Apply a manual pulse interpretation while retaining detected beats."""
+    mode = str(pulse_mode)
+    if mode not in PULSE_MODES:
+        raise RuntimeError("Choose detected pulse, half pulse A or half pulse B.")
+
+    effective_beats = pulse_times_for_mode(analysis, mode)
+    detected_beats = detected_beat_times_from_analysis(analysis)
+    segments = analysis.get("segments", [])
+    if not isinstance(segments, list) or not segments:
+        raise RuntimeError("The saved analysis contains no chord segments.")
+
+    meter = str(analysis.get("confirmed_meter") or analysis.get("meter") or "")
+    beats_per_bar = 3 if meter == "3/4" else 4 if meter == "4/4" else 0
+    if beats_per_bar not in (3, 4):
+        raise RuntimeError("Confirm 3/4 or 4/4 before confirming a pulse.")
+
+    detected_index = int(
+        analysis.get(
+            "detected_first_downbeat_beat_index",
+            analysis.get("first_downbeat_beat_index", 0),
+        )
+    ) % beats_per_bar
+
+    beat_grid, bars, aligned, downbeats = structure_engine.build_bar_grid(
+        effective_beats,
+        beats_per_bar,
+        detected_index,
+        segments,
+    )
+
+    pulse_fields = {
+        "detected_beat_times": detected_beats,
+        "pulse_interpretation": mode,
+        "pulse_interpretation_label": PULSE_MODES[mode],
+        "pulse_confirmation_status": "confirmed",
+        "pulse_confirmed_by": "manual_audition",
+        "pulse_confirmed_at": confirmed_at,
+        "beat_times": effective_beats,
+        "beat_count": len(effective_beats),
+        "first_downbeat_beat_index": detected_index,
+        "downbeat_phase_status": "unconfirmed",
+    }
+
+    phase_keys = (
+        "confirmed_phase_number",
+        "confirmed_phase_offset",
+        "confirmed_first_downbeat_beat_index",
+        "downbeat_phase_confirmed_by",
+        "downbeat_phase_confirmed_at",
+    )
+
+    updated_analysis = dict(analysis)
+    for key in phase_keys:
+        updated_analysis.pop(key, None)
+    updated_analysis.update(pulse_fields)
+    updated_analysis["downbeat_times"] = downbeats
+    updated_analysis["bar_start_times"] = downbeats
+    updated_analysis["bar_count"] = len(bars)
+    updated_analysis["beat_grid"] = beat_grid
+    updated_analysis["bars"] = bars
+    updated_analysis["bar_aligned_chords"] = aligned
+
+    updated_record = dict(record)
+    for key in phase_keys:
+        updated_record.pop(key, None)
+    for key, value in pulse_fields.items():
+        if key not in {"beat_times"}:
+            updated_record[key] = value
+    summary = dict(updated_record.get("structure_summary") or {})
+    for key in phase_keys:
+        summary.pop(key, None)
+    summary.update({
+        "pulse_interpretation": mode,
+        "pulse_interpretation_label": PULSE_MODES[mode],
+        "pulse_confirmation_status": "confirmed",
+        "pulse_confirmed_by": "manual_audition",
+        "pulse_confirmed_at": confirmed_at,
+        "beat_count": len(effective_beats),
+        "first_downbeat_beat_index": detected_index,
+        "downbeat_phase_status": "unconfirmed",
+        "downbeat_times": downbeats,
+        "bar_start_times": downbeats,
+        "bar_count": len(bars),
+    })
+    updated_record["structure_summary"] = summary
+
+    structure_updates = {
+        **pulse_fields,
+        "downbeat_times": downbeats,
+        "bar_start_times": downbeats,
+        "bar_count": len(bars),
+        "beat_grid": beat_grid,
+        "bars": bars,
+        "bar_aligned_chords": aligned,
+        "remove_phase_confirmation_keys": list(phase_keys),
+    }
+
+    return updated_record, updated_analysis, structure_updates
+
+
+def create_phase_auditions(
+    audio_path: Path,
+    analysis: dict,
+    folder: Path,
+) -> list[str]:
+    """Create the exact phase set required by the effective meter and pulse."""
+    beat_times = [
+        float(value)
+        for value in analysis.get("beat_times", [])
+        if isinstance(value, (int, float))
+    ]
+    if not beat_times:
+        raise RuntimeError("The saved analysis contains no effective beat times.")
+
+    meter = str(analysis.get("confirmed_meter") or analysis.get("meter") or "")
+    beats_per_bar = 3 if meter == "3/4" else 4 if meter == "4/4" else 0
+    if beats_per_bar not in (3, 4):
+        raise RuntimeError("The song must have an active 3/4 or 4/4 meter.")
+
+    detected_index = int(
+        analysis.get(
+            "detected_first_downbeat_beat_index",
+            analysis.get("first_downbeat_beat_index", 0),
+        )
+    ) % beats_per_bar
+
+    phase_paths: list[str] = []
+    for phase_offset in range(beats_per_bar):
+        effective = (detected_index + phase_offset) % beats_per_bar
+        phase_downbeats = [
+            float(beat_times[index])
+            for index in range(effective, len(beat_times), beats_per_bar)
+        ]
+        phase_path = folder / f"audible_phase_{phase_offset + 1}.wav"
+        structure_engine.create_audible_bar_check(
+            audio_path,
+            beat_times,
+            phase_downbeats,
+            phase_path,
+        )
+        if not phase_path.is_file() or phase_path.stat().st_size == 0:
+            raise RuntimeError(
+                f"Phase audition file {phase_offset + 1} was not created."
+            )
+        phase_paths.append(str(phase_path))
+
+    for stale_number in range(beats_per_bar + 1, 5):
+        stale = folder / f"audible_phase_{stale_number}.wav"
+        stale.unlink(missing_ok=True)
+
+    return phase_paths
+
+
+def persist_phase_audition_paths(
+    record_path: Path,
+    analysis_path: Path,
+    phase_paths: list[str],
+) -> None:
+    record = read_json(record_path)
+    analysis = read_json(analysis_path)
+    record["downbeat_phase_audition_paths"] = phase_paths
+    analysis["downbeat_phase_audition_paths"] = phase_paths
+
+    structure_raw = record.get("structure_path")
+    structure_path = (
+        Path(str(structure_raw))
+        if structure_raw
+        else analysis_path.parent / "song_structure.json"
+    )
+    structure = read_json(structure_path) if structure_path.is_file() else {}
+    structure["downbeat_phase_audition_paths"] = phase_paths
+
+    write_json_atomic(structure_path, structure)
+    write_json_atomic(record_path, record)
+    write_json_atomic(analysis_path, analysis)
 
 
 def build_confirmed_meter_updates(
@@ -419,6 +643,9 @@ def commit_structure(
     updated_analysis["detected_first_downbeat_beat_index"] = result.first_downbeat_beat_index
     updated_analysis["first_downbeat_beat_index"] = result.first_downbeat_beat_index
     updated_analysis["downbeat_phase_status"] = "unconfirmed"
+    updated_analysis["detected_beat_times"] = result.beat_times
+    updated_analysis["pulse_interpretation"] = "detected"
+    updated_analysis["pulse_confirmation_status"] = "unconfirmed"
     updated_analysis["beat_times"] = result.beat_times
     updated_analysis["downbeat_times"] = result.downbeat_times
     updated_analysis["bar_start_times"] = result.bar_start_times
@@ -464,6 +691,7 @@ class App(tk.Tk):
         self.visual_phase_paths: list[Path] = []
         self.visual_phase_buttons: list[ttk.Button] = []
         self.visual_meter_var: tk.StringVar | None = None
+        self.visual_pulse_var: tk.StringVar | None = None
         self._load_settings()
         self._build_ui()
         self.after(150, self._poll)
@@ -617,6 +845,34 @@ class App(tk.Tk):
             return
 
         song = self.selected_song
+
+        current_record = read_json(song["record_path"])
+        current_analysis = read_json(song["analysis_path"])
+        protected = any(
+            str(current_analysis.get(key) or current_record.get(key) or "").lower()
+            == "confirmed"
+            for key in (
+                "meter_confirmation_status",
+                "pulse_confirmation_status",
+                "downbeat_phase_status",
+            )
+        )
+        if protected:
+            reset = messagebox.askyesno(
+                APP_TITLE,
+                (
+                    "This song contains manually confirmed timing.\n\n"
+                    "Re-running automatic structure analysis will reset the confirmed "
+                    "meter, pulse and phase for this song.\n\n"
+                    "Reset confirmed timing and continue?"
+                ),
+            )
+            if not reset:
+                self.status_var.set(
+                    "Automatic re-analysis cancelled; confirmed timing was preserved."
+                )
+                return
+
         self.run_button.configure(state="disabled")
         self.output.configure(state="normal")
         self.output.delete("1.0", "end")
@@ -702,11 +958,39 @@ class App(tk.Tk):
             or analysis.get("downbeat_phase_audition_paths")
             or []
         )
-        self.visual_phase_paths = [
+        expected_meter = str(
+            analysis.get("confirmed_meter") or analysis.get("meter") or ""
+        )
+        expected_count = 3 if expected_meter == "3/4" else 4
+        valid_paths = [
             Path(str(value))
             for value in raw_phase_paths
             if isinstance(value, str) and Path(str(value)).is_file()
         ]
+
+        if len(valid_paths) != expected_count:
+            self.status_var.set(
+                "Rebuilding missing or mismatched phase audition files in Build 016…"
+            )
+            folder = Path(self.selected_song["analysis_path"]).parent
+            rebuilt_paths = create_phase_auditions(
+                Path(self.selected_song["audio_path"]),
+                analysis,
+                folder,
+            )
+            persist_phase_audition_paths(
+                Path(self.selected_song["record_path"]),
+                Path(self.selected_song["analysis_path"]),
+                rebuilt_paths,
+            )
+            record = read_json(self.selected_song["record_path"])
+            analysis = read_json(self.selected_song["analysis_path"])
+            valid_paths = [Path(path) for path in rebuilt_paths]
+            self._append(
+                f"Build 016 rebuilt {len(valid_paths)} phase audition files."
+            )
+
+        self.visual_phase_paths = valid_paths
 
         self.visual_beat_times = [float(v) for v in analysis.get("beat_times", [])]
         self.visual_downbeat_times = [float(v) for v in analysis.get("downbeat_times", [])]
@@ -749,8 +1033,8 @@ class App(tk.Tk):
         if len(self.visual_phase_paths) != self.visual_beats_per_bar:
             messagebox.showerror(
                 APP_TITLE,
-                "The downbeat phase audition files are missing. "
-                "Run the structure analysis once in Build 013.",
+                "Build 016 could not create the required phase audition files. "
+                "The exact file state is shown in the status window.",
             )
             return
 
@@ -869,6 +1153,44 @@ class App(tk.Tk):
             textvariable=self.visual_time_var,
             font=("Segoe UI", 16),
         ).pack(side="right")
+
+        pulse_frame = ttk.LabelFrame(
+            frame,
+            text="Underlying pulse interpretation — use when no phase works",
+        )
+        pulse_frame.pack(fill="x", pady=(0, 12))
+        current_pulse = str(
+            read_json(self.selected_song["analysis_path"]).get(
+                "pulse_interpretation",
+                "detected",
+            )
+        )
+        if current_pulse not in PULSE_MODES:
+            current_pulse = "detected"
+        self.visual_pulse_var = tk.StringVar(value=current_pulse)
+        ttk.Radiobutton(
+            pulse_frame,
+            text="Detected pulse",
+            value="detected",
+            variable=self.visual_pulse_var,
+        ).pack(side="left", padx=(10, 4), pady=8)
+        ttk.Radiobutton(
+            pulse_frame,
+            text="Half pulse A",
+            value="half_a",
+            variable=self.visual_pulse_var,
+        ).pack(side="left", padx=4)
+        ttk.Radiobutton(
+            pulse_frame,
+            text="Half pulse B",
+            value="half_b",
+            variable=self.visual_pulse_var,
+        ).pack(side="left", padx=4)
+        ttk.Button(
+            pulse_frame,
+            text="Apply Pulse and Rebuild Phase Auditions",
+            command=self._confirm_selected_pulse,
+        ).pack(side="right", padx=10, pady=8)
 
         meter_frame = ttk.LabelFrame(frame, text="Confirm meter before phase audition")
         meter_frame.pack(fill="x", pady=(0, 12))
@@ -1077,6 +1399,98 @@ class App(tk.Tk):
 
         self.after(25, self._update_visual_marker)
 
+    def _confirm_selected_pulse(self) -> None:
+        if self.selected_song is None or self.visual_pulse_var is None:
+            messagebox.showerror(APP_TITLE, "Select an analysed song first.")
+            return
+
+        selected_mode = self.visual_pulse_var.get()
+        label = PULSE_MODES.get(selected_mode, selected_mode)
+        confirmed = messagebox.askyesno(
+            APP_TITLE,
+            (
+                f"Apply {label} to this song?\n\n"
+                "This retains the original detected beat times, changes the "
+                "effective beat grid, rebuilds bars and creates a fresh phase set.\n\n"
+                "Chord names, chord-change times, BPM and meter will not change."
+            ),
+        )
+        if not confirmed:
+            return
+
+        try:
+            record_path = Path(self.selected_song["record_path"])
+            analysis_path = Path(self.selected_song["analysis_path"])
+            audio_path = Path(self.selected_song["audio_path"])
+            record = read_json(record_path)
+            analysis = read_json(analysis_path)
+            confirmed_at = time.strftime("%Y-%m-%d %H:%M:%S")
+
+            updated_record, updated_analysis, structure_updates = (
+                build_confirmed_pulse_updates(
+                    record,
+                    analysis,
+                    selected_mode,
+                    confirmed_at,
+                )
+            )
+
+            folder = analysis_path.parent
+            phase_paths = create_phase_auditions(
+                audio_path,
+                updated_analysis,
+                folder,
+            )
+            updated_record["downbeat_phase_audition_paths"] = phase_paths
+            updated_analysis["downbeat_phase_audition_paths"] = phase_paths
+            structure_updates["downbeat_phase_audition_paths"] = phase_paths
+
+            structure_raw = updated_record.get("structure_path")
+            structure_path = (
+                Path(str(structure_raw))
+                if structure_raw
+                else folder / "song_structure.json"
+            )
+            updated_structure = (
+                read_json(structure_path)
+                if structure_path.is_file()
+                else {}
+            )
+            for key in structure_updates.pop(
+                "remove_phase_confirmation_keys",
+                [],
+            ):
+                updated_structure.pop(key, None)
+            updated_structure.update(structure_updates)
+
+            write_json_atomic(structure_path, updated_structure)
+            write_json_atomic(record_path, updated_record)
+            write_json_atomic(analysis_path, updated_analysis)
+
+            self._stop_visual_test()
+            self.status_var.set(
+                f"{label} applied to {self.selected_song['title']}"
+            )
+            self._append(
+                f"Applied {label}; effective beats: "
+                f"{len(updated_analysis['beat_times'])}."
+            )
+            self._append(
+                f"Created {len(phase_paths)} fresh phase audition files."
+            )
+            messagebox.showinfo(
+                APP_TITLE,
+                (
+                    f"{label} is now active for this song.\n\n"
+                    "Reopen the phase check and audition every phase."
+                ),
+            )
+        except Exception as exc:
+            messagebox.showerror(
+                APP_TITLE,
+                f"Could not apply the selected pulse:\n{exc}",
+            )
+
     def _confirm_selected_meter(self) -> None:
         if self.selected_song is None or self.visual_meter_var is None:
             messagebox.showerror(APP_TITLE, "Select an analysed song first.")
@@ -1113,30 +1527,15 @@ class App(tk.Tk):
                 )
             )
 
-            beat_times = list(updated_analysis["beat_times"])
+            folder = analysis_path.parent
+            phase_paths = create_phase_auditions(
+                audio_path,
+                updated_analysis,
+                folder,
+            )
             detected_index = int(
                 updated_analysis["detected_first_downbeat_beat_index"]
             )
-            folder = analysis_path.parent
-            phase_paths: list[str] = []
-            for phase_offset in range(new_beats_per_bar):
-                effective = (detected_index + phase_offset) % new_beats_per_bar
-                phase_downbeats = [
-                    float(beat_times[index])
-                    for index in range(effective, len(beat_times), new_beats_per_bar)
-                ]
-                phase_path = folder / f"audible_phase_{phase_offset + 1}.wav"
-                structure_engine.create_audible_bar_check(
-                    audio_path,
-                    beat_times,
-                    phase_downbeats,
-                    phase_path,
-                )
-                if not phase_path.is_file() or phase_path.stat().st_size == 0:
-                    raise RuntimeError(
-                        f"Phase audition file {phase_offset + 1} was not created."
-                    )
-                phase_paths.append(str(phase_path))
 
             updated_record["downbeat_phase_audition_paths"] = phase_paths
             updated_analysis["downbeat_phase_audition_paths"] = phase_paths
@@ -1157,10 +1556,6 @@ class App(tk.Tk):
             write_json_atomic(structure_path, updated_structure)
             write_json_atomic(record_path, updated_record)
             write_json_atomic(analysis_path, updated_analysis)
-
-            stale = folder / "audible_phase_4.wav"
-            if new_beats_per_bar == 3 and stale.is_file():
-                stale.unlink(missing_ok=True)
 
             self.visual_beats_per_bar = new_beats_per_bar
             self.visual_base_first_downbeat_index = detected_index

@@ -1,21 +1,25 @@
-RELEASE AUDIT — SONG ANALYSIS LABORATORY 015
+RELEASE AUDIT — SONG ANALYSIS LABORATORY 016
+
+ROOT CAUSE ADDRESSED
+Tennessee Waltz did not align under any 3/4 phase, showing that the underlying
+beat pulse may be wrong rather than only meter or phase.
 
 NEW
-- Explicit 3/4 or 4/4 manual meter confirmation.
-- Detector meter retained separately.
-- Correct number of phase auditions regenerated.
-- Previous phase confirmation cleared when meter changes.
-- Bars and bar-aligned chords rebuilt.
-
-TENNESSEE WALTZ PROOF
-- detected 4/4 retained;
-- confirmed 3/4 becomes effective meter;
-- exactly three phase choices;
-- chord segments, beat times, BPM and best detector candidate preserved.
+- Detected pulse audition.
+- Half pulse A audition.
+- Half pulse B audition.
+- Original detected beat times retained.
+- Effective beat grid rebuilt after explicit pulse choice.
+- Phase files self-heal in Build 016.
+- Confirmed timing protected from accidental re-analysis.
+- No backward Build 013 instruction.
 
 PRESERVED
-- Build 014 per-song phase confirmation.
-- 180-second chord/beat/downbeat audition.
-- central FFmpeg M4A path.
 - 3/4 and 4/4 only.
-- existing JSON filenames.
+- Chord names and chord-change times.
+- BPM.
+- Original detector candidate.
+- Build 014 phase confirmation.
+- Build 015 meter confirmation.
+- Central FFmpeg M4A conversion.
+- Existing filenames.

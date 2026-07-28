@@ -1,0 +1,53 @@
+BANJOFY SONG ANALYSIS LABORATORY 016 — WINDOWS TEST
+PULSE, METER AND PHASE VALIDATION
+
+PRIMARY CORRECTIONS
+- Never tells the user to return to Build 013.
+- Missing or wrong-count phase files are rebuilt by Build 016 itself.
+- Automatic re-analysis warns before resetting manually confirmed timing.
+- Adds detected pulse, half pulse A and half pulse B auditions.
+
+TENNESSEE WALTZ RECOVERY
+1. Run BanjofySongAnalysisLab016.exe.
+2. Select Tennessee Waltz.
+3. Click Play 180-Second Chord + Downbeat Phase Check.
+4. Build 016 should rebuild missing phase files automatically.
+5. Confirm meter 3/4 if required.
+6. Test all three phases with Detected pulse.
+7. When none works, select Half pulse A.
+8. Click Apply Pulse and Rebuild Phase Auditions.
+9. Reopen and test Phases 1–3.
+10. Repeat using Half pulse B if needed.
+
+REPORT
+- Which pulse interpretation follows the real waltz beat?
+- Which phase then places DOWNBEAT on the true bar start?
+- Do chord names and chord-change times remain correct?
+- Does alignment remain stable?
+
+RE-ANALYSIS PROTECTION
+For a song with confirmed meter, pulse or phase:
+1. Click Detect 3/4 or 4/4 and Create Audible Check.
+2. A warning must say confirmed timing will be reset.
+3. Click No.
+4. Confirm the existing confirmation remains unchanged.
+
+CHECK FILENAME ONLY
+Analysis\<song-id>\audible_phase_1.wav
+Analysis\<song-id>\audible_phase_2.wav
+Analysis\<song-id>\audible_phase_3.wav
+For 4/4 only:
+Analysis\<song-id>\audible_phase_4.wav
+
+OPEN IN NOTEPAD
+Check song_analysis.json for:
+detected_beat_times
+pulse_interpretation
+pulse_interpretation_label
+pulse_confirmation_status
+pulse_confirmed_by
+pulse_confirmed_at
+beat_times
+confirmed_meter
+downbeat_phase_status
+downbeat_phase_audition_paths
