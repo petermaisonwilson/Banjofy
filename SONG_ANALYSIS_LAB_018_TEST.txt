@@ -1,0 +1,38 @@
+BANJOFY SONG ANALYSIS LABORATORY 018 — WINDOWS TEST
+
+TENNESSEE WALTZ
+1. Select Tennessee Waltz.
+2. Play Alternative Beat Grids.
+3. Select Low-Frequency rhythm.
+4. Click Confirm Selected Beat Grid and Rebuild Phases.
+5. Confirm the active meter is 3/4.
+6. Open Play 180-Second Chord + Downbeat Phase Check.
+7. Audition Phase 1, Phase 2 and Phase 3.
+8. Confirm the phase whose strong click marks the true first beat of each waltz bar.
+
+ACCEPTANCE
+- Ordinary clicks retain the perfect Low-Frequency rhythm timing.
+- Exactly three phase auditions exist.
+- One phase places DOWNBEAT on the true bar start.
+- Timing remains aligned without drift.
+- Chord changes remain at their previous times.
+
+CHECK FILENAME ONLY
+Analysis\<song-id>\audible_phase_1.wav
+Analysis\<song-id>\audible_phase_2.wav
+Analysis\<song-id>\audible_phase_3.wav
+There must be no active audible_phase_4.wav for Tennessee Waltz.
+
+OPEN IN NOTEPAD AND INSPECT CONTENTS
+song_analysis.json must contain:
+confirmed_beat_grid_method: low_frequency
+confirmed_beat_grid_label: Low-frequency rhythm
+beat_grid_confirmation_status: confirmed
+beat_grid_confirmed_by: manual_audition
+beat_grid_confirmed_at
+detected_beat_times
+beat_times
+confirmed_meter: 3/4
+beats_per_bar: 3
+downbeat_phase_status
+downbeat_phase_audition_paths

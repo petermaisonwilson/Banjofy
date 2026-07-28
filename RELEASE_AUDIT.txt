@@ -1,19 +1,19 @@
-RELEASE AUDIT — SONG ANALYSIS LABORATORY 017
+RELEASE AUDIT — SONG ANALYSIS LABORATORY 018
 
-ROOT CAUSE TARGET
-Tennessee Waltz has unreliable original beat timestamps. Re-grouping, phase shifts and every-other-beat selection cannot repair missing or misplaced beats.
+PROVEN INPUT
+Tennessee Waltz Low-Frequency rhythm candidate was reported perfect in Build 017.
 
 NEW
-- Standard full-mix tracker.
-- Percussion-focused tracker.
-- Low-frequency rhythm tracker.
-- Regular slower pulse tracker.
-- Four 180-second ordinary-click proofs.
-- Visual beat count and existing chord display.
+- Confirm the currently selected alternative beat grid.
+- Preserve original detected beat times.
+- Save selected method, label, BPM and confirmation metadata.
+- Rebuild active beat grid, bars, downbeats and bar-aligned chords.
+- Clear obsolete phase confirmation.
+- Generate exactly three phase files for 3/4 or four for 4/4.
 
 PRESERVED
-- Chord segments and chord-change times.
-- Original analysis.
+- Chord names and chord-change times.
+- Original detector grid and alternative candidates.
 - 3/4 and 4/4 only.
-- FFmpeg M4A route.
+- Central FFmpeg media route.
 - Existing Library filenames.

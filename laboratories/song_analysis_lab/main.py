@@ -15,7 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import structure_engine
 
-APP_TITLE = "Banjofy Song Analysis Laboratory 017 — Alternative Beat-Grid Audition"
+APP_TITLE = "Banjofy Song Analysis Laboratory 018 — Confirm Alternative Beat Grid"
 SETTINGS_FILENAME = "song_analysis_lab_settings.json"
 
 
@@ -144,6 +144,99 @@ def pulse_times_for_mode(analysis: dict, pulse_mode: str) -> list[float]:
             "The selected half-pulse interpretation contains too few beats."
         )
     return result
+
+
+def build_confirmed_alternative_grid_updates(
+    record: dict,
+    analysis: dict,
+    method: str,
+    confirmed_at: str,
+) -> tuple[dict, dict, dict]:
+    """Make one generated alternative grid the active beat source."""
+    candidates = analysis.get("alternative_beat_grids")
+    if not isinstance(candidates, dict):
+        raise RuntimeError("Create the alternative beat grids before confirming one.")
+    candidate = candidates.get(str(method))
+    if not isinstance(candidate, dict):
+        raise RuntimeError("The selected alternative beat grid is unavailable.")
+    beat_times = [
+        float(value) for value in candidate.get("beat_times", [])
+        if isinstance(value, (int, float))
+    ]
+    if len(beat_times) < 8:
+        raise RuntimeError("The selected alternative beat grid contains too few beats.")
+    segments = analysis.get("segments", [])
+    if not isinstance(segments, list) or not segments:
+        raise RuntimeError("The saved analysis contains no chord segments.")
+
+    meter = str(analysis.get("confirmed_meter") or analysis.get("meter") or "")
+    beats_per_bar = 3 if meter == "3/4" else 4 if meter == "4/4" else 0
+    if beats_per_bar not in (3, 4):
+        raise RuntimeError("Confirm 3/4 or 4/4 before confirming the beat grid.")
+
+    original_detected = detected_beat_times_from_analysis(analysis)
+    phase_index = int(analysis.get("detected_first_downbeat_beat_index", 0)) % beats_per_bar
+    beat_grid, bars, aligned, downbeats = structure_engine.build_bar_grid(
+        beat_times, beats_per_bar, phase_index, segments
+    )
+    label = str(candidate.get("label") or method)
+    fields = {
+        "detected_beat_times": original_detected,
+        "confirmed_beat_grid_method": str(method),
+        "confirmed_beat_grid_label": label,
+        "beat_grid_confirmation_status": "confirmed",
+        "beat_grid_confirmed_by": "manual_audition",
+        "beat_grid_confirmed_at": confirmed_at,
+        "beat_grid_source_bpm": float(candidate.get("bpm") or 0.0),
+        "beat_times": beat_times,
+        "beat_count": len(beat_times),
+        "pulse_interpretation": "alternative_grid",
+        "pulse_interpretation_label": label,
+        "pulse_confirmation_status": "confirmed",
+        "pulse_confirmed_by": "manual_audition",
+        "pulse_confirmed_at": confirmed_at,
+        "first_downbeat_beat_index": phase_index,
+        "downbeat_phase_status": "unconfirmed",
+    }
+    phase_keys=(
+        "confirmed_phase_number","confirmed_phase_offset",
+        "confirmed_first_downbeat_beat_index","downbeat_phase_confirmed_by",
+        "downbeat_phase_confirmed_at",
+    )
+    updated_analysis=dict(analysis)
+    for key in phase_keys: updated_analysis.pop(key,None)
+    updated_analysis.update(fields)
+    updated_analysis.update({
+        "downbeat_times":downbeats,"bar_start_times":downbeats,
+        "bar_count":len(bars),"beat_grid":beat_grid,"bars":bars,
+        "bar_aligned_chords":aligned,
+    })
+    updated_record=dict(record)
+    for key in phase_keys: updated_record.pop(key,None)
+    for key,value in fields.items():
+        if key != "beat_times": updated_record[key]=value
+    summary=dict(updated_record.get("structure_summary") or {})
+    for key in phase_keys: summary.pop(key,None)
+    summary.update({
+        "confirmed_beat_grid_method":str(method),
+        "confirmed_beat_grid_label":label,
+        "beat_grid_confirmation_status":"confirmed",
+        "beat_grid_confirmed_by":"manual_audition",
+        "beat_grid_confirmed_at":confirmed_at,
+        "beat_count":len(beat_times),
+        "first_downbeat_beat_index":phase_index,
+        "downbeat_phase_status":"unconfirmed",
+        "downbeat_times":downbeats,"bar_start_times":downbeats,
+        "bar_count":len(bars),
+    })
+    updated_record["structure_summary"]=summary
+    structure_updates={
+        **fields,"downbeat_times":downbeats,"bar_start_times":downbeats,
+        "bar_count":len(bars),"beat_grid":beat_grid,"bars":bars,
+        "bar_aligned_chords":aligned,
+        "remove_phase_confirmation_keys":list(phase_keys),
+    }
+    return updated_record,updated_analysis,structure_updates
 
 
 def build_confirmed_pulse_updates(
@@ -728,8 +821,8 @@ class App(tk.Tk):
         ttk.Label(
             outer,
             text=(
-                "This build leaves the passed chord analysis unchanged. It estimates metre and "
-                "downbeats from rhythmic accents, then adds numbered bars and a bar-aligned chord view."
+                "This build preserves the passed chord timeline and lets a proven alternative beat grid "
+                "become the active timing source before meter and downbeat phase are confirmed."
             ),
             wraplength=950,
         ).pack(anchor="w", pady=(5, 12))
@@ -1046,7 +1139,7 @@ class App(tk.Tk):
         analysis = read_json(Path(self.selected_song["analysis_path"]))
         candidates = analysis.get("alternative_beat_grids")
         if not isinstance(candidates, dict) or not candidates:
-            messagebox.showerror(APP_TITLE, "Create the Build 017 alternative beat grids first.")
+            messagebox.showerror(APP_TITLE, "Create the Build 018 alternative beat grids first.")
             return
         valid = {
             key: value for key, value in candidates.items()
@@ -1055,7 +1148,7 @@ class App(tk.Tk):
             and isinstance(value.get("beat_times"), list)
         }
         if not valid:
-            messagebox.showerror(APP_TITLE, "The Build 017 alternative beat files are missing.")
+            messagebox.showerror(APP_TITLE, "The Build 018 alternative beat files are missing.")
             return
         self.alt_candidates = valid
         self.alt_chord_segments = sorted(
@@ -1102,7 +1195,14 @@ class App(tk.Tk):
         self.alt_canvas.pack(fill="x", pady=14)
         self.alt_canvas.create_line(30,35,830,35,width=3)
         self.alt_marker = self.alt_canvas.create_oval(22,19,38,51)
-        ttk.Button(frame, text="Stop Test", command=self._stop_alternative_test).pack(side="right")
+        actions = ttk.Frame(frame)
+        actions.pack(fill="x")
+        ttk.Button(
+            actions,
+            text="Confirm Selected Beat Grid and Rebuild Phases",
+            command=self._confirm_selected_alternative_grid,
+        ).pack(side="left")
+        ttk.Button(actions, text="Stop Test", command=self._stop_alternative_test).pack(side="right")
         self.alt_window.protocol("WM_DELETE_WINDOW", self._stop_alternative_test)
 
     def _start_alternative_method(self, method: str) -> None:
@@ -1152,6 +1252,72 @@ class App(tk.Tk):
         size=24 if near else 14
         self.alt_canvas.coords(self.alt_marker,x-size/2,35-size,x+size/2,35+size)
         self.after(25,self._update_alternative_marker)
+
+    def _confirm_selected_alternative_grid(self) -> None:
+        if self.selected_song is None or not self.alt_selected_method:
+            messagebox.showerror(APP_TITLE, "Play and select an alternative beat grid first.")
+            return
+        candidate = self.alt_candidates.get(self.alt_selected_method)
+        if not isinstance(candidate, dict):
+            messagebox.showerror(APP_TITLE, "The selected beat-grid candidate is unavailable.")
+            return
+        label = str(candidate.get("label") or self.alt_selected_method)
+        analysis = read_json(Path(self.selected_song["analysis_path"]))
+        meter = str(analysis.get("confirmed_meter") or analysis.get("meter") or "")
+        if meter not in {"3/4", "4/4"}:
+            messagebox.showerror(APP_TITLE, "Confirm 3/4 or 4/4 before confirming this beat grid.")
+            return
+        if not messagebox.askyesno(
+            APP_TITLE,
+            (
+                f"Confirm {label} as this song's active beat grid?\n\n"
+                f"Build 018 will retain the original detector grid, rebuild {meter} bars "
+                "and create a completely fresh phase-audition set.\n\n"
+                "Chord names and chord-change times will not be altered."
+            ),
+        ):
+            return
+        try:
+            record_path=Path(self.selected_song["record_path"])
+            analysis_path=Path(self.selected_song["analysis_path"])
+            audio_path=Path(self.selected_song["audio_path"])
+            record=read_json(record_path)
+            analysis=read_json(analysis_path)
+            confirmed_at=time.strftime("%Y-%m-%d %H:%M:%S")
+            updated_record,updated_analysis,structure_updates=(
+                build_confirmed_alternative_grid_updates(
+                    record,analysis,self.alt_selected_method,confirmed_at
+                )
+            )
+            folder=analysis_path.parent
+            phase_paths=create_phase_auditions(audio_path,updated_analysis,folder)
+            updated_record["downbeat_phase_audition_paths"]=phase_paths
+            updated_analysis["downbeat_phase_audition_paths"]=phase_paths
+            structure_updates["downbeat_phase_audition_paths"]=phase_paths
+            structure_raw=updated_record.get("structure_path")
+            structure_path=(Path(str(structure_raw)) if structure_raw else folder/"song_structure.json")
+            updated_structure=read_json(structure_path) if structure_path.is_file() else {}
+            for key in structure_updates.pop("remove_phase_confirmation_keys",[]):
+                updated_structure.pop(key,None)
+            updated_structure.update(structure_updates)
+            write_json_atomic(structure_path,updated_structure)
+            write_json_atomic(record_path,updated_record)
+            write_json_atomic(analysis_path,updated_analysis)
+            self._stop_alternative_test()
+            self.play_button.configure(state="normal")
+            self.status_var.set(f"Confirmed beat grid: {label}")
+            self._append(f"Confirmed alternative beat grid: {label}.")
+            self._append(f"Created {len(phase_paths)} fresh {meter} phase auditions.")
+            messagebox.showinfo(
+                APP_TITLE,
+                (
+                    f"{label} is now the active beat grid.\n\n"
+                    f"Build 018 created {len(phase_paths)} fresh {meter} phase auditions. "
+                    "Open the chord and downbeat phase check and audition them."
+                ),
+            )
+        except Exception as exc:
+            messagebox.showerror(APP_TITLE,f"Could not confirm the selected beat grid:\n{exc}")
 
     def _stop_alternative_test(self) -> None:
         try:
