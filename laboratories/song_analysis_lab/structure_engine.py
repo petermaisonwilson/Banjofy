@@ -13,7 +13,7 @@ import numpy as np
 import scipy.signal
 
 
-STRUCTURE_VERSION = 6
+STRUCTURE_VERSION = 7
 METER_CONFIDENCE_THRESHOLD = 0.55
 RHYTHMIC_WINDOW_BEATS = 64
 AUDIBLE_PREVIEW_SECONDS = 180.0
@@ -280,6 +280,118 @@ def build_bar_grid(
     return beat_grid, bars, aligned, downbeats
 
 
+
+
+ALTERNATIVE_BEAT_METHODS = {
+    "standard": "Standard full mix",
+    "percussive": "Percussion focused",
+    "low_frequency": "Low-frequency rhythm",
+    "steady_pulse": "Steady slow pulse",
+}
+
+
+def _tempo_value(value) -> float:
+    array = np.asarray(value, dtype=float).reshape(-1)
+    return float(array[0]) if array.size else 0.0
+
+
+def _beat_track_from_audio(y: np.ndarray, sr: int, *, start_bpm: float = 90.0, tightness: float = 100.0) -> tuple[float, list[float]]:
+    onset = librosa.onset.onset_strength(y=y, sr=sr)
+    tempo, frames = librosa.beat.beat_track(
+        onset_envelope=onset,
+        sr=sr,
+        start_bpm=start_bpm,
+        tightness=tightness,
+        trim=False,
+    )
+    times = librosa.frames_to_time(np.asarray(frames), sr=sr)
+    return _tempo_value(tempo), [round(float(v), 6) for v in times]
+
+
+def _steady_regular_grid(y: np.ndarray, sr: int) -> tuple[float, list[float]]:
+    """Build a genuinely regular slower pulse from the onset autocorrelation."""
+    onset = librosa.onset.onset_strength(y=y, sr=sr)
+    if onset.size < 16:
+        raise RuntimeError("Too little rhythmic evidence for the steady-pulse grid.")
+    tempo_candidates = np.asarray(
+        librosa.feature.tempo(onset_envelope=onset, sr=sr, aggregate=None),
+        dtype=float,
+    )
+    tempo_candidates = tempo_candidates[np.isfinite(tempo_candidates)]
+    tempo_candidates = tempo_candidates[(tempo_candidates >= 45.0) & (tempo_candidates <= 115.0)]
+    bpm = float(np.median(tempo_candidates)) if tempo_candidates.size else 75.0
+    interval = 60.0 / max(45.0, min(115.0, bpm))
+    frame_times = librosa.frames_to_time(np.arange(len(onset)), sr=sr)
+    duration = len(y) / sr
+    phases = np.linspace(0.0, interval, 48, endpoint=False)
+    best_phase = 0.0
+    best_score = -1.0
+    for phase in phases:
+        grid = np.arange(phase, duration, interval)
+        indices = np.searchsorted(frame_times, grid)
+        indices = np.clip(indices, 0, len(onset)-1)
+        score = float(np.mean(onset[indices])) if indices.size else 0.0
+        if score > best_score:
+            best_score = score; best_phase = float(phase)
+    times = [round(float(v),6) for v in np.arange(best_phase, duration, interval)]
+    return 60.0/interval, times
+
+
+def generate_alternative_beat_grids(audio_path: Path, status_callback=lambda _text: None) -> dict[str, dict]:
+    """Generate genuinely different beat timestamps from the original audio."""
+    ensure_scipy_signal_compatibility()
+    with tempfile.TemporaryDirectory(prefix="banjofy_alt_beats_") as temporary:
+        wav = prepare_wav(audio_path, Path(temporary))
+        y, sr = librosa.load(wav, sr=22050, mono=True, duration=AUDIBLE_PREVIEW_SECONDS)
+        if y is None or len(y) == 0:
+            raise RuntimeError("Alternative beat-grid audio was empty.")
+
+        candidates: dict[str, dict] = {}
+        status_callback("Creating standard full-mix beat grid…")
+        bpm, times = _beat_track_from_audio(y, sr, start_bpm=90.0, tightness=100.0)
+        candidates["standard"] = {"label": ALTERNATIVE_BEAT_METHODS["standard"], "bpm": bpm, "beat_times": times}
+
+        status_callback("Creating percussion-focused beat grid…")
+        _, percussion = librosa.effects.hpss(y)
+        bpm, times = _beat_track_from_audio(percussion, sr, start_bpm=90.0, tightness=80.0)
+        candidates["percussive"] = {"label": ALTERNATIVE_BEAT_METHODS["percussive"], "bpm": bpm, "beat_times": times}
+
+        status_callback("Creating low-frequency rhythm grid…")
+        sos = scipy.signal.butter(6, [35.0, 320.0], btype="bandpass", fs=sr, output="sos")
+        low = scipy.signal.sosfiltfilt(sos, y).astype(np.float32)
+        bpm, times = _beat_track_from_audio(low, sr, start_bpm=80.0, tightness=70.0)
+        candidates["low_frequency"] = {"label": ALTERNATIVE_BEAT_METHODS["low_frequency"], "bpm": bpm, "beat_times": times}
+
+        status_callback("Creating steady slower pulse grid…")
+        bpm, times = _steady_regular_grid(y, sr)
+        candidates["steady_pulse"] = {"label": ALTERNATIVE_BEAT_METHODS["steady_pulse"], "bpm": bpm, "beat_times": times}
+
+    for key, value in candidates.items():
+        if len(value["beat_times"]) < 8:
+            raise RuntimeError(f"{value['label']} produced too few beats.")
+    return candidates
+
+
+def create_audible_beat_grid_check(audio_path: Path, beat_times: list[float], target: Path, preview_seconds: float = AUDIBLE_PREVIEW_SECONDS) -> Path:
+    """Create an audio proof with one identical click per candidate beat."""
+    ensure_scipy_signal_compatibility()
+    with tempfile.TemporaryDirectory(prefix="banjofy_alt_clicks_") as temporary:
+        wav = prepare_wav(audio_path, Path(temporary))
+        y, sr = librosa.load(wav, sr=22050, mono=True, duration=preview_seconds)
+        duration = len(y) / sr
+        times = np.asarray([v for v in beat_times if 0.0 <= float(v) < duration], dtype=float)
+        clicks = librosa.clicks(times=times, sr=sr, click_freq=1050.0, click_duration=0.045, length=len(y)).astype(np.float32)
+        mixed = y.astype(np.float32) * 0.84 + clicks * 0.30
+        peak = float(np.max(np.abs(mixed))) if mixed.size else 0.0
+        if peak > 0.98: mixed = mixed / (peak / 0.98)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        working = target.with_name(target.stem + '.working' + target.suffix)
+        import soundfile as sf
+        sf.write(working, mixed, sr, subtype='PCM_16')
+        if not working.is_file() or working.stat().st_size == 0:
+            raise RuntimeError('Alternative beat-grid WAV was not created.')
+        working.replace(target)
+    return target
 
 def create_audible_bar_check(
     audio_path: Path,

@@ -1,0 +1,34 @@
+BANJOFY SONG ANALYSIS LABORATORY 017 — WINDOWS TEST
+ALTERNATIVE BEAT-GRID AUDITION
+
+PURPOSE
+Tennessee Waltz showed that meter, phase and simple half-pulse changes cannot repair an incorrect beat grid. Build 017 creates four genuinely different beat timestamp sets directly from the original audio.
+
+METHODS
+1. Standard full mix
+2. Percussion focused
+3. Low-frequency rhythm
+4. Steady slow pulse
+
+TEST
+1. Run BanjofySongAnalysisLab017.exe.
+2. Select Tennessee Waltz.
+3. Click Create Alternative Beat Grids and wait for completion.
+4. Click Play Alternative Beat Grids.
+5. Test every method. Each selection restarts from the beginning.
+6. Listen only to whether the identical ordinary clicks follow the genuine waltz beat. There are no strong downbeat clicks in this test.
+
+REPORT
+- Which method follows the real beat most closely?
+- Does it remain aligned without speeding up, slowing down or drifting?
+- Does the displayed chord still change at the correct audible moment?
+- Are any methods obviously double-time or half-time?
+
+CHECK FILENAME ONLY
+Analysis\<song-id>\alternative_beat_standard.wav
+Analysis\<song-id>\alternative_beat_percussive.wav
+Analysis\<song-id>\alternative_beat_low_frequency.wav
+Analysis\<song-id>\alternative_beat_steady_pulse.wav
+Analysis\<song-id>\alternative_beat_grids.json
+
+Do not confirm meter or phase until one underlying beat grid passes musically.

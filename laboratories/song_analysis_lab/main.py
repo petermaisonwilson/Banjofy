@@ -15,7 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import structure_engine
 
-APP_TITLE = "Banjofy Song Analysis Laboratory 016 — Pulse, Meter and Phase Validation"
+APP_TITLE = "Banjofy Song Analysis Laboratory 017 — Alternative Beat-Grid Audition"
 SETTINGS_FILENAME = "song_analysis_lab_settings.json"
 
 
@@ -692,6 +692,11 @@ class App(tk.Tk):
         self.visual_phase_buttons: list[ttk.Button] = []
         self.visual_meter_var: tk.StringVar | None = None
         self.visual_pulse_var: tk.StringVar | None = None
+        self.alt_window: tk.Toplevel | None = None
+        self.alt_started_at: float | None = None
+        self.alt_candidates: dict[str, dict] = {}
+        self.alt_selected_method: str = "standard"
+        self.alt_chord_segments: list[dict] = []
         self._load_settings()
         self._build_ui()
         self.after(150, self._poll)
@@ -765,6 +770,20 @@ class App(tk.Tk):
             state="disabled",
         )
         self.play_button.pack(side="left", padx=8)
+        self.alt_create_button = ttk.Button(
+            controls,
+            text="Create Alternative Beat Grids",
+            command=self._create_alternative_beat_grids,
+            state="disabled",
+        )
+        self.alt_create_button.pack(side="left", padx=8)
+        self.alt_play_button = ttk.Button(
+            controls,
+            text="Play Alternative Beat Grids",
+            command=self._play_alternative_beat_grids,
+            state="disabled",
+        )
+        self.alt_play_button.pack(side="left", padx=4)
         ttk.Button(controls, text="Open Analysis Folder", command=self._open_folder).pack(side="right")
 
         status = ttk.LabelFrame(outer, text="Structure-analysis status")
@@ -804,6 +823,8 @@ class App(tk.Tk):
         self.songs = discover_analysed_songs(root)
         self.selected_song = None
         self.run_button.configure(state="disabled")
+        self.alt_create_button.configure(state="disabled")
+        self.alt_play_button.configure(state="disabled")
         for item in self.tree.get_children():
             self.tree.delete(item)
         for index, song in enumerate(self.songs):
@@ -824,9 +845,12 @@ class App(tk.Tk):
         if not selected:
             self.selected_song = None
             self.run_button.configure(state="disabled")
+            self.alt_create_button.configure(state="disabled")
+            self.alt_play_button.configure(state="disabled")
             return
         self.selected_song = self.songs[int(selected[0])]
         self.run_button.configure(state="normal")
+        self.alt_create_button.configure(state="normal")
 
         existing_check = self.selected_song["record"].get("audible_bar_check_path")
         if existing_check and Path(str(existing_check)).is_file():
@@ -834,6 +858,15 @@ class App(tk.Tk):
         else:
             self.play_button.configure(state="disabled")
 
+        analysis_now = read_json(self.selected_song["analysis_path"])
+        alt = analysis_now.get("alternative_beat_grids")
+        valid_alt = isinstance(alt, dict) and any(
+            isinstance(item, dict)
+            and item.get("audible_path")
+            and Path(str(item.get("audible_path"))).is_file()
+            for item in alt.values()
+        )
+        self.alt_play_button.configure(state="normal" if valid_alt else "disabled")
         self.status_var.set(f"Selected: {self.selected_song['title']}")
 
     def _start(self) -> None:
@@ -913,6 +946,27 @@ class App(tk.Tk):
                 self.status_var.set("Structure analysis failed")
                 self._append(str(payload))
                 messagebox.showerror(APP_TITLE, "Structure analysis failed. The exact error is shown in the window.")
+            elif kind == "alternative_error":
+                self.alt_create_button.configure(state="normal")
+                self.status_var.set("Alternative beat-grid analysis failed")
+                self._append(str(payload))
+                messagebox.showerror(APP_TITLE, "Alternative beat-grid analysis failed. The exact error is shown in the window.")
+            elif kind == "alternative_done":
+                self.alt_create_button.configure(state="normal")
+                self.alt_play_button.configure(state="normal")
+                self.status_var.set("Four alternative beat grids created")
+                self._append("")
+                for method, candidate in payload["candidates"].items():
+                    self._append(
+                        f"{candidate['label']}: {len(candidate['beat_times'])} beats, "
+                        f"{float(candidate['bpm']):.1f} BPM"
+                    )
+                self._append(f"Alternative grid data: {payload['proof_path']}")
+                messagebox.showinfo(
+                    APP_TITLE,
+                    "Four genuinely different beat grids are ready.\n\n"
+                    "Use Play Alternative Beat Grids and identify which ordinary click track follows the real musical beat.",
+                )
             elif kind == "done":
                 result = payload["result"]
                 structure_path, record_path, analysis_path, audible_check_path = payload["paths"]
@@ -944,6 +998,170 @@ class App(tk.Tk):
                     "to inspect the new meter, bar and downbeat fields.",
                 )
         self.after(150, self._poll)
+
+    def _create_alternative_beat_grids(self) -> None:
+        if self.selected_song is None:
+            messagebox.showinfo(APP_TITLE, "Select an analysed song first.")
+            return
+        song = self.selected_song
+        self.alt_create_button.configure(state="disabled")
+        self.alt_play_button.configure(state="disabled")
+        self.status_var.set("Creating genuinely different beat grids…")
+
+        def worker() -> None:
+            try:
+                candidates = structure_engine.generate_alternative_beat_grids(
+                    Path(song["audio_path"]),
+                    lambda text: self.messages.put(("status", text)),
+                )
+                folder = Path(song["analysis_path"]).parent
+                for method, candidate in candidates.items():
+                    target = folder / f"alternative_beat_{method}.wav"
+                    structure_engine.create_audible_beat_grid_check(
+                        Path(song["audio_path"]),
+                        candidate["beat_times"],
+                        target,
+                    )
+                    candidate["audible_path"] = str(target)
+
+                proof_path = folder / "alternative_beat_grids.json"
+                proof_path.write_text(json.dumps(candidates, indent=2), encoding="utf-8")
+                record = read_json(Path(song["record_path"]))
+                analysis = read_json(Path(song["analysis_path"]))
+                record["alternative_beat_grids_path"] = str(proof_path)
+                analysis["alternative_beat_grids_path"] = str(proof_path)
+                analysis["alternative_beat_grids"] = candidates
+                write_json_atomic(Path(song["record_path"]), record)
+                write_json_atomic(Path(song["analysis_path"]), analysis)
+                self.messages.put(("alternative_done", {"candidates": candidates, "proof_path": proof_path}))
+            except Exception as exc:
+                self.messages.put(("alternative_error", f"{exc}\n\n{traceback.format_exc()}"))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _play_alternative_beat_grids(self) -> None:
+        if self.selected_song is None:
+            messagebox.showinfo(APP_TITLE, "Select an analysed song first.")
+            return
+        analysis = read_json(Path(self.selected_song["analysis_path"]))
+        candidates = analysis.get("alternative_beat_grids")
+        if not isinstance(candidates, dict) or not candidates:
+            messagebox.showerror(APP_TITLE, "Create the Build 017 alternative beat grids first.")
+            return
+        valid = {
+            key: value for key, value in candidates.items()
+            if isinstance(value, dict)
+            and Path(str(value.get("audible_path") or "")).is_file()
+            and isinstance(value.get("beat_times"), list)
+        }
+        if not valid:
+            messagebox.showerror(APP_TITLE, "The Build 017 alternative beat files are missing.")
+            return
+        self.alt_candidates = valid
+        self.alt_chord_segments = sorted(
+            [item for item in analysis.get("segments", []) if isinstance(item, dict)],
+            key=lambda item: float(item.get("start_s", 0.0)),
+        )
+        self.alt_selected_method = next(iter(valid))
+        self._open_alternative_window()
+        self._start_alternative_method(self.alt_selected_method)
+
+    def _open_alternative_window(self) -> None:
+        if self.alt_window is not None and self.alt_window.winfo_exists():
+            self.alt_window.destroy()
+        self.alt_window = tk.Toplevel(self)
+        self.alt_window.title("Banjofy Alternative Beat-Grid Audition")
+        self.alt_window.geometry("900x470")
+        frame = ttk.Frame(self.alt_window, padding=18)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text="Alternative Beat-Grid Audition", font=("Segoe UI", 18, "bold")).pack()
+        ttk.Label(
+            frame,
+            text=("Every method uses the original recording and identical ordinary clicks. "
+                  "There are no strong downbeat clicks. Choose the method whose clicks follow "
+                  "the genuine musical beat without speeding up, slowing down or drifting."),
+            wraplength=840,
+        ).pack(pady=(4,14))
+        methods = ttk.LabelFrame(frame, text="Genuinely different beat trackers")
+        methods.pack(fill="x")
+        for key, candidate in self.alt_candidates.items():
+            ttk.Button(
+                methods,
+                text=str(candidate.get("label") or key),
+                command=lambda value=key: self._start_alternative_method(value),
+            ).pack(side="left", padx=6, pady=10)
+        self.alt_method_var = tk.StringVar(value="")
+        self.alt_time_var = tk.StringVar(value="0:00")
+        self.alt_beat_var = tk.StringVar(value="Beat —")
+        self.alt_chord_var = tk.StringVar(value="Chord —")
+        ttk.Label(frame, textvariable=self.alt_method_var, font=("Segoe UI", 15, "bold")).pack(pady=(18,4))
+        ttk.Label(frame, textvariable=self.alt_beat_var, font=("Segoe UI", 30, "bold")).pack()
+        ttk.Label(frame, textvariable=self.alt_chord_var, font=("Segoe UI", 26)).pack(pady=6)
+        ttk.Label(frame, textvariable=self.alt_time_var, font=("Segoe UI", 14)).pack()
+        self.alt_canvas = tk.Canvas(frame, height=70, highlightthickness=1)
+        self.alt_canvas.pack(fill="x", pady=14)
+        self.alt_canvas.create_line(30,35,830,35,width=3)
+        self.alt_marker = self.alt_canvas.create_oval(22,19,38,51)
+        ttk.Button(frame, text="Stop Test", command=self._stop_alternative_test).pack(side="right")
+        self.alt_window.protocol("WM_DELETE_WINDOW", self._stop_alternative_test)
+
+    def _start_alternative_method(self, method: str) -> None:
+        candidate = self.alt_candidates.get(method)
+        if not candidate:
+            return
+        path = Path(str(candidate.get("audible_path") or ""))
+        if not path.is_file():
+            messagebox.showerror(APP_TITLE, f"Alternative beat file missing:\n{path}")
+            return
+        try:
+            import winsound
+            winsound.PlaySound(str(path), winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT)
+        except Exception as exc:
+            messagebox.showerror(APP_TITLE, f"Could not play alternative beat grid:\n{exc}")
+            return
+        self.alt_selected_method = method
+        self.alt_started_at = time.monotonic()
+        label = str(candidate.get("label") or method)
+        bpm = float(candidate.get("bpm") or 0.0)
+        self.alt_method_var.set(f"{label} · estimated {bpm:.1f} BPM")
+        self._update_alternative_marker()
+
+    def _alternative_chord_at(self, elapsed: float) -> str:
+        for segment in self.alt_chord_segments:
+            if float(segment.get("start_s",0.0)) <= elapsed < float(segment.get("end_s",0.0)):
+                return str(segment.get("chord") or "N")
+        return "—"
+
+    def _update_alternative_marker(self) -> None:
+        if self.alt_started_at is None or self.alt_window is None or not self.alt_window.winfo_exists():
+            return
+        candidate = self.alt_candidates.get(self.alt_selected_method, {})
+        beats = [float(v) for v in candidate.get("beat_times", [])]
+        if not beats:
+            return
+        elapsed = time.monotonic() - self.alt_started_at
+        duration = min(structure_engine.AUDIBLE_PREVIEW_SECONDS, beats[-1])
+        if elapsed >= duration:
+            self._stop_alternative_test(); return
+        index = max(0, bisect.bisect_right(beats, elapsed)-1)
+        near = abs(elapsed-beats[index]) < 0.14
+        self.alt_beat_var.set(f"Beat {index+1}")
+        self.alt_chord_var.set(f"Chord {self._alternative_chord_at(elapsed)}")
+        self.alt_time_var.set(f"{int(elapsed)//60}:{int(elapsed)%60:02d} / {int(duration)//60}:{int(duration)%60:02d}")
+        width=max(100,self.alt_canvas.winfo_width()); x=30+(elapsed/max(1.0,duration))*(width-60)
+        size=24 if near else 14
+        self.alt_canvas.coords(self.alt_marker,x-size/2,35-size,x+size/2,35+size)
+        self.after(25,self._update_alternative_marker)
+
+    def _stop_alternative_test(self) -> None:
+        try:
+            import winsound
+            winsound.PlaySound(None, winsound.SND_PURGE)
+        except Exception:
+            pass
+        self.alt_started_at=None
+        if self.alt_window is not None and self.alt_window.winfo_exists(): self.alt_window.destroy()
+        self.alt_window=None
 
     def _play_audible_check(self) -> None:
         if self.selected_song is None:
