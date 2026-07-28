@@ -1,27 +1,21 @@
-RELEASE AUDIT — SONG ANALYSIS LABORATORY 014
+RELEASE AUDIT — SONG ANALYSIS LABORATORY 015
 
 NEW
-- Confirm Selected Phase button.
-- Per-song manual phase confirmation.
-- Detector phase retained separately.
-- Confirmed effective first-downbeat index saved.
-- Bars, beat grid, downbeats and bar-aligned chords rebuilt.
-- Future playback defaults to confirmed phase.
+- Explicit 3/4 or 4/4 manual meter confirmation.
+- Detector meter retained separately.
+- Correct number of phase auditions regenerated.
+- Previous phase confirmation cleared when meter changes.
+- Bars and bar-aligned chords rebuilt.
 
-HOTEL CALIFORNIA DIRECT PROOF
-- detected index 2;
-- selected Phase 3;
-- offset 2;
-- confirmed index 0.
+TENNESSEE WALTZ PROOF
+- detected 4/4 retained;
+- confirmed 3/4 becomes effective meter;
+- exactly three phase choices;
+- chord segments, beat times, BPM and best detector candidate preserved.
 
 PRESERVED
+- Build 014 per-song phase confirmation.
+- 180-second chord/beat/downbeat audition.
+- central FFmpeg M4A path.
 - 3/4 and 4/4 only.
-- Chord segments unchanged.
-- Chord-change times unchanged.
-- Beat times unchanged.
-- BPM unchanged.
-- Whole-track meter candidate unchanged.
-- 180-second audition.
-- Central FFmpeg M4A conversion.
-- Existing filenames.
-- Main and firefox-acquisition-lab untouched.
+- existing JSON filenames.

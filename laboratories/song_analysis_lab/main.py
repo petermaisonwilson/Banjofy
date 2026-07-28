@@ -15,7 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import structure_engine
 
-APP_TITLE = "Banjofy Song Analysis Laboratory 014 — Confirm Downbeat Phase"
+APP_TITLE = "Banjofy Song Analysis Laboratory 015 — Confirm Meter and Downbeat Phase"
 SETTINGS_FILENAME = "song_analysis_lab_settings.json"
 
 
@@ -103,6 +103,114 @@ def discover_analysed_songs(library_root: Path) -> list[dict]:
         })
     return songs
 
+
+
+def build_confirmed_meter_updates(
+    record: dict,
+    analysis: dict,
+    confirmed_meter: str,
+    confirmed_at: str,
+) -> tuple[dict, dict, dict]:
+    """Return JSON updates for an explicitly confirmed 3/4 or 4/4 meter.
+
+    Detector results remain recorded. Beat times, chord segments, BPM and chord
+    timing are preserved. The meter change resets phase confirmation because the
+    number and meaning of possible phases has changed.
+    """
+    meter = str(confirmed_meter)
+    mapping = {"3/4": 3, "4/4": 4}
+    if meter not in mapping:
+        raise RuntimeError("Only 3/4 and 4/4 can be confirmed.")
+
+    beat_times = [
+        float(value)
+        for value in analysis.get("beat_times", [])
+        if isinstance(value, (int, float))
+    ]
+    segments = analysis.get("segments", [])
+    if not beat_times:
+        raise RuntimeError("The saved analysis contains no beat times.")
+    if not isinstance(segments, list) or not segments:
+        raise RuntimeError("The saved analysis contains no chord segments.")
+
+    beats_per_bar = mapping[meter]
+    detected_meter = str(
+        analysis.get("detected_meter_candidate")
+        or analysis.get("best_meter_candidate")
+        or analysis.get("meter")
+        or "Uncertain"
+    )
+    detected_index = int(
+        analysis.get(
+            "detected_first_downbeat_beat_index",
+            analysis.get("first_downbeat_beat_index", 0),
+        )
+    ) % beats_per_bar
+
+    beat_grid, bars, aligned, downbeats = structure_engine.build_bar_grid(
+        beat_times,
+        beats_per_bar,
+        detected_index,
+        segments,
+    )
+
+    meter_fields = {
+        "detected_meter_candidate": detected_meter,
+        "confirmed_meter": meter,
+        "meter_confirmation_status": "confirmed",
+        "meter_confirmed_by": "manual_audition",
+        "meter_confirmed_at": confirmed_at,
+        "meter": meter,
+        "meter_status": "confirmed",
+        "beats_per_bar": beats_per_bar,
+        "first_downbeat_beat_index": detected_index,
+        "detected_first_downbeat_beat_index": detected_index,
+        "downbeat_phase_status": "unconfirmed",
+    }
+
+    # Old phase confirmation is no longer valid after a meter change.
+    phase_keys = (
+        "confirmed_phase_number",
+        "confirmed_phase_offset",
+        "confirmed_first_downbeat_beat_index",
+        "downbeat_phase_confirmed_by",
+        "downbeat_phase_confirmed_at",
+    )
+
+    updated_analysis = dict(analysis)
+    for key in phase_keys:
+        updated_analysis.pop(key, None)
+    updated_analysis.update(meter_fields)
+    updated_analysis["downbeat_times"] = downbeats
+    updated_analysis["bar_start_times"] = downbeats
+    updated_analysis["bar_count"] = len(bars)
+    updated_analysis["beat_grid"] = beat_grid
+    updated_analysis["bars"] = bars
+    updated_analysis["bar_aligned_chords"] = aligned
+
+    updated_record = dict(record)
+    for key in phase_keys:
+        updated_record.pop(key, None)
+    updated_record.update(meter_fields)
+    summary = dict(updated_record.get("structure_summary") or {})
+    for key in phase_keys:
+        summary.pop(key, None)
+    summary.update(meter_fields)
+    summary["downbeat_times"] = downbeats
+    summary["bar_start_times"] = downbeats
+    summary["bar_count"] = len(bars)
+    updated_record["structure_summary"] = summary
+
+    structure_updates = dict(meter_fields)
+    structure_updates["downbeat_times"] = downbeats
+    structure_updates["bar_start_times"] = downbeats
+    structure_updates["bar_count"] = len(bars)
+    structure_updates["beat_grid"] = beat_grid
+    structure_updates["bars"] = bars
+    structure_updates["bar_aligned_chords"] = aligned
+    structure_updates["remove_phase_confirmation_keys"] = list(phase_keys)
+
+    return updated_record, updated_analysis, structure_updates
 
 
 def build_confirmed_phase_updates(
@@ -251,11 +359,15 @@ def commit_structure(
     payload["downbeat_phase_audition_paths"] = phase_check_paths
     payload["detected_first_downbeat_beat_index"] = result.first_downbeat_beat_index
     payload["downbeat_phase_status"] = "unconfirmed"
+    payload["detected_meter_candidate"] = result.best_meter_candidate
+    payload["meter_confirmation_status"] = "unconfirmed"
 
     summary = {
         "meter": result.meter,
         "meter_status": result.meter_status,
         "best_meter_candidate": result.best_meter_candidate,
+        "detected_meter_candidate": result.best_meter_candidate,
+        "meter_confirmation_status": "unconfirmed",
         "meter_confidence": round(float(result.meter_confidence), 4),
         "full_track_meter_confidence": round(float(result.full_track_meter_confidence), 4),
         "rhythmic_window_candidate": result.rhythmic_window_candidate,
@@ -283,6 +395,8 @@ def commit_structure(
     updated_record["structure_summary"] = summary
     updated_record["detected_first_downbeat_beat_index"] = result.first_downbeat_beat_index
     updated_record["downbeat_phase_status"] = "unconfirmed"
+    updated_record["detected_meter_candidate"] = result.best_meter_candidate
+    updated_record["meter_confirmation_status"] = "unconfirmed"
     updated_record["audible_bar_check_path"] = str(audible_check_path)
     updated_record["downbeat_phase_audition_paths"] = phase_check_paths
 
@@ -290,6 +404,8 @@ def commit_structure(
     updated_analysis["meter"] = result.meter
     updated_analysis["meter_status"] = result.meter_status
     updated_analysis["best_meter_candidate"] = result.best_meter_candidate
+    updated_analysis["detected_meter_candidate"] = result.best_meter_candidate
+    updated_analysis["meter_confirmation_status"] = "unconfirmed"
     updated_analysis["meter_confidence"] = result.meter_confidence
     updated_analysis["full_track_meter_confidence"] = result.full_track_meter_confidence
     updated_analysis["rhythmic_window_candidate"] = result.rhythmic_window_candidate
@@ -347,6 +463,7 @@ class App(tk.Tk):
         self.visual_base_first_downbeat_index: int = 0
         self.visual_phase_paths: list[Path] = []
         self.visual_phase_buttons: list[ttk.Button] = []
+        self.visual_meter_var: tk.StringVar | None = None
         self._load_settings()
         self._build_ui()
         self.after(150, self._poll)
@@ -602,7 +719,8 @@ class App(tk.Tk):
         ] if isinstance(raw_segments, list) else []
         self.visual_chord_segments.sort(key=lambda item: float(item.get("start_s", 0.0)))
 
-        self.visual_beats_per_bar = int(analysis.get("beats_per_bar") or 4)
+        effective_meter = str(analysis.get("confirmed_meter") or analysis.get("meter") or "")
+        self.visual_beats_per_bar = 3 if effective_meter == "3/4" else 4
         self.visual_base_first_downbeat_index = int(
             analysis.get(
                 "detected_first_downbeat_beat_index",
@@ -751,6 +869,32 @@ class App(tk.Tk):
             textvariable=self.visual_time_var,
             font=("Segoe UI", 16),
         ).pack(side="right")
+
+        meter_frame = ttk.LabelFrame(frame, text="Confirm meter before phase audition")
+        meter_frame.pack(fill="x", pady=(0, 12))
+        current_meter = "3/4" if self.visual_beats_per_bar == 3 else "4/4"
+        self.visual_meter_var = tk.StringVar(value=current_meter)
+        ttk.Label(
+            meter_frame,
+            text="Detected/active meter:",
+        ).pack(side="left", padx=(10, 6), pady=10)
+        ttk.Radiobutton(
+            meter_frame,
+            text="3/4",
+            value="3/4",
+            variable=self.visual_meter_var,
+        ).pack(side="left", padx=4)
+        ttk.Radiobutton(
+            meter_frame,
+            text="4/4",
+            value="4/4",
+            variable=self.visual_meter_var,
+        ).pack(side="left", padx=4)
+        ttk.Button(
+            meter_frame,
+            text="Apply Meter and Rebuild Phase Auditions",
+            command=self._confirm_selected_meter,
+        ).pack(side="right", padx=10, pady=8)
 
         phase_frame = ttk.LabelFrame(frame, text="Audition every possible Beat 1 phase")
         phase_frame.pack(fill="x", pady=(0, 12))
@@ -933,6 +1077,119 @@ class App(tk.Tk):
 
         self.after(25, self._update_visual_marker)
 
+    def _confirm_selected_meter(self) -> None:
+        if self.selected_song is None or self.visual_meter_var is None:
+            messagebox.showerror(APP_TITLE, "Select an analysed song first.")
+            return
+
+        selected_meter = self.visual_meter_var.get()
+        new_beats_per_bar = 3 if selected_meter == "3/4" else 4
+        confirmed = messagebox.askyesno(
+            APP_TITLE,
+            (
+                f"Confirm {selected_meter} for this song?\n\n"
+                "This will retain the detector result, rebuild the bar grid, "
+                f"and create {new_beats_per_bar} new phase audition files.\n\n"
+                "Chord names, chord-change times, beat times and BPM will not change."
+            ),
+        )
+        if not confirmed:
+            return
+
+        try:
+            record_path = Path(self.selected_song["record_path"])
+            analysis_path = Path(self.selected_song["analysis_path"])
+            audio_path = Path(self.selected_song["audio_path"])
+            record = read_json(record_path)
+            analysis = read_json(analysis_path)
+            confirmed_at = time.strftime("%Y-%m-%d %H:%M:%S")
+
+            updated_record, updated_analysis, structure_updates = (
+                build_confirmed_meter_updates(
+                    record,
+                    analysis,
+                    selected_meter,
+                    confirmed_at,
+                )
+            )
+
+            beat_times = list(updated_analysis["beat_times"])
+            detected_index = int(
+                updated_analysis["detected_first_downbeat_beat_index"]
+            )
+            folder = analysis_path.parent
+            phase_paths: list[str] = []
+            for phase_offset in range(new_beats_per_bar):
+                effective = (detected_index + phase_offset) % new_beats_per_bar
+                phase_downbeats = [
+                    float(beat_times[index])
+                    for index in range(effective, len(beat_times), new_beats_per_bar)
+                ]
+                phase_path = folder / f"audible_phase_{phase_offset + 1}.wav"
+                structure_engine.create_audible_bar_check(
+                    audio_path,
+                    beat_times,
+                    phase_downbeats,
+                    phase_path,
+                )
+                if not phase_path.is_file() or phase_path.stat().st_size == 0:
+                    raise RuntimeError(
+                        f"Phase audition file {phase_offset + 1} was not created."
+                    )
+                phase_paths.append(str(phase_path))
+
+            updated_record["downbeat_phase_audition_paths"] = phase_paths
+            updated_analysis["downbeat_phase_audition_paths"] = phase_paths
+            structure_updates["downbeat_phase_audition_paths"] = phase_paths
+
+            structure_path_raw = updated_record.get("structure_path")
+            structure_path = (
+                Path(str(structure_path_raw))
+                if structure_path_raw
+                else folder / "song_structure.json"
+            )
+            updated_structure = read_json(structure_path) if structure_path.is_file() else {}
+            for key in structure_updates.pop("remove_phase_confirmation_keys", []):
+                updated_structure.pop(key, None)
+            updated_structure.update(structure_updates)
+
+            # New media outputs exist before any JSON record is replaced.
+            write_json_atomic(structure_path, updated_structure)
+            write_json_atomic(record_path, updated_record)
+            write_json_atomic(analysis_path, updated_analysis)
+
+            stale = folder / "audible_phase_4.wav"
+            if new_beats_per_bar == 3 and stale.is_file():
+                stale.unlink(missing_ok=True)
+
+            self.visual_beats_per_bar = new_beats_per_bar
+            self.visual_base_first_downbeat_index = detected_index
+            self.visual_phase_offset = 0
+            self.visual_phase_paths = [Path(path) for path in phase_paths]
+            self.visual_downbeat_times = list(updated_analysis["downbeat_times"])
+
+            self._stop_visual_test()
+            self.status_var.set(
+                f"{selected_meter} confirmed for {self.selected_song['title']}"
+            )
+            self._append(
+                f"Confirmed meter {selected_meter}; created "
+                f"{new_beats_per_bar} phase auditions."
+            )
+            messagebox.showinfo(
+                APP_TITLE,
+                (
+                    f"{selected_meter} is now confirmed for this song.\n\n"
+                    f"Reopen the phase check and audition Phases 1 to "
+                    f"{new_beats_per_bar}."
+                ),
+            )
+        except Exception as exc:
+            messagebox.showerror(
+                APP_TITLE,
+                f"Could not confirm the selected meter:\n{exc}",
+            )
+
     def _confirm_selected_phase(self) -> None:
         if self.selected_song is None:
             messagebox.showerror(APP_TITLE, "Select a Library song first.")
@@ -947,7 +1204,7 @@ class App(tk.Tk):
                 f"This will save first downbeat beat index {effective_index} and "
                 "rebuild the bar grid and bar-aligned chords.\n\n"
                 "Chord names, chord-change times, beat times, BPM and meter "
-                "candidate will not be changed."
+                "and confirmed meter will not be changed."
             ),
         )
         if not confirmed:

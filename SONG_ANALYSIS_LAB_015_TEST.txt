@@ -1,0 +1,54 @@
+BANJOFY SONG ANALYSIS LABORATORY 015 — WINDOWS TEST
+CONFIRM METER AND DOWNBEAT PHASE
+
+AGREED SCOPE
+3/4 and 4/4 only.
+
+PRIMARY TEST — TENNESSEE WALTZ
+1. Run BanjofySongAnalysisLab015.exe.
+2. Select Tennessee Waltz.
+3. Open the 180-second chord and phase check.
+4. Select 3/4 under Confirm meter before phase audition.
+5. Click Apply Meter and Rebuild Phase Auditions.
+6. Confirm the warning.
+7. Reopen the phase check.
+
+EXPECTED
+- only Phase 1, Phase 2 and Phase 3 are shown;
+- meter is 3/4 and meter status is confirmed;
+- the original detected 4/4 result remains recorded separately;
+- chord names, chord-change times, beat times and BPM are unchanged.
+
+PHASE TEST
+Audition all three phases. When one is musically correct, click Confirm Selected
+Phase. Stop and reopen the test; it should default to that confirmed phase.
+
+OPEN IN NOTEPAD AND INSPECT CONTENTS
+Existing Library song JSON, song_analysis.json and song_structure.json:
+
+detected_meter_candidate: 4/4
+confirmed_meter: 3/4
+meter_confirmation_status: confirmed
+meter_confirmed_by: manual_audition
+meter_confirmed_at: populated
+meter: 3/4
+meter_status: confirmed
+beats_per_bar: 3
+downbeat_phase_status: unconfirmed until a phase is confirmed
+downbeat_phase_audition_paths: exactly three paths
+
+After phase confirmation also check:
+confirmed_phase_number
+confirmed_phase_offset
+confirmed_first_downbeat_beat_index
+downbeat_phase_status: confirmed
+
+CHECK FILENAME ONLY
+Analysis\<song-id>\audible_phase_1.wav
+Analysis\<song-id>\audible_phase_2.wav
+Analysis\<song-id>\audible_phase_3.wav
+There should be no active audible_phase_4.wav after correction to 3/4.
+
+REGRESSION CHECK
+Open Hotel California, Johnny Cash and Bob Dylan. Their previously confirmed
+meter and phase results must still reopen correctly.
