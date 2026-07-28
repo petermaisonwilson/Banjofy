@@ -1,22 +1,27 @@
-RELEASE AUDIT — SONG ANALYSIS LABORATORY 013
+RELEASE AUDIT — SONG ANALYSIS LABORATORY 014
 
-Purpose:
-- audition each possible Beat 1 phase;
-- preserve proven chord and beat timing;
-- identify the musically correct bar phase.
+NEW
+- Confirm Selected Phase button.
+- Per-song manual phase confirmation.
+- Detector phase retained separately.
+- Confirmed effective first-downbeat index saved.
+- Bars, beat grid, downbeats and bar-aligned chords rebuilt.
+- Future playback defaults to confirmed phase.
 
-Preserved:
-- 3/4 and 4/4 only;
-- whole-track primary meter candidate;
-- chord timeline;
-- beat times;
-- 180-second playback;
-- central FFmpeg M4A conversion;
-- existing JSON filenames;
-- no JSON writes while switching phases.
+HOTEL CALIFORNIA DIRECT PROOF
+- detected index 2;
+- selected Phase 3;
+- offset 2;
+- confirmed index 0.
 
-New:
-- audible_phase_1.wav through audible_phase_4.wav for 4/4;
-- phase buttons;
-- phase-specific visual DOWNBEAT;
-- selected effective first-downbeat index display.
+PRESERVED
+- 3/4 and 4/4 only.
+- Chord segments unchanged.
+- Chord-change times unchanged.
+- Beat times unchanged.
+- BPM unchanged.
+- Whole-track meter candidate unchanged.
+- 180-second audition.
+- Central FFmpeg M4A conversion.
+- Existing filenames.
+- Main and firefox-acquisition-lab untouched.

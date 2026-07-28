@@ -1,8 +1,8 @@
-BANJOFY SONG ANALYSIS LABORATORY 013
+BANJOFY SONG ANALYSIS LABORATORY 014
 
 Branch: song-analysis-lab
 Scope: 3/4 and 4/4 only.
 
-Build 013 creates one 180-second audition WAV for every possible downbeat phase.
-The four phase buttons restart playback from the beginning. Chord timing and
-beat spacing are unchanged.
+Build 014 adds Confirm Selected Phase. The confirmed phase is saved per song,
+bars and bar-aligned chords are rebuilt, and future playback defaults to that
+song's confirmed phase. The detector's original phase remains recorded.

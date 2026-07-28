@@ -1,0 +1,64 @@
+BANJOFY SONG ANALYSIS LABORATORY 014 — WINDOWS TEST
+CONFIRM DOWNBEAT PHASE
+
+AGREED SCOPE
+3/4 and 4/4 only.
+
+PURPOSE
+Save the musically correct audition phase per song. Rebuild bars, downbeats and
+bar-aligned chords from that confirmed phase while preserving chord names,
+chord-change times, beat times, BPM and the detector's original phase estimate.
+
+HOTEL CALIFORNIA TEST
+1. Run BanjofySongAnalysisLab014.exe.
+2. Select Hotel California.
+3. Click Play 180-Second Chord + Downbeat Phase Check.
+4. The window should default to Phase 1 unless an earlier confirmed phase exists.
+5. Select Phase 3.
+6. Confirm that Phase 3 is still musically correct.
+7. Click Confirm Selected Phase.
+8. Accept the confirmation message.
+9. Stop and reopen the test.
+
+EXPECTED REOPEN BEHAVIOUR
+- Phase 3 is selected automatically.
+- first downbeat beat index is 0.
+- Beat 1 of 4 and DOWNBEAT remain musically correct.
+- chord names and chord-change timing remain unchanged.
+
+CHECK FILENAME ONLY
+The existing filenames remain:
+Analysis\<song-id>\song_structure.json
+Analysis\<song-id>\song_analysis.json
+Library\Songs\<existing-song-record>.json
+
+OPEN IN NOTEPAD AND INSPECT CONTENTS
+All three JSON records should contain the appropriate confirmation fields:
+downbeat_phase_status: confirmed
+confirmed_phase_number: 3
+confirmed_phase_offset: 2
+detected_first_downbeat_beat_index: 2
+confirmed_first_downbeat_beat_index: 0
+downbeat_phase_confirmed_by: manual_audition
+downbeat_phase_confirmed_at: populated
+
+song_analysis.json and song_structure.json should also contain rebuilt:
+first_downbeat_beat_index: 0
+downbeat_times
+bar_start_times
+bar_count
+beat_grid
+bars
+bar_aligned_chords
+
+MUST REMAIN UNCHANGED
+segments
+beat_times
+raw_bpm
+best_meter_candidate
+chord names
+chord-change times
+
+OTHER SONGS
+Use phase audition per song. Never assume Hotel California's Phase 3 applies to
+another recording.
