@@ -1,10 +1,10 @@
-BANJOFY SONG ANALYSIS LABORATORY 021
+BANJOFY SONG ANALYSIS LABORATORY 022
 
 Branch: song-analysis-lab
-Scope: diagnostic evidence only.
+Scope: manual truth recovery only.
 
-Build 021 freezes the Build 020 scoring model and generates a complete report
-showing every timing candidate, the saved manual result, its rank and the exact
-score components that caused it to win or lose.
+Build 022 scans the Library record, song_analysis.json and song_structure.json
+recursively for all known meter, beat-grid and phase fields. It reports exact
+file paths and JSON paths, flags conflicts and writes one canonical truth file.
 
-No scoring weights or confirmed timing values are changed.
+No timing score or song timing value is changed.

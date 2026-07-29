@@ -1,23 +1,25 @@
-RELEASE AUDIT — SONG ANALYSIS LABORATORY 021
+RELEASE AUDIT — SONG ANALYSIS LABORATORY 022
 
 BASELINE
-Clean rebuild from Banjofy Song Analysis Laboratory 020.
-
-PURPOSE
-Stop weight-tuning and expose the evidence behind inconsistent automatic
-recommendations.
+Clean rebuild from Build 021.
 
 NEW
-- Create Timing Evidence Report button.
-- Full ranked list.
-- Saved manual meter/grid/phase lookup.
-- Saved result rank and score gap.
-- Per-component winner-versus-saved differences.
-- Human-readable TXT and complete JSON output.
+- Recover Manual Truth button.
+- 1550 x 820 default window.
+- Recursive inspection of Library record, song_analysis.json and
+  song_structure.json.
+- Exact source-file and JSON-path reporting.
+- Confirmed/manual value priority.
+- Conflict detection.
+- Missing-field reporting.
+- Deterministic phase derivation from confirmed and detected downbeat indices
+  when no explicit phase number exists.
+- manual_truth_recovery_022.txt
+- manual_truth_022.json
 
 UNCHANGED
-- Build 020 score_timing_candidates function and weights.
+- Build 020/021 scoring function and weights.
 - 3/4 and 4/4 scope.
-- Existing chord analysis and confirmations.
-- Central FFmpeg route.
-- Library filenames.
+- Existing timing confirmations.
+- Chord analysis.
+- FFmpeg route.

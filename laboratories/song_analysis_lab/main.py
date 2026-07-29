@@ -15,7 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import structure_engine
 
-APP_TITLE = "Banjofy Song Analysis Laboratory 021 — Timing Evidence and Comparison"
+APP_TITLE = "Banjofy Song Analysis Laboratory 022 — Manual Truth Recovery"
 SETTINGS_FILENAME = "song_analysis_lab_settings.json"
 
 
@@ -761,7 +761,7 @@ class App(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title(APP_TITLE)
-        self.geometry("1020x760")
+        self.geometry("1550x820")
         self.minsize(880, 650)
         # Tk variables must exist before any persisted settings are read.
         self.library_var = tk.StringVar(master=self, value="")
@@ -821,7 +821,7 @@ class App(tk.Tk):
         ttk.Label(
             outer,
             text=(
-                "This build freezes the Build 020 scoring and creates a full evidence report showing why each meter, beat-grid and phase candidate won or lost."
+                "This build leaves the scorer untouched and recovers saved manual meter, beat-grid and phase values from every known JSON location."
             ),
             wraplength=950,
         ).pack(anchor="w", pady=(5, 12))
@@ -890,6 +890,13 @@ class App(tk.Tk):
             state="disabled",
         )
         self.evidence_button.pack(side="left", padx=8)
+        self.truth_button = ttk.Button(
+            controls,
+            text="Recover Manual Truth",
+            command=self._recover_manual_truth,
+            state="disabled",
+        )
+        self.truth_button.pack(side="left", padx=8)
         ttk.Button(controls, text="Open Analysis Folder", command=self._open_folder).pack(side="right")
 
         status = ttk.LabelFrame(outer, text="Structure-analysis status")
@@ -932,6 +939,7 @@ class App(tk.Tk):
         self.alt_create_button.configure(state="disabled")
         self.alt_play_button.configure(state="disabled")
         self.evidence_button.configure(state="disabled")
+        self.truth_button.configure(state="disabled")
         for item in self.tree.get_children():
             self.tree.delete(item)
         for index, song in enumerate(self.songs):
@@ -956,6 +964,7 @@ class App(tk.Tk):
             self.alt_play_button.configure(state="disabled")
             self.recommend_button.configure(state="disabled")
             self.evidence_button.configure(state="disabled")
+            self.truth_button.configure(state="disabled")
             return
         self.selected_song = self.songs[int(selected[0])]
         self.run_button.configure(state="normal")
@@ -978,6 +987,7 @@ class App(tk.Tk):
         self.alt_play_button.configure(state="normal" if valid_alt else "disabled")
         self.recommend_button.configure(state="normal" if valid_alt else "disabled")
         self.evidence_button.configure(state="normal" if valid_alt else "disabled")
+        self.truth_button.configure(state="normal")
         self.status_var.set(f"Selected: {self.selected_song['title']}")
 
     def _start(self) -> None:
@@ -1077,7 +1087,7 @@ class App(tk.Tk):
                 messagebox.showinfo(
                     APP_TITLE,
                     (
-                        f"Build 021 recommendation\n\n"
+                        f"Build 022 recommendation\n\n"
                         f"Meter: {meter}\n"
                         f"Beat grid: {method_label}\n"
                         f"Downbeat: Phase {phase}\n"
@@ -1090,6 +1100,34 @@ class App(tk.Tk):
                 self.status_var.set("Automatic timing recommendation failed")
                 self._append(str(payload))
                 messagebox.showerror(APP_TITLE, "Automatic recommendation failed. The exact error is shown in the window.")
+            elif kind == "truth_done":
+                self.truth_button.configure(state="normal")
+                self.status_var.set("Manual truth recovery complete")
+                self._append("")
+                self._append(f"Truth report: {payload['text_path']}")
+                self._append(f"Canonical truth: {payload['json_path']}")
+                conflicts = payload.get("conflicts") or []
+                missing = payload.get("missing") or []
+                self._append(f"Conflicts: {len(conflicts)}")
+                self._append(f"Missing fields: {len(missing)}")
+                messagebox.showinfo(
+                    APP_TITLE,
+                    (
+                        "Build 022 recovered and consolidated the saved manual timing data.\n\n"
+                        f"Conflicts found: {len(conflicts)}\n"
+                        f"Missing fields: {len(missing)}\n\n"
+                        "Use Open Analysis Folder and open "
+                        "manual_truth_recovery_022.txt in Notepad."
+                    ),
+                )
+            elif kind == "truth_error":
+                self.truth_button.configure(state="normal")
+                self.status_var.set("Manual truth recovery failed")
+                self._append(str(payload))
+                messagebox.showerror(
+                    APP_TITLE,
+                    "Manual truth recovery failed. The exact error is shown in the window.",
+                )
             elif kind == "evidence_done":
                 self.evidence_button.configure(state="normal")
                 self.status_var.set("Timing evidence report created")
@@ -1110,7 +1148,7 @@ class App(tk.Tk):
                 messagebox.showinfo(
                     APP_TITLE,
                     (
-                        "Build 021 created the complete timing evidence report.\n\n"
+                        "Build 022 created the complete timing evidence report.\n\n"
                         "No timing scores, confirmations or song data were changed.\n\n"
                         "Use Open Analysis Folder and open timing_evidence_021.txt in Notepad."
                     ),
@@ -1186,7 +1224,7 @@ class App(tk.Tk):
             return
 
         self.recommend_button.configure(state="disabled")
-        self.status_var.set("Build 021 is scoring meter, beat grid and downbeat phase…")
+        self.status_var.set("Build 022 is scoring meter, beat grid and downbeat phase…")
         self._append("Started automatic timing recommendation.")
         song = dict(self.selected_song)
 
@@ -1221,6 +1259,62 @@ class App(tk.Tk):
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def _recover_manual_truth(self) -> None:
+        if self.selected_song is None:
+            messagebox.showinfo(APP_TITLE, "Select an analysed song first.")
+            return
+
+        song = dict(self.selected_song)
+        self.truth_button.configure(state="disabled")
+        self.status_var.set("Build 022 is locating saved timing values…")
+        self._append("Started manual truth recovery.")
+
+        def worker() -> None:
+            try:
+                analysis_path = Path(song["analysis_path"])
+                record_path = Path(song["record_path"])
+                folder = analysis_path.parent
+                structure_path = folder / "song_structure.json"
+
+                record = read_json(record_path) if record_path.is_file() else {}
+                analysis = read_json(analysis_path) if analysis_path.is_file() else {}
+                structure = read_json(structure_path) if structure_path.is_file() else {}
+
+                result = structure_engine.recover_manual_truth(
+                    record=record,
+                    analysis=analysis,
+                    structure=structure,
+                    song_title=str(song.get("title") or folder.name),
+                    record_path=record_path,
+                    analysis_path=analysis_path,
+                    structure_path=structure_path,
+                )
+
+                json_path = folder / "manual_truth_022.json"
+                text_path = folder / "manual_truth_recovery_022.txt"
+                write_json_atomic(json_path, result["canonical_record"])
+                text_path.write_text(
+                    structure_engine.format_manual_truth_recovery(result),
+                    encoding="utf-8",
+                )
+
+                self.messages.put((
+                    "truth_done",
+                    {
+                        "json_path": str(json_path),
+                        "text_path": str(text_path),
+                        "conflicts": result.get("conflicts", []),
+                        "missing": result.get("missing_fields", []),
+                    },
+                ))
+            except Exception as exc:
+                self.messages.put((
+                    "truth_error",
+                    f"{exc}\\n\\n{traceback.format_exc()}",
+                ))
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def _create_timing_evidence_report(self) -> None:
         if self.selected_song is None:
             messagebox.showinfo(APP_TITLE, "Select an analysed song first.")
@@ -1238,7 +1332,7 @@ class App(tk.Tk):
             return
 
         self.evidence_button.configure(state="disabled")
-        self.status_var.set("Build 021 is calculating the complete candidate evidence…")
+        self.status_var.set("Build 022 is calculating the complete candidate evidence…")
         self._append("Started full timing evidence comparison.")
 
         def worker() -> None:
@@ -1326,7 +1420,7 @@ class App(tk.Tk):
         analysis = read_json(Path(self.selected_song["analysis_path"]))
         candidates = analysis.get("alternative_beat_grids")
         if not isinstance(candidates, dict) or not candidates:
-            messagebox.showerror(APP_TITLE, "Create the Build 021 alternative beat grids first.")
+            messagebox.showerror(APP_TITLE, "Create the Build 022 alternative beat grids first.")
             return
         valid = {
             key: value for key, value in candidates.items()
@@ -1335,7 +1429,7 @@ class App(tk.Tk):
             and isinstance(value.get("beat_times"), list)
         }
         if not valid:
-            messagebox.showerror(APP_TITLE, "The Build 021 alternative beat files are missing.")
+            messagebox.showerror(APP_TITLE, "The Build 022 alternative beat files are missing.")
             return
         self.alt_candidates = valid
         self.alt_chord_segments = sorted(
@@ -1458,7 +1552,7 @@ class App(tk.Tk):
             APP_TITLE,
             (
                 f"Confirm {label} as this song's active beat grid?\n\n"
-                f"Build 021 will retain the original detector grid, rebuild {meter} bars "
+                f"Build 022 will retain the original detector grid, rebuild {meter} bars "
                 "and create a completely fresh phase-audition set.\n\n"
                 "Chord names and chord-change times will not be altered."
             ),
@@ -1499,7 +1593,7 @@ class App(tk.Tk):
                 APP_TITLE,
                 (
                     f"{label} is now the active beat grid.\n\n"
-                    f"Build 021 created {len(phase_paths)} fresh {meter} phase auditions. "
+                    f"Build 022 created {len(phase_paths)} fresh {meter} phase auditions. "
                     "Open the chord and downbeat phase check and audition them."
                 ),
             )
@@ -1541,7 +1635,7 @@ class App(tk.Tk):
 
         if len(valid_paths) != expected_count:
             self.status_var.set(
-                "Rebuilding missing or mismatched phase audition files in Build 021…"
+                "Rebuilding missing or mismatched phase audition files in Build 022…"
             )
             folder = Path(self.selected_song["analysis_path"]).parent
             rebuilt_paths = create_phase_auditions(
@@ -1558,7 +1652,7 @@ class App(tk.Tk):
             analysis = read_json(self.selected_song["analysis_path"])
             valid_paths = [Path(path) for path in rebuilt_paths]
             self._append(
-                f"Build 021 rebuilt {len(valid_paths)} phase audition files."
+                f"Build 022 rebuilt {len(valid_paths)} phase audition files."
             )
 
         self.visual_phase_paths = valid_paths
@@ -1604,7 +1698,7 @@ class App(tk.Tk):
         if len(self.visual_phase_paths) != self.visual_beats_per_bar:
             messagebox.showerror(
                 APP_TITLE,
-                "Build 021 could not create the required phase audition files. "
+                "Build 022 could not create the required phase audition files. "
                 "The exact file state is shown in the status window.",
             )
             return

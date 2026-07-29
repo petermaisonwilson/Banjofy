@@ -1,0 +1,35 @@
+BANJOFY SONG ANALYSIS LABORATORY 022 — WINDOWS TEST
+MANUAL TRUTH RECOVERY
+
+PURPOSE
+Locate every saved meter, beat-grid and phase value and show its exact source.
+Do not alter timing scores or song timing data.
+
+FOR EACH SONG
+1. Run BanjofySongAnalysisLab022.exe.
+2. Select the song.
+3. Click Recover Manual Truth.
+4. Click Open Analysis Folder.
+5. Open manual_truth_recovery_022.txt in Notepad.
+
+TEST SONGS
+- Hotel California
+- Folsom Prison Blues
+- The Times They Are A-Changin'
+- Tennessee Waltz
+
+FILES CREATED
+manual_truth_recovery_022.txt
+manual_truth_022.json
+
+REPORT MUST SHOW
+- selected meter and exact JSON path
+- selected beat-grid method and exact JSON path
+- selected or derived phase and exact source
+- every conflicting value
+- every missing value
+- Timing data changed: NO
+- Scoring weights changed: NO
+
+WINDOW
+The main window should open at 1550 x 820 so every control is visible.

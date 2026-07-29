@@ -619,6 +619,343 @@ def recommend_timing_structure(
 
 
 
+
+TRUTH_FIELD_ALIASES = {
+    "meter": (
+        "confirmed_meter",
+        "manual_meter",
+        "meter",
+        "best_meter_candidate",
+        "detected_meter_candidate",
+    ),
+    "beat_grid_method": (
+        "confirmed_beat_grid_method",
+        "confirmed_pulse_method",
+        "pulse_interpretation",
+        "beat_grid_method",
+        "selected_beat_grid_method",
+    ),
+    "phase_number": (
+        "confirmed_phase_number",
+        "manual_phase_number",
+        "downbeat_phase_number",
+        "selected_phase_number",
+        "phase_number",
+    ),
+    "phase_offset": (
+        "confirmed_phase_offset",
+        "downbeat_phase_offset",
+        "phase_offset",
+    ),
+    "first_downbeat_beat_index": (
+        "confirmed_first_downbeat_beat_index",
+        "first_downbeat_beat_index",
+        "detected_first_downbeat_beat_index",
+    ),
+}
+
+
+def _walk_json_values(value, path: str = "$") -> list[tuple[str, object]]:
+    found: list[tuple[str, object]] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}"
+            found.append((child_path, child))
+            found.extend(_walk_json_values(child, child_path))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            child_path = f"{path}[{index}]"
+            found.extend(_walk_json_values(child, child_path))
+    return found
+
+
+def _normalise_truth_value(field: str, value):
+    if value in (None, ""):
+        return None
+    if field == "meter":
+        text = str(value).strip()
+        return text if text in {"3/4", "4/4"} else None
+    if field == "beat_grid_method":
+        return _normalise_method_name(value)
+    if field in {"phase_number", "phase_offset", "first_downbeat_beat_index"}:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+    return value
+
+
+def _collect_truth_candidates(
+    source_name: str,
+    source_path: Path,
+    payload: dict,
+) -> list[dict]:
+    rows: list[dict] = []
+    aliases_to_field = {
+        alias: field
+        for field, aliases in TRUTH_FIELD_ALIASES.items()
+        for alias in aliases
+    }
+    for json_path, value in _walk_json_values(payload):
+        key = json_path.rsplit(".", 1)[-1]
+        field = aliases_to_field.get(key)
+        if not field:
+            continue
+        normalised = _normalise_truth_value(field, value)
+        if normalised is None:
+            continue
+        rows.append({
+            "field": field,
+            "value": normalised,
+            "raw_value": value,
+            "source_name": source_name,
+            "source_file": str(source_path),
+            "json_path": json_path,
+            "source_key": key,
+        })
+    return rows
+
+
+def _priority(row: dict) -> tuple[int, int]:
+    key = str(row.get("source_key") or "")
+    path = str(row.get("json_path") or "")
+    explicit = 0
+    if key.startswith("confirmed_"):
+        explicit = 100
+    elif key.startswith("manual_"):
+        explicit = 90
+    elif "confirmed" in path:
+        explicit = 80
+    elif key in {"selected_phase_number", "selected_beat_grid_method"}:
+        explicit = 70
+    elif key in {"meter", "pulse_interpretation", "phase_number"}:
+        explicit = 40
+    elif key.startswith("detected_") or key.startswith("best_"):
+        explicit = 10
+
+    source_score = {
+        "song_analysis.json": 30,
+        "song_structure.json": 20,
+        "library_record.json": 10,
+    }.get(str(row.get("source_name")), 0)
+    return explicit, source_score
+
+
+def recover_manual_truth(
+    record: dict,
+    analysis: dict,
+    structure: dict,
+    song_title: str,
+    record_path: Path,
+    analysis_path: Path,
+    structure_path: Path,
+) -> dict:
+    """Recover every known timing value and consolidate explicit manual truth."""
+    candidates: list[dict] = []
+    candidates.extend(
+        _collect_truth_candidates(
+            "library_record.json", record_path, record
+        )
+    )
+    candidates.extend(
+        _collect_truth_candidates(
+            "song_analysis.json", analysis_path, analysis
+        )
+    )
+    candidates.extend(
+        _collect_truth_candidates(
+            "song_structure.json", structure_path, structure
+        )
+    )
+
+    grouped: dict[str, list[dict]] = {
+        field: [] for field in TRUTH_FIELD_ALIASES
+    }
+    for row in candidates:
+        grouped[row["field"]].append(row)
+
+    selected: dict[str, object] = {}
+    selected_sources: dict[str, dict] = {}
+    conflicts: list[dict] = []
+
+    for field, rows in grouped.items():
+        ordered = sorted(rows, key=_priority, reverse=True)
+        if ordered:
+            winner = ordered[0]
+            selected[field] = winner["value"]
+            selected_sources[field] = winner
+
+            unique_values = []
+            for row in ordered:
+                if row["value"] not in unique_values:
+                    unique_values.append(row["value"])
+            if len(unique_values) > 1:
+                conflicts.append({
+                    "field": field,
+                    "selected_value": winner["value"],
+                    "all_values": unique_values,
+                    "candidates": ordered,
+                })
+        else:
+            selected[field] = None
+
+    # Derive phase number from confirmed first-downbeat index when an explicit
+    # phase number is absent. This is deterministic within the active meter.
+    derived = []
+    if selected.get("phase_number") is None:
+        meter = selected.get("meter")
+        first_index = selected.get("first_downbeat_beat_index")
+        detected_index = None
+        for row in grouped.get("first_downbeat_beat_index", []):
+            if row.get("source_key") == "detected_first_downbeat_beat_index":
+                detected_index = int(row["value"])
+                break
+        beats_per_bar = 3 if meter == "3/4" else 4 if meter == "4/4" else None
+        if (
+            beats_per_bar
+            and first_index is not None
+            and detected_index is not None
+        ):
+            offset = (int(first_index) - int(detected_index)) % beats_per_bar
+            selected["phase_number"] = offset + 1
+            derived.append({
+                "field": "phase_number",
+                "value": offset + 1,
+                "method": (
+                    "(confirmed_first_downbeat_beat_index - "
+                    "detected_first_downbeat_beat_index) modulo beats_per_bar + 1"
+                ),
+                "inputs": {
+                    "confirmed_first_downbeat_beat_index": first_index,
+                    "detected_first_downbeat_beat_index": detected_index,
+                    "beats_per_bar": beats_per_bar,
+                },
+            })
+
+    missing = [
+        field
+        for field in ("meter", "beat_grid_method", "phase_number")
+        if selected.get(field) in (None, "")
+    ]
+
+    canonical = {
+        "schema": "banjofy.manual_truth.v1",
+        "laboratory_build": 22,
+        "song_title": song_title,
+        "meter": selected.get("meter"),
+        "beat_grid_method": selected.get("beat_grid_method"),
+        "phase_number": selected.get("phase_number"),
+        "phase_offset": selected.get("phase_offset"),
+        "first_downbeat_beat_index": selected.get(
+            "first_downbeat_beat_index"
+        ),
+        "complete": not missing,
+        "missing_fields": missing,
+        "has_conflicts": bool(conflicts),
+        "conflict_count": len(conflicts),
+        "selected_sources": selected_sources,
+        "derived_values": derived,
+        "source_files": {
+            "library_record": str(record_path),
+            "song_analysis": str(analysis_path),
+            "song_structure": str(structure_path),
+        },
+        "timing_data_changed": False,
+        "scoring_weights_changed": False,
+    }
+
+    return {
+        "canonical_record": canonical,
+        "all_candidates": candidates,
+        "grouped_candidates": grouped,
+        "conflicts": conflicts,
+        "missing_fields": missing,
+        "derived_values": derived,
+    }
+
+
+def format_manual_truth_recovery(result: dict) -> str:
+    canonical = result["canonical_record"]
+    lines = [
+        "BANJOFY SONG ANALYSIS LABORATORY 022",
+        "MANUAL TRUTH RECOVERY REPORT",
+        "",
+        f"Song: {canonical.get('song_title')}",
+        f"Meter: {canonical.get('meter')}",
+        f"Beat-grid method: {canonical.get('beat_grid_method')}",
+        f"Phase number: {canonical.get('phase_number')}",
+        f"Complete: {'YES' if canonical.get('complete') else 'NO'}",
+        f"Conflicts: {canonical.get('conflict_count')}",
+        f"Missing fields: {', '.join(canonical.get('missing_fields') or []) or 'None'}",
+        "Timing data changed: NO",
+        "Scoring weights changed: NO",
+        "",
+        "SELECTED SOURCES",
+    ]
+
+    for field in (
+        "meter",
+        "beat_grid_method",
+        "phase_number",
+        "phase_offset",
+        "first_downbeat_beat_index",
+    ):
+        source = (canonical.get("selected_sources") or {}).get(field)
+        if source:
+            lines.extend([
+                f"{field}: {source.get('value')}",
+                f"  file: {source.get('source_file')}",
+                f"  JSON path: {source.get('json_path')}",
+                f"  source key: {source.get('source_key')}",
+            ])
+        else:
+            lines.append(f"{field}: no direct stored value found")
+
+    if result.get("derived_values"):
+        lines.extend(["", "DERIVED VALUES"])
+        for item in result["derived_values"]:
+            lines.append(
+                f"{item.get('field')}: {item.get('value')} via {item.get('method')}"
+            )
+            lines.append(f"  inputs: {item.get('inputs')}")
+
+    lines.extend(["", "CONFLICTS"])
+    if not result.get("conflicts"):
+        lines.append("None")
+    else:
+        for conflict in result["conflicts"]:
+            lines.append(
+                f"{conflict.get('field')}: selected "
+                f"{conflict.get('selected_value')}; all values "
+                f"{conflict.get('all_values')}"
+            )
+            for row in conflict.get("candidates", []):
+                lines.append(
+                    f"  {row.get('value')} — "
+                    f"{row.get('source_file')} {row.get('json_path')}"
+                )
+
+    lines.extend(["", "ALL LOCATED VALUES"])
+    for field, rows in result.get("grouped_candidates", {}).items():
+        lines.append(f"{field}:")
+        if not rows:
+            lines.append("  none")
+        for row in sorted(rows, key=_priority, reverse=True):
+            lines.append(
+                f"  {row.get('value')} — {row.get('source_file')} "
+                f"{row.get('json_path')} ({row.get('source_key')})"
+            )
+
+    lines.extend([
+        "",
+        "INTERPRETATION",
+        "The canonical record chooses explicit confirmed/manual values before",
+        "generic or detected values. It does not modify the song analysis.",
+        "",
+    ])
+    return "\n".join(lines)
+
+
 def _first_present(mapping_list: list[dict], keys: tuple[str, ...]):
     for mapping in mapping_list:
         if not isinstance(mapping, dict):
