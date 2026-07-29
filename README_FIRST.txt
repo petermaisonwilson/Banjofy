@@ -1,8 +1,10 @@
-BANJOFY SONG ANALYSIS LABORATORY 020
+BANJOFY SONG ANALYSIS LABORATORY 021
 
 Branch: song-analysis-lab
-Scope: 3/4 and 4/4 only.
+Scope: diagnostic evidence only.
 
-Build 020 corrects automatic downbeat recommendation for songs whose chord
-changes frequently occur away from Beat 1. It uses repeating bar-accent
-evidence and gives chord changes zero influence over the selected phase.
+Build 021 freezes the Build 020 scoring model and generates a complete report
+showing every timing candidate, the saved manual result, its rank and the exact
+score components that caused it to win or lose.
+
+No scoring weights or confirmed timing values are changed.

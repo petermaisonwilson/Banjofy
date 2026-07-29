@@ -1,27 +1,23 @@
-RELEASE AUDIT — SONG ANALYSIS LABORATORY 020
+RELEASE AUDIT — SONG ANALYSIS LABORATORY 021
 
 BASELINE
-Clean rebuild from the supplied passed Build 019 package.
+Clean rebuild from Banjofy Song Analysis Laboratory 020.
 
-ROOT CAUSE ADDRESSED
-Build 019 correctly recommended 3/4 and Low-frequency rhythm for Tennessee
-Waltz, but recommended Phase 2 rather than the musically verified Phase 3.
-The song contains many chord changes away from the downbeat.
+PURPOSE
+Stop weight-tuning and expose the evidence behind inconsistent automatic
+recommendations.
 
-BUILD 020 CHANGE
-- Chord changes have zero weight in downbeat-phase selection.
-- Chord proximity remains only a weak beat-grid quality signal.
-- Adds complete-bar normalisation.
-- Adds repeating Beat-1 accent scoring.
-- Adds bar-pattern consistency scoring.
-- Adds recurring lead-in-to-Beat-1 scoring.
-- Retains recommendation-only behaviour.
+NEW
+- Create Timing Evidence Report button.
+- Full ranked list.
+- Saved manual meter/grid/phase lookup.
+- Saved result rank and score gap.
+- Per-component winner-versus-saved differences.
+- Human-readable TXT and complete JSON output.
 
-PRESERVED
-- 3/4 and 4/4 only.
-- All four beat-grid methods.
-- Original detector results.
-- Existing manual meter, beat-grid and phase confirmations.
-- Chord names and chord-change times.
-- Central FFmpeg media route.
-- Existing Library structure.
+UNCHANGED
+- Build 020 score_timing_candidates function and weights.
+- 3/4 and 4/4 scope.
+- Existing chord analysis and confirmations.
+- Central FFmpeg route.
+- Library filenames.

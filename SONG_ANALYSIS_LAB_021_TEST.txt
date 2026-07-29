@@ -1,0 +1,35 @@
+BANJOFY SONG ANALYSIS LABORATORY 021 — WINDOWS TEST
+TIMING EVIDENCE AND COMPARISON
+
+PURPOSE
+Build 021 does not tune, apply or replace any timing result.
+It exposes the complete Build 020 scoring evidence.
+
+FOR EACH TEST SONG
+1. Run BanjofySongAnalysisLab021.exe.
+2. Select the song.
+3. Create Alternative Beat Grids only when they do not already exist.
+4. Click Create Timing Evidence Report.
+5. Click Open Analysis Folder.
+6. Open timing_evidence_021.txt in Notepad.
+
+TEST SONGS
+- Hotel California
+- Folsom Prison Blues
+- Bob Dylan recording
+- Tennessee Waltz
+
+REPORT CHECKS
+- automatic winner
+- saved manual result
+- saved result rank
+- score gap from winner
+- winner-minus-saved component differences
+- every 3/4 and 4/4 candidate
+- every beat-grid method
+- every legal phase
+- raw component scores
+
+SAFETY
+Timing data changed: NO
+Scoring weights changed: NO

@@ -618,6 +618,284 @@ def recommend_timing_structure(
     }
 
 
+
+def _first_present(mapping_list: list[dict], keys: tuple[str, ...]):
+    for mapping in mapping_list:
+        if not isinstance(mapping, dict):
+            continue
+        for key in keys:
+            value = mapping.get(key)
+            if value not in (None, ""):
+                return value
+    return None
+
+
+def _normalise_method_name(value) -> str | None:
+    if value in (None, ""):
+        return None
+    text = str(value).strip().lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "standard_grid": "standard",
+        "standard_full_mix": "standard",
+        "full_mix": "standard",
+        "low_frequency_rhythm": "low_frequency",
+        "low_frequency": "low_frequency",
+        "percussion_focused": "percussive",
+        "percussion": "percussive",
+        "steady_slow_pulse": "steady_pulse",
+        "steady": "steady_pulse",
+    }
+    return aliases.get(text, text)
+
+
+def _saved_manual_truth(record: dict, analysis: dict) -> dict:
+    summary = record.get("structure_summary")
+    if not isinstance(summary, dict):
+        summary = {}
+    sources = [analysis, record, summary]
+
+    meter = _first_present(sources, ("confirmed_meter", "manual_meter", "meter"))
+    method = _first_present(
+        sources,
+        ("confirmed_beat_grid_method", "confirmed_pulse_method", "pulse_interpretation"),
+    )
+    phase = _first_present(
+        sources,
+        ("confirmed_phase_number", "manual_phase_number"),
+    )
+
+    try:
+        phase_number = int(phase) if phase not in (None, "") else None
+    except (TypeError, ValueError):
+        phase_number = None
+
+    meter_text = str(meter) if meter not in (None, "") else None
+    method_text = _normalise_method_name(method)
+
+    return {
+        "meter": meter_text,
+        "beat_grid_method": method_text,
+        "phase_number": phase_number,
+        "complete": (
+            meter_text in {"3/4", "4/4"}
+            and method_text is not None
+            and phase_number is not None
+        ),
+        "source_fields": {
+            "meter": meter,
+            "beat_grid_method": method,
+            "phase_number": phase,
+        },
+    }
+
+
+def _component_difference(winner: dict, verified: dict) -> dict:
+    keys = (
+        "stability",
+        "beat_support",
+        "chord_grid_support",
+        "repeating_accent_score",
+        "bar_pattern_consistency",
+        "lead_in_rise_score",
+    )
+    return {
+        key: round(
+            float(winner.get(key, 0.0)) - float(verified.get(key, 0.0)),
+            6,
+        )
+        for key in keys
+    }
+
+
+def build_timing_evidence_report(
+    audio_path: Path,
+    candidates: dict[str, dict],
+    chord_segments: list[dict],
+    record: dict,
+    analysis: dict,
+    song_title: str,
+) -> dict:
+    """Run the unchanged Build 020 scoring and expose all evidence."""
+    ensure_scipy_signal_compatibility()
+    with tempfile.TemporaryDirectory(prefix="banjofy_evidence_021_") as temporary:
+        wav = prepare_wav(audio_path, Path(temporary))
+        y, sr = librosa.load(
+            wav, sr=22050, mono=True, duration=AUDIBLE_PREVIEW_SECONDS
+        )
+        if y is None or len(y) == 0:
+            raise RuntimeError("Evidence-report audio was empty.")
+
+        full_onset = librosa.onset.onset_strength(y=y, sr=sr)
+        sos = scipy.signal.butter(
+            6, [35.0, 320.0], btype="bandpass", fs=sr, output="sos"
+        )
+        low_audio = scipy.signal.sosfiltfilt(sos, y).astype(np.float32)
+        low_onset = librosa.onset.onset_strength(y=low_audio, sr=sr)
+        frame_times = librosa.frames_to_time(
+            np.arange(len(full_onset)), sr=sr
+        )
+
+    changes = sorted({
+        float(item.get("start_s"))
+        for item in chord_segments
+        if isinstance(item, dict)
+        and isinstance(item.get("start_s"), (int, float))
+        and float(item.get("start_s")) > 0.05
+        and float(item.get("start_s")) <= AUDIBLE_PREVIEW_SECONDS
+    })
+
+    ranked = score_timing_candidates(
+        candidates, full_onset, low_onset, frame_times, changes
+    )
+    if not ranked:
+        raise RuntimeError("No timing candidate could be scored.")
+
+    truth = _saved_manual_truth(record, analysis)
+    verified_row = None
+    verified_rank = None
+    if truth["complete"]:
+        for index, row in enumerate(ranked, start=1):
+            if (
+                row.get("meter") == truth["meter"]
+                and _normalise_method_name(row.get("method"))
+                == truth["beat_grid_method"]
+                and int(row.get("phase_number") or 0) == truth["phase_number"]
+            ):
+                verified_row = dict(row)
+                verified_rank = index
+                break
+
+    winner = dict(ranked[0])
+    runner = dict(ranked[1] if len(ranked) > 1 else ranked[0])
+
+    best_by_meter = {}
+    for meter in ("3/4", "4/4"):
+        matching = [row for row in ranked if row.get("meter") == meter]
+        if matching:
+            best_by_meter[meter] = matching[0]
+
+    best_by_grid = {}
+    for method in sorted({str(row.get("method")) for row in ranked}):
+        matching = [row for row in ranked if str(row.get("method")) == method]
+        if matching:
+            best_by_grid[method] = matching[0]
+
+    verified_payload = {
+        **truth,
+        "rank": verified_rank,
+        "candidate": verified_row,
+        "score_gap_from_winner": (
+            round(float(winner["score"]) - float(verified_row["score"]), 6)
+            if verified_row is not None else None
+        ),
+        "winner_minus_verified_components": (
+            _component_difference(winner, verified_row)
+            if verified_row is not None else None
+        ),
+    }
+
+    return {
+        "laboratory_build": 21,
+        "purpose": "diagnostic_only",
+        "scoring_model": "unchanged_build_020_repeating_pattern",
+        "song_title": song_title,
+        "candidate_count": len(ranked),
+        "chord_change_count_in_preview": len(changes),
+        "winner": winner,
+        "runner_up": runner,
+        "winner_margin": round(
+            float(winner["score"]) - float(runner["score"]), 6
+        ),
+        "verified_candidate": verified_payload,
+        "best_candidate_by_meter": best_by_meter,
+        "best_candidate_by_beat_grid": best_by_grid,
+        "all_ranked_candidates": [
+            {"rank": index, **row}
+            for index, row in enumerate(ranked, start=1)
+        ],
+        "timing_data_changed": False,
+        "scoring_weights_changed": False,
+    }
+
+
+def format_timing_evidence_text(report: dict) -> str:
+    lines = [
+        "BANJOFY SONG ANALYSIS LABORATORY 021",
+        "TIMING EVIDENCE AND COMPARISON REPORT",
+        "",
+        f"Song: {report.get('song_title')}",
+        f"Candidates scored: {report.get('candidate_count')}",
+        f"Chord changes in preview: {report.get('chord_change_count_in_preview')}",
+        "Scoring model: unchanged Build 020 scoring",
+        "Timing data changed: NO",
+        "Scoring weights changed: NO",
+        "",
+        "AUTOMATIC WINNER",
+    ]
+
+    winner = report.get("winner") or {}
+    lines.extend([
+        f"Meter: {winner.get('meter')}",
+        f"Beat grid: {winner.get('label')} ({winner.get('method')})",
+        f"Phase: {winner.get('phase_number')}",
+        f"Score: {winner.get('score')}",
+        f"Margin over runner-up: {report.get('winner_margin')}",
+        "",
+        "SAVED MANUAL RESULT",
+    ])
+
+    verified = report.get("verified_candidate") or {}
+    lines.extend([
+        f"Meter: {verified.get('meter')}",
+        f"Beat grid method: {verified.get('beat_grid_method')}",
+        f"Phase: {verified.get('phase_number')}",
+        f"Complete saved result: {'YES' if verified.get('complete') else 'NO'}",
+        f"Rank: {verified.get('rank')}",
+        f"Score gap from winner: {verified.get('score_gap_from_winner')}",
+        "",
+    ])
+
+    if verified.get("winner_minus_verified_components"):
+        lines.append("WHY THE WINNER BEAT THE SAVED RESULT")
+        for key, value in verified["winner_minus_verified_components"].items():
+            sign = "+" if float(value) >= 0 else ""
+            lines.append(f"{key}: {sign}{value}")
+        lines.append("")
+
+    lines.extend([
+        "ALL CANDIDATES",
+        (
+            "Rank | Score | Meter | Grid | Phase | Stability | Beat support | "
+            "Chord-grid support | Repeating accent | Bar consistency | Lead-in rise"
+        ),
+    ])
+
+    for row in report.get("all_ranked_candidates", []):
+        lines.append(
+            f"{row.get('rank'):>4} | "
+            f"{float(row.get('score', 0.0)):.6f} | "
+            f"{row.get('meter'):>3} | "
+            f"{str(row.get('method')):<13} | "
+            f"{int(row.get('phase_number', 0)):>2} | "
+            f"{float(row.get('stability', 0.0)):.6f} | "
+            f"{float(row.get('beat_support', 0.0)):.6f} | "
+            f"{float(row.get('chord_grid_support', 0.0)):.6f} | "
+            f"{float(row.get('repeating_accent_score', 0.0)):.6f} | "
+            f"{float(row.get('bar_pattern_consistency', 0.0)):.6f} | "
+            f"{float(row.get('lead_in_rise_score', 0.0)):.6f}"
+        )
+
+    lines.extend([
+        "",
+        "INTERPRETATION",
+        "This report does not decide that the automatic winner is musically correct.",
+        "It shows exactly which measured components caused it to outrank the saved result.",
+        "No recommendation was applied and no confirmation was changed.",
+        "",
+    ])
+    return "\n".join(lines)
+
+
 def create_audible_beat_grid_check(audio_path: Path, beat_times: list[float], target: Path, preview_seconds: float = AUDIBLE_PREVIEW_SECONDS) -> Path:
     """Create an audio proof with one identical click per candidate beat."""
     ensure_scipy_signal_compatibility()
