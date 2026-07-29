@@ -372,6 +372,152 @@ def generate_alternative_beat_grids(audio_path: Path, status_callback=lambda _te
     return candidates
 
 
+
+def _normalise_vector(values: np.ndarray) -> np.ndarray:
+    array = np.asarray(values, dtype=float)
+    if array.size == 0:
+        return array
+    lo = float(np.percentile(array, 10.0))
+    hi = float(np.percentile(array, 95.0))
+    if hi <= lo + 1e-9:
+        return np.zeros_like(array)
+    return np.clip((array - lo) / (hi - lo), 0.0, 1.0)
+
+
+def _nearest_frame_strength(envelope: np.ndarray, frame_times: np.ndarray, times: list[float]) -> np.ndarray:
+    if envelope.size == 0 or not times:
+        return np.zeros(0, dtype=float)
+    indices = np.searchsorted(frame_times, np.asarray(times, dtype=float))
+    indices = np.clip(indices, 0, len(envelope) - 1)
+    left = np.clip(indices - 1, 0, len(envelope) - 1)
+    choose_left = np.abs(frame_times[left] - np.asarray(times)) < np.abs(frame_times[indices] - np.asarray(times))
+    indices = np.where(choose_left, left, indices)
+    return envelope[indices]
+
+
+def score_timing_candidates(
+    candidates: dict[str, dict],
+    full_onset: np.ndarray,
+    low_onset: np.ndarray,
+    frame_times: np.ndarray,
+    chord_change_times: list[float],
+) -> list[dict]:
+    """Score 3/4 and 4/4 phase choices without changing saved timing."""
+    rows: list[dict] = []
+    full = _normalise_vector(full_onset)
+    low = _normalise_vector(low_onset)
+    for method, candidate in candidates.items():
+        if not isinstance(candidate, dict):
+            continue
+        beats = [float(v) for v in candidate.get("beat_times", []) if isinstance(v, (int, float))]
+        if len(beats) < 12:
+            continue
+        intervals = np.diff(np.asarray(beats, dtype=float))
+        median_interval = float(np.median(intervals))
+        if median_interval <= 0:
+            continue
+        cv = float(np.std(intervals) / max(1e-6, np.mean(intervals)))
+        stability = max(0.0, 1.0 - min(1.0, cv / 0.22))
+        full_strength = _nearest_frame_strength(full, frame_times, beats)
+        low_strength = _nearest_frame_strength(low, frame_times, beats)
+        method_strength = 0.55 * full_strength + 0.45 * low_strength
+        beat_support = float(np.mean(method_strength)) if method_strength.size else 0.0
+        chord_proximity = 0.0
+        if chord_change_times:
+            distances = []
+            beat_array = np.asarray(beats)
+            for change in chord_change_times:
+                idx = int(np.argmin(np.abs(beat_array - change)))
+                distances.append(abs(float(beat_array[idx]) - float(change)))
+            chord_proximity = float(np.mean([max(0.0, 1.0 - d / max(0.12, median_interval * 0.55)) for d in distances]))
+        for beats_per_bar, meter in ((3, "3/4"), (4, "4/4")):
+            for phase in range(beats_per_bar):
+                down = method_strength[phase::beats_per_bar]
+                other_parts = [method_strength[offset::beats_per_bar] for offset in range(beats_per_bar) if offset != phase]
+                other = np.concatenate(other_parts) if other_parts else np.zeros(0)
+                accent = float(np.mean(down) - np.mean(other)) if down.size and other.size else 0.0
+                accent_score = max(0.0, min(1.0, 0.5 + accent * 1.8))
+                downbeat_chord = 0.0
+                if chord_change_times:
+                    downbeats = np.asarray(beats[phase::beats_per_bar])
+                    vals = []
+                    for change in chord_change_times:
+                        if downbeats.size:
+                            d = float(np.min(np.abs(downbeats - change)))
+                            vals.append(max(0.0, 1.0 - d / max(0.15, median_interval * 0.75)))
+                    downbeat_chord = float(np.mean(vals)) if vals else 0.0
+                meter_prior = 0.52 if meter == "4/4" else 0.48
+                total = (
+                    0.25 * stability
+                    + 0.25 * beat_support
+                    + 0.18 * chord_proximity
+                    + 0.22 * accent_score
+                    + 0.08 * downbeat_chord
+                    + 0.02 * meter_prior
+                )
+                rows.append({
+                    "method": str(method),
+                    "label": str(candidate.get("label") or method),
+                    "meter": meter,
+                    "phase_number": phase + 1,
+                    "score": round(float(total), 6),
+                    "stability": round(stability, 6),
+                    "beat_support": round(beat_support, 6),
+                    "chord_proximity": round(chord_proximity, 6),
+                    "accent_score": round(accent_score, 6),
+                    "downbeat_chord_support": round(downbeat_chord, 6),
+                    "bpm": round(float(candidate.get("bpm") or 60.0 / median_interval), 3),
+                })
+    return sorted(rows, key=lambda row: row["score"], reverse=True)
+
+
+def recommend_timing_structure(
+    audio_path: Path,
+    candidates: dict[str, dict],
+    chord_segments: list[dict],
+) -> dict:
+    """Recommend meter, beat-grid method and downbeat phase from audio evidence."""
+    ensure_scipy_signal_compatibility()
+    with tempfile.TemporaryDirectory(prefix="banjofy_recommend_019_") as temporary:
+        wav = prepare_wav(audio_path, Path(temporary))
+        y, sr = librosa.load(wav, sr=22050, mono=True, duration=AUDIBLE_PREVIEW_SECONDS)
+        if y is None or len(y) == 0:
+            raise RuntimeError("Recommendation audio was empty.")
+        full_onset = librosa.onset.onset_strength(y=y, sr=sr)
+        sos = scipy.signal.butter(6, [35.0, 320.0], btype="bandpass", fs=sr, output="sos")
+        low_audio = scipy.signal.sosfiltfilt(sos, y).astype(np.float32)
+        low_onset = librosa.onset.onset_strength(y=low_audio, sr=sr)
+        frame_times = librosa.frames_to_time(np.arange(len(full_onset)), sr=sr)
+    changes = sorted({
+        float(item.get("start_s"))
+        for item in chord_segments
+        if isinstance(item, dict)
+        and isinstance(item.get("start_s"), (int, float))
+        and float(item.get("start_s")) > 0.05
+        and float(item.get("start_s")) <= AUDIBLE_PREVIEW_SECONDS
+    })
+    ranked = score_timing_candidates(candidates, full_onset, low_onset, frame_times, changes)
+    if not ranked:
+        raise RuntimeError("No timing candidate could be scored.")
+    best = ranked[0]
+    runner = ranked[1] if len(ranked) > 1 else best
+    margin = max(0.0, float(best["score"]) - float(runner["score"]))
+    confidence = min(95.0, max(20.0, 45.0 + best["score"] * 35.0 + margin * 220.0))
+    return {
+        "recommended_meter": best["meter"],
+        "recommended_beat_grid_method": best["method"],
+        "recommended_beat_grid_label": best["label"],
+        "recommended_phase_number": best["phase_number"],
+        "recommended_bpm": best["bpm"],
+        "confidence_percent": round(confidence, 1),
+        "winning_score": best["score"],
+        "runner_up_score": runner["score"],
+        "score_margin": round(margin, 6),
+        "ranked_candidates": ranked[:12],
+        "recommendation_applied": False,
+    }
+
+
 def create_audible_beat_grid_check(audio_path: Path, beat_times: list[float], target: Path, preview_seconds: float = AUDIBLE_PREVIEW_SECONDS) -> Path:
     """Create an audio proof with one identical click per candidate beat."""
     ensure_scipy_signal_compatibility()

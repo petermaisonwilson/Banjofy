@@ -1,0 +1,41 @@
+BANJOFY SONG ANALYSIS LABORATORY 019 — WINDOWS TEST
+AUTOMATIC TIMING RECOMMENDATION
+
+PURPOSE
+Build 019 recommends meter, beat-grid method and downbeat phase. It does not
+apply or overwrite confirmed timing.
+
+TENNESSEE WALTZ TARGET
+1. Select Tennessee Waltz.
+2. Ensure alternative beat grids already exist; create them if required.
+3. Click Recommend Meter, Beat Grid and Phase.
+4. Record the recommendation and confidence.
+
+Known musical reference:
+Meter: 3/4
+Beat grid: Low-frequency rhythm
+Downbeat: Phase 3
+
+The build passes its primary target only if it recommends those three values.
+A different result is valuable diagnostic evidence but is not a musical pass.
+
+REGRESSION SONGS
+Run the same recommendation for:
+Hotel California — known 4/4, Phase 3
+Johnny Cash — known 4/4, Phase 4
+Bob Dylan — known 3/4, Phase 1
+
+OPEN FILE IN NOTEPAD AND INSPECT CONTENTS
+Analysis\<song-id>\timing_recommendation_019.json
+Check:
+recommended_meter
+recommended_beat_grid_method
+recommended_beat_grid_label
+recommended_phase_number
+confidence_percent
+ranked_candidates
+recommendation_applied: false
+
+CONFIRMATION SAFETY
+Existing confirmed meter, beat grid and phase must remain unchanged after a
+recommendation run.

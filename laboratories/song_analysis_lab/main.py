@@ -15,7 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import structure_engine
 
-APP_TITLE = "Banjofy Song Analysis Laboratory 018 — Confirm Alternative Beat Grid"
+APP_TITLE = "Banjofy Song Analysis Laboratory 019 — Automatic Timing Recommendation"
 SETTINGS_FILENAME = "song_analysis_lab_settings.json"
 
 
@@ -821,8 +821,7 @@ class App(tk.Tk):
         ttk.Label(
             outer,
             text=(
-                "This build preserves the passed chord timeline and lets a proven alternative beat grid "
-                "become the active timing source before meter and downbeat phase are confirmed."
+                "This build preserves all passed analysis and recommends meter, beat-grid method and downbeat phase automatically before any manual confirmation."
             ),
             wraplength=950,
         ).pack(anchor="w", pady=(5, 12))
@@ -877,6 +876,13 @@ class App(tk.Tk):
             state="disabled",
         )
         self.alt_play_button.pack(side="left", padx=4)
+        self.recommend_button = ttk.Button(
+            controls,
+            text="Recommend Meter, Beat Grid and Phase",
+            command=self._recommend_timing,
+            state="disabled",
+        )
+        self.recommend_button.pack(side="left", padx=8)
         ttk.Button(controls, text="Open Analysis Folder", command=self._open_folder).pack(side="right")
 
         status = ttk.LabelFrame(outer, text="Structure-analysis status")
@@ -940,6 +946,7 @@ class App(tk.Tk):
             self.run_button.configure(state="disabled")
             self.alt_create_button.configure(state="disabled")
             self.alt_play_button.configure(state="disabled")
+            self.recommend_button.configure(state="disabled")
             return
         self.selected_song = self.songs[int(selected[0])]
         self.run_button.configure(state="normal")
@@ -960,6 +967,7 @@ class App(tk.Tk):
             for item in alt.values()
         )
         self.alt_play_button.configure(state="normal" if valid_alt else "disabled")
+        self.recommend_button.configure(state="normal" if valid_alt else "disabled")
         self.status_var.set(f"Selected: {self.selected_song['title']}")
 
     def _start(self) -> None:
@@ -1044,6 +1052,34 @@ class App(tk.Tk):
                 self.status_var.set("Alternative beat-grid analysis failed")
                 self._append(str(payload))
                 messagebox.showerror(APP_TITLE, "Alternative beat-grid analysis failed. The exact error is shown in the window.")
+            elif kind == "recommendation_done":
+                self.recommend_button.configure(state="normal")
+                method_label = str(payload.get("recommended_beat_grid_label") or payload.get("recommended_beat_grid_method"))
+                meter = str(payload.get("recommended_meter"))
+                phase = int(payload.get("recommended_phase_number") or 1)
+                confidence = float(payload.get("confidence_percent") or 0.0)
+                self.status_var.set(
+                    f"Recommendation: {meter}, {method_label}, Phase {phase} ({confidence:.0f}% confidence)"
+                )
+                self._append(
+                    f"Recommended {meter} · {method_label} · Phase {phase} · {confidence:.1f}% confidence."
+                )
+                messagebox.showinfo(
+                    APP_TITLE,
+                    (
+                        f"Build 019 recommendation\n\n"
+                        f"Meter: {meter}\n"
+                        f"Beat grid: {method_label}\n"
+                        f"Downbeat: Phase {phase}\n"
+                        f"Confidence: {confidence:.1f}%\n\n"
+                        "This is a laboratory recommendation only. It has not changed the saved timing."
+                    ),
+                )
+            elif kind == "recommendation_error":
+                self.recommend_button.configure(state="normal")
+                self.status_var.set("Automatic timing recommendation failed")
+                self._append(str(payload))
+                messagebox.showerror(APP_TITLE, "Automatic recommendation failed. The exact error is shown in the window.")
             elif kind == "alternative_done":
                 self.alt_create_button.configure(state="normal")
                 self.alt_play_button.configure(state="normal")
@@ -1092,6 +1128,56 @@ class App(tk.Tk):
                 )
         self.after(150, self._poll)
 
+    def _recommend_timing(self) -> None:
+        if self.selected_song is None:
+            messagebox.showinfo(APP_TITLE, "Select an analysed song first.")
+            return
+        analysis_path = Path(self.selected_song["analysis_path"])
+        analysis = read_json(analysis_path)
+        candidates = analysis.get("alternative_beat_grids")
+        if not isinstance(candidates, dict) or not candidates:
+            messagebox.showerror(
+                APP_TITLE,
+                "Create the alternative beat grids before requesting a recommendation.",
+            )
+            return
+
+        self.recommend_button.configure(state="disabled")
+        self.status_var.set("Build 019 is scoring meter, beat grid and downbeat phase…")
+        self._append("Started automatic timing recommendation.")
+        song = dict(self.selected_song)
+
+        def worker() -> None:
+            try:
+                result = structure_engine.recommend_timing_structure(
+                    Path(song["audio_path"]),
+                    candidates,
+                    analysis.get("segments", []),
+                )
+                record_path = Path(song["record_path"])
+                current_record = read_json(record_path)
+                current_analysis = read_json(analysis_path)
+                timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+                payload = {
+                    **result,
+                    "timing_recommendation_status": "recommended",
+                    "timing_recommended_at": timestamp,
+                    "timing_recommended_by": "automatic_scoring_v1",
+                }
+                current_record["timing_recommendation"] = payload
+                current_analysis["timing_recommendation"] = payload
+                report_path = analysis_path.parent / "timing_recommendation_019.json"
+                write_json_atomic(report_path, payload)
+                current_record["timing_recommendation_path"] = str(report_path)
+                current_analysis["timing_recommendation_path"] = str(report_path)
+                write_json_atomic(record_path, current_record)
+                write_json_atomic(analysis_path, current_analysis)
+                self.messages.put(("recommendation_done", payload))
+            except Exception as exc:
+                self.messages.put(("recommendation_error", f"{exc}\n\n{traceback.format_exc()}"))
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def _create_alternative_beat_grids(self) -> None:
         if self.selected_song is None:
             messagebox.showinfo(APP_TITLE, "Select an analysed song first.")
@@ -1139,7 +1225,7 @@ class App(tk.Tk):
         analysis = read_json(Path(self.selected_song["analysis_path"]))
         candidates = analysis.get("alternative_beat_grids")
         if not isinstance(candidates, dict) or not candidates:
-            messagebox.showerror(APP_TITLE, "Create the Build 018 alternative beat grids first.")
+            messagebox.showerror(APP_TITLE, "Create the Build 019 alternative beat grids first.")
             return
         valid = {
             key: value for key, value in candidates.items()
@@ -1148,7 +1234,7 @@ class App(tk.Tk):
             and isinstance(value.get("beat_times"), list)
         }
         if not valid:
-            messagebox.showerror(APP_TITLE, "The Build 018 alternative beat files are missing.")
+            messagebox.showerror(APP_TITLE, "The Build 019 alternative beat files are missing.")
             return
         self.alt_candidates = valid
         self.alt_chord_segments = sorted(
@@ -1271,7 +1357,7 @@ class App(tk.Tk):
             APP_TITLE,
             (
                 f"Confirm {label} as this song's active beat grid?\n\n"
-                f"Build 018 will retain the original detector grid, rebuild {meter} bars "
+                f"Build 019 will retain the original detector grid, rebuild {meter} bars "
                 "and create a completely fresh phase-audition set.\n\n"
                 "Chord names and chord-change times will not be altered."
             ),
@@ -1312,7 +1398,7 @@ class App(tk.Tk):
                 APP_TITLE,
                 (
                     f"{label} is now the active beat grid.\n\n"
-                    f"Build 018 created {len(phase_paths)} fresh {meter} phase auditions. "
+                    f"Build 019 created {len(phase_paths)} fresh {meter} phase auditions. "
                     "Open the chord and downbeat phase check and audition them."
                 ),
             )
@@ -1354,7 +1440,7 @@ class App(tk.Tk):
 
         if len(valid_paths) != expected_count:
             self.status_var.set(
-                "Rebuilding missing or mismatched phase audition files in Build 016…"
+                "Rebuilding missing or mismatched phase audition files in Build 019…"
             )
             folder = Path(self.selected_song["analysis_path"]).parent
             rebuilt_paths = create_phase_auditions(
@@ -1371,7 +1457,7 @@ class App(tk.Tk):
             analysis = read_json(self.selected_song["analysis_path"])
             valid_paths = [Path(path) for path in rebuilt_paths]
             self._append(
-                f"Build 016 rebuilt {len(valid_paths)} phase audition files."
+                f"Build 019 rebuilt {len(valid_paths)} phase audition files."
             )
 
         self.visual_phase_paths = valid_paths
@@ -1417,7 +1503,7 @@ class App(tk.Tk):
         if len(self.visual_phase_paths) != self.visual_beats_per_bar:
             messagebox.showerror(
                 APP_TITLE,
-                "Build 016 could not create the required phase audition files. "
+                "Build 019 could not create the required phase audition files. "
                 "The exact file state is shown in the status window.",
             )
             return

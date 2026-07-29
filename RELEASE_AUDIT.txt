@@ -1,19 +1,15 @@
-RELEASE AUDIT — SONG ANALYSIS LABORATORY 018
-
-PROVEN INPUT
-Tennessee Waltz Low-Frequency rhythm candidate was reported perfect in Build 017.
+RELEASE AUDIT — SONG ANALYSIS LABORATORY 019
 
 NEW
-- Confirm the currently selected alternative beat grid.
-- Preserve original detected beat times.
-- Save selected method, label, BPM and confirmation metadata.
-- Rebuild active beat grid, bars, downbeats and bar-aligned chords.
-- Clear obsolete phase confirmation.
-- Generate exactly three phase files for 3/4 or four for 4/4.
+- Automatic meter recommendation: 3/4 or 4/4 only.
+- Automatic beat-grid recommendation across all generated alternatives.
+- Automatic downbeat phase recommendation.
+- Confidence and ranked-candidate report.
+- Recommendation is diagnostic only and does not alter confirmed timing.
 
 PRESERVED
-- Chord names and chord-change times.
-- Original detector grid and alternative candidates.
-- 3/4 and 4/4 only.
+- Chord names, chord segments and chord-change times.
+- Original detector beat grid.
+- Confirmed meter, grid and phase.
 - Central FFmpeg media route.
 - Existing Library filenames.
