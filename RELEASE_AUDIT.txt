@@ -1,25 +1,20 @@
-RELEASE AUDIT — SONG ANALYSIS LABORATORY 022
+RELEASE AUDIT — SONG ANALYSIS LABORATORY 023
 
 BASELINE
-Clean rebuild from Build 021.
+Clean rebuild from Build 022.
 
 NEW
-- Recover Manual Truth button.
-- 1550 x 820 default window.
-- Recursive inspection of Library record, song_analysis.json and
-  song_structure.json.
-- Exact source-file and JSON-path reporting.
-- Confirmed/manual value priority.
-- Conflict detection.
-- Missing-field reporting.
-- Deterministic phase derivation from confirmed and detected downbeat indices
-  when no explicit phase number exists.
-- manual_truth_recovery_022.txt
-- manual_truth_022.json
+- Explicit-confirmation-only truth recovery.
+- Candidate and recommendation containers excluded.
+- Historical standard-grid inference clearly labelled.
+- User review dialog for meter, grid and phase.
+- Meter-aware phase choices.
+- manual_truth_023.json canonical validation record.
+- manual_truth_023.txt readable validation record.
 
 UNCHANGED
-- Build 020/021 scoring function and weights.
-- 3/4 and 4/4 scope.
-- Existing timing confirmations.
+- Build 020 scoring function and weights.
+- Timing data.
 - Chord analysis.
 - FFmpeg route.
+- 3/4 and 4/4 meter scope.

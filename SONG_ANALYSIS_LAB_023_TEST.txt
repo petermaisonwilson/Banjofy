@@ -1,0 +1,24 @@
+BANJOFY SONG ANALYSIS LABORATORY 023 — WINDOWS TEST
+VERIFIED TIMING TRUTH
+
+1. Start BanjofySongAnalysisLab023.exe.
+2. Select Hotel California.
+3. Click Review / Save Verified Truth.
+4. Confirm the prefilled values are 4/4, standard, Phase 3.
+5. Click Save Verified Truth.
+6. Repeat for Folsom Prison Blues: 4/4, standard, Phase 4.
+7. Repeat for The Times They Are A-Changin': 3/4, standard, Phase 1.
+8. Repeat for Tennessee Waltz: 3/4, low_frequency, choose Phase 2.
+9. Open each Analysis folder.
+
+Each folder must contain:
+manual_truth_023.json
+manual_truth_023.txt
+
+The report must say:
+Verified by user: YES
+Complete: YES
+Timing data changed: NO
+Scoring weights changed: NO
+
+No automatic ranked candidate may be used as an explicit truth source.

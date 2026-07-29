@@ -956,6 +956,230 @@ def format_manual_truth_recovery(result: dict) -> str:
     return "\n".join(lines)
 
 
+
+VERIFIED_EXPLICIT_KEYS = {
+    "meter": ("confirmed_meter",),
+    "beat_grid_method": ("confirmed_beat_grid_method",),
+    "phase_number": ("confirmed_phase_number",),
+    "phase_offset": ("confirmed_phase_offset",),
+    "first_downbeat_beat_index": ("confirmed_first_downbeat_beat_index",),
+}
+
+
+def _walk_explicit_truth(value, path: str = "$") -> list[tuple[str, object]]:
+    """Walk JSON while excluding candidate/recommendation containers."""
+    found: list[tuple[str, object]] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}"
+            if key in {
+                "timing_recommendation",
+                "ranked_candidates",
+                "candidate_meters",
+                "timing_candidates",
+                "candidates",
+            }:
+                continue
+            found.append((child_path, child))
+            found.extend(_walk_explicit_truth(child, child_path))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            found.extend(_walk_explicit_truth(child, f"{path}[{index}]"))
+    return found
+
+
+def _find_explicit_values(
+    source_name: str,
+    source_path: Path,
+    payload: dict,
+) -> list[dict]:
+    key_to_field = {
+        key: field
+        for field, keys in VERIFIED_EXPLICIT_KEYS.items()
+        for key in keys
+    }
+    rows = []
+    for json_path, value in _walk_explicit_truth(payload):
+        key = json_path.rsplit(".", 1)[-1]
+        field = key_to_field.get(key)
+        if not field:
+            continue
+        normalised = _normalise_truth_value(field, value)
+        if normalised is None:
+            continue
+        rows.append({
+            "field": field,
+            "value": normalised,
+            "source_name": source_name,
+            "source_file": str(source_path),
+            "json_path": json_path,
+            "source_key": key,
+        })
+    return rows
+
+
+def _first_explicit(rows: list[dict], field: str):
+    matches = [row for row in rows if row["field"] == field]
+    if not matches:
+        return None, None
+    source_order = {
+        "song_analysis.json": 3,
+        "song_structure.json": 2,
+        "library_record.json": 1,
+    }
+    matches.sort(
+        key=lambda row: source_order.get(row.get("source_name"), 0),
+        reverse=True,
+    )
+    return matches[0]["value"], matches[0]
+
+
+def recover_verified_truth(
+    record: dict,
+    analysis: dict,
+    structure: dict,
+    song_title: str,
+    record_path: Path,
+    analysis_path: Path,
+    structure_path: Path,
+) -> dict:
+    """Recover only explicit confirmed values; never use scorer candidates."""
+    rows = []
+    rows.extend(_find_explicit_values("library_record.json", record_path, record))
+    rows.extend(_find_explicit_values("song_analysis.json", analysis_path, analysis))
+    rows.extend(_find_explicit_values("song_structure.json", structure_path, structure))
+
+    meter, meter_source = _first_explicit(rows, "meter")
+    grid, grid_source = _first_explicit(rows, "beat_grid_method")
+    phase, phase_source = _first_explicit(rows, "phase_number")
+    phase_offset, phase_offset_source = _first_explicit(rows, "phase_offset")
+    first_downbeat, first_downbeat_source = _first_explicit(
+        rows, "first_downbeat_beat_index"
+    )
+
+    notes = []
+    if meter is None:
+        # Historical Build 014 songs stored best meter but not confirmed_meter.
+        # This is an inference and is labelled as such.
+        inferred_meter = (
+            analysis.get("best_meter_candidate")
+            or structure.get("best_meter_candidate")
+            or (record.get("structure_summary") or {}).get("best_meter_candidate")
+        )
+        inferred_meter = _normalise_truth_value("meter", inferred_meter)
+        if inferred_meter:
+            meter = inferred_meter
+            notes.append(
+                "Meter was inferred from best_meter_candidate because no "
+                "confirmed_meter field exists."
+            )
+
+    if grid is None and phase is not None:
+        grid = "standard"
+        notes.append(
+            "Beat-grid method was inferred as standard because this phase was "
+            "confirmed before alternative beat-grid confirmation was introduced."
+        )
+
+    if phase is None:
+        notes.append(
+            "No explicit confirmed phase exists. A phase must be chosen manually."
+        )
+
+    source_label = lambda row: (
+        f"{row['source_file']} {row['json_path']}" if row else None
+    )
+
+    canonical = {
+        "schema": "banjofy.truth_review.v1",
+        "laboratory_build": 23,
+        "song_title": song_title,
+        "meter": meter,
+        "beat_grid_method": grid,
+        "phase_number": phase,
+        "phase_offset": phase_offset,
+        "first_downbeat_beat_index": first_downbeat,
+        "meter_source_label": source_label(meter_source),
+        "beat_grid_source_label": source_label(grid_source),
+        "phase_source_label": source_label(phase_source),
+        "phase_offset_source_label": source_label(phase_offset_source),
+        "first_downbeat_source_label": source_label(first_downbeat_source),
+        "explicit_values": rows,
+        "notes": notes,
+        "timing_data_changed": False,
+        "scoring_weights_changed": False,
+    }
+    return {"canonical_record": canonical}
+
+
+def build_verified_truth_record(
+    recovered: dict,
+    meter: str,
+    beat_grid_method: str,
+    phase_number: int,
+) -> dict:
+    max_phase = 3 if meter == "3/4" else 4
+    if meter not in {"3/4", "4/4"}:
+        raise ValueError("Verified meter must be 3/4 or 4/4.")
+    if beat_grid_method not in {
+        "standard", "percussive", "low_frequency", "steady_pulse"
+    }:
+        raise ValueError("Unknown beat-grid method.")
+    if not 1 <= int(phase_number) <= max_phase:
+        raise ValueError("Verified phase does not match the meter.")
+
+    return {
+        "schema": "banjofy.manual_truth.v2",
+        "laboratory_build": 23,
+        "song_title": recovered.get("song_title"),
+        "meter": meter,
+        "beat_grid_method": beat_grid_method,
+        "phase_number": int(phase_number),
+        "verified_by_user": True,
+        "complete": True,
+        "source_review": {
+            "meter_source": recovered.get("meter_source_label"),
+            "beat_grid_source": recovered.get("beat_grid_source_label"),
+            "phase_source": recovered.get("phase_source_label"),
+            "notes": recovered.get("notes") or [],
+        },
+        "timing_data_changed": False,
+        "scoring_weights_changed": False,
+    }
+
+
+def format_verified_truth_record(record: dict) -> str:
+    lines = [
+        "BANJOFY SONG ANALYSIS LABORATORY 023",
+        "VERIFIED TIMING TRUTH",
+        "",
+        f"Song: {record.get('song_title')}",
+        f"Meter: {record.get('meter')}",
+        f"Beat-grid method: {record.get('beat_grid_method')}",
+        f"Phase number: {record.get('phase_number')}",
+        "Verified by user: YES",
+        "Complete: YES",
+        "Timing data changed: NO",
+        "Scoring weights changed: NO",
+        "",
+        "SOURCE REVIEW",
+    ]
+    review = record.get("source_review") or {}
+    lines.append(f"Meter source: {review.get('meter_source') or 'User confirmation'}")
+    lines.append(
+        f"Beat-grid source: {review.get('beat_grid_source') or 'User confirmation/inference'}"
+    )
+    lines.append(f"Phase source: {review.get('phase_source') or 'User confirmation'}")
+    for note in review.get("notes") or []:
+        lines.append(f"Note: {note}")
+    lines.extend([
+        "",
+        "This file is the canonical validation truth for timing comparison.",
+        "",
+    ])
+    return "\n".join(lines)
+
+
 def _first_present(mapping_list: list[dict], keys: tuple[str, ...]):
     for mapping in mapping_list:
         if not isinstance(mapping, dict):

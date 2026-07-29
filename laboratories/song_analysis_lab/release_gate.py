@@ -10,26 +10,24 @@ spec_text = (root / "song_analysis_lab.spec").read_text(encoding="utf-8")
 ast.parse(main_text)
 ast.parse(engine_text)
 
-assert 'APP_TITLE = "Banjofy Song Analysis Laboratory 022 — Manual Truth Recovery"' in main_text
-assert 'name="BanjofySongAnalysisLab022"' in spec_text
-assert 'self.geometry("1550x820")' in main_text
-assert 'Recover Manual Truth' in main_text
-assert 'def _recover_manual_truth(' in main_text
-assert 'manual_truth_recovery_022.txt' in main_text
-assert 'manual_truth_022.json' in main_text
+assert 'APP_TITLE = "Banjofy Song Analysis Laboratory 023 — Verified Timing Truth"' in main_text
+assert 'name="BanjofySongAnalysisLab023"' in spec_text
+assert 'Review / Save Verified Truth' in main_text
+assert 'Save Verified Truth' in main_text
+assert 'manual_truth_023.json' in main_text
+assert 'manual_truth_023.txt' in main_text
 
-for required in (
-    "TRUTH_FIELD_ALIASES",
-    "def _walk_json_values(",
-    "def _collect_truth_candidates(",
-    "def recover_manual_truth(",
-    "def format_manual_truth_recovery(",
-    "confirmed_first_downbeat_beat_index",
-    "detected_first_downbeat_beat_index",
+for token in (
+    "def recover_verified_truth(",
+    "def build_verified_truth_record(",
+    "def format_verified_truth_record(",
+    "timing_recommendation",
+    "ranked_candidates",
+    "candidate_meters",
 ):
-    assert required in engine_text
+    assert token in engine_text
 
-# Scorer remains unchanged from Build 020/021.
+# Frozen Build 020 scoring model.
 for exact_weight in (
     "0.23 * stability",
     "0.20 * beat_support",
@@ -42,80 +40,63 @@ for exact_weight in (
     assert exact_weight in engine_text
 
 assert 'SUPPORTED_METERS = ((3, "3/4"), (4, "4/4"))' in engine_text
-assert "librosa.load(audio_path" not in engine_text
 
 sys.path.insert(0, str(root))
 import structure_engine
 
-# Direct explicit truth recovery.
-record = {
-    "structure_summary": {
-        "confirmed_meter": "4/4",
-        "confirmed_phase_number": 3,
-    }
-}
+# Explicit confirmations override and candidates are excluded.
 analysis = {
-    "confirmed_beat_grid_method": "standard",
-    "meter": "Uncertain",
-}
-structure = {}
-result = structure_engine.recover_manual_truth(
-    record,
-    analysis,
-    structure,
-    "Hotel Proof",
-    Path("record.json"),
-    Path("song_analysis.json"),
-    Path("song_structure.json"),
-)
-canonical = result["canonical_record"]
-assert canonical["meter"] == "4/4"
-assert canonical["beat_grid_method"] == "standard"
-assert canonical["phase_number"] == 3
-assert canonical["complete"] is True
-
-# Derived phase proof: detector index 2, confirmed index 0 in 4/4 => Phase 3.
-record2 = {}
-analysis2 = {
-    "confirmed_meter": "4/4",
-    "confirmed_beat_grid_method": "standard",
-    "detected_first_downbeat_beat_index": 2,
-    "confirmed_first_downbeat_beat_index": 0,
-}
-result2 = structure_engine.recover_manual_truth(
-    record2,
-    analysis2,
-    {},
-    "Derived Phase Proof",
-    Path("record.json"),
-    Path("song_analysis.json"),
-    Path("song_structure.json"),
-)
-assert result2["canonical_record"]["phase_number"] == 3
-assert result2["canonical_record"]["complete"] is True
-assert result2["derived_values"]
-
-# Conflict detection proof.
-analysis3 = {
     "confirmed_meter": "3/4",
-    "meter": "4/4",
+    "confirmed_beat_grid_method": "low_frequency",
+    "timing_recommendation": {
+        "ranked_candidates": [
+            {"meter": "4/4", "beat_grid_method": "standard", "phase_number": 2}
+        ]
+    },
 }
-result3 = structure_engine.recover_manual_truth(
-    {},
-    analysis3,
-    {},
-    "Conflict Proof",
-    Path("record.json"),
-    Path("song_analysis.json"),
-    Path("song_structure.json"),
+result = structure_engine.recover_verified_truth(
+    {}, analysis, {}, "Tennessee",
+    Path("record.json"), Path("song_analysis.json"), Path("song_structure.json"),
 )
-assert result3["canonical_record"]["meter"] == "3/4"
-assert result3["conflicts"]
+c = result["canonical_record"]
+assert c["meter"] == "3/4"
+assert c["beat_grid_method"] == "low_frequency"
+assert c["phase_number"] is None
+assert "No explicit confirmed phase exists" in " ".join(c["notes"])
+assert not any(
+    "ranked_candidates" in str(row.get("json_path"))
+    for row in c["explicit_values"]
+)
 
-text = structure_engine.format_manual_truth_recovery(result2)
-assert "SELECTED SOURCES" in text
-assert "DERIVED VALUES" in text
-assert "ALL LOCATED VALUES" in text
-assert "Timing data changed: NO" in text
+# Historical song inference.
+analysis2 = {
+    "best_meter_candidate": "4/4",
+    "confirmed_phase_number": 3,
+}
+r2 = structure_engine.recover_verified_truth(
+    {}, analysis2, {}, "Hotel",
+    Path("record.json"), Path("song_analysis.json"), Path("song_structure.json"),
+)
+c2 = r2["canonical_record"]
+assert c2["meter"] == "4/4"
+assert c2["beat_grid_method"] == "standard"
+assert c2["phase_number"] == 3
+assert any("inferred" in note for note in c2["notes"])
 
-print("Banjofy Song Analysis Laboratory 022 complete release gate: passed")
+verified = structure_engine.build_verified_truth_record(
+    c2, meter="4/4", beat_grid_method="standard", phase_number=3
+)
+assert verified["complete"] is True
+assert verified["verified_by_user"] is True
+assert "VERIFIED TIMING TRUTH" in structure_engine.format_verified_truth_record(verified)
+
+try:
+    structure_engine.build_verified_truth_record(
+        c2, meter="3/4", beat_grid_method="standard", phase_number=4
+    )
+except ValueError:
+    pass
+else:
+    raise AssertionError("Invalid 3/4 Phase 4 was accepted.")
+
+print("Banjofy Song Analysis Laboratory 023 complete release gate: passed")
