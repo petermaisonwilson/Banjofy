@@ -15,7 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import structure_engine
 
-APP_TITLE = "Banjofy Song Analysis Laboratory 019 — Automatic Timing Recommendation"
+APP_TITLE = "Banjofy Song Analysis Laboratory 020 — Repeating-Pattern Downbeat Recommendation"
 SETTINGS_FILENAME = "song_analysis_lab_settings.json"
 
 
@@ -821,7 +821,7 @@ class App(tk.Tk):
         ttk.Label(
             outer,
             text=(
-                "This build preserves all passed analysis and recommends meter, beat-grid method and downbeat phase automatically before any manual confirmation."
+                "This build preserves all passed analysis and recommends meter, beat-grid method and downbeat phase using repeating bar-accent evidence rather than assuming chord changes occur on Beat 1."
             ),
             wraplength=950,
         ).pack(anchor="w", pady=(5, 12))
@@ -1067,7 +1067,7 @@ class App(tk.Tk):
                 messagebox.showinfo(
                     APP_TITLE,
                     (
-                        f"Build 019 recommendation\n\n"
+                        f"Build 020 recommendation\n\n"
                         f"Meter: {meter}\n"
                         f"Beat grid: {method_label}\n"
                         f"Downbeat: Phase {phase}\n"
@@ -1143,7 +1143,7 @@ class App(tk.Tk):
             return
 
         self.recommend_button.configure(state="disabled")
-        self.status_var.set("Build 019 is scoring meter, beat grid and downbeat phase…")
+        self.status_var.set("Build 020 is scoring meter, beat grid and downbeat phase…")
         self._append("Started automatic timing recommendation.")
         song = dict(self.selected_song)
 
@@ -1162,11 +1162,11 @@ class App(tk.Tk):
                     **result,
                     "timing_recommendation_status": "recommended",
                     "timing_recommended_at": timestamp,
-                    "timing_recommended_by": "automatic_scoring_v1",
+                    "timing_recommended_by": "automatic_scoring_v2_repeating_pattern",
                 }
                 current_record["timing_recommendation"] = payload
                 current_analysis["timing_recommendation"] = payload
-                report_path = analysis_path.parent / "timing_recommendation_019.json"
+                report_path = analysis_path.parent / "timing_recommendation_020.json"
                 write_json_atomic(report_path, payload)
                 current_record["timing_recommendation_path"] = str(report_path)
                 current_analysis["timing_recommendation_path"] = str(report_path)
@@ -1225,7 +1225,7 @@ class App(tk.Tk):
         analysis = read_json(Path(self.selected_song["analysis_path"]))
         candidates = analysis.get("alternative_beat_grids")
         if not isinstance(candidates, dict) or not candidates:
-            messagebox.showerror(APP_TITLE, "Create the Build 019 alternative beat grids first.")
+            messagebox.showerror(APP_TITLE, "Create the Build 020 alternative beat grids first.")
             return
         valid = {
             key: value for key, value in candidates.items()
@@ -1234,7 +1234,7 @@ class App(tk.Tk):
             and isinstance(value.get("beat_times"), list)
         }
         if not valid:
-            messagebox.showerror(APP_TITLE, "The Build 019 alternative beat files are missing.")
+            messagebox.showerror(APP_TITLE, "The Build 020 alternative beat files are missing.")
             return
         self.alt_candidates = valid
         self.alt_chord_segments = sorted(
@@ -1357,7 +1357,7 @@ class App(tk.Tk):
             APP_TITLE,
             (
                 f"Confirm {label} as this song's active beat grid?\n\n"
-                f"Build 019 will retain the original detector grid, rebuild {meter} bars "
+                f"Build 020 will retain the original detector grid, rebuild {meter} bars "
                 "and create a completely fresh phase-audition set.\n\n"
                 "Chord names and chord-change times will not be altered."
             ),
@@ -1398,7 +1398,7 @@ class App(tk.Tk):
                 APP_TITLE,
                 (
                     f"{label} is now the active beat grid.\n\n"
-                    f"Build 019 created {len(phase_paths)} fresh {meter} phase auditions. "
+                    f"Build 020 created {len(phase_paths)} fresh {meter} phase auditions. "
                     "Open the chord and downbeat phase check and audition them."
                 ),
             )
@@ -1440,7 +1440,7 @@ class App(tk.Tk):
 
         if len(valid_paths) != expected_count:
             self.status_var.set(
-                "Rebuilding missing or mismatched phase audition files in Build 019…"
+                "Rebuilding missing or mismatched phase audition files in Build 020…"
             )
             folder = Path(self.selected_song["analysis_path"]).parent
             rebuilt_paths = create_phase_auditions(
@@ -1457,7 +1457,7 @@ class App(tk.Tk):
             analysis = read_json(self.selected_song["analysis_path"])
             valid_paths = [Path(path) for path in rebuilt_paths]
             self._append(
-                f"Build 019 rebuilt {len(valid_paths)} phase audition files."
+                f"Build 020 rebuilt {len(valid_paths)} phase audition files."
             )
 
         self.visual_phase_paths = valid_paths
@@ -1503,7 +1503,7 @@ class App(tk.Tk):
         if len(self.visual_phase_paths) != self.visual_beats_per_bar:
             messagebox.showerror(
                 APP_TITLE,
-                "Build 019 could not create the required phase audition files. "
+                "Build 020 could not create the required phase audition files. "
                 "The exact file state is shown in the status window.",
             )
             return

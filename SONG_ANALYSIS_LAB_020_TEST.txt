@@ -1,0 +1,53 @@
+BANJOFY SONG ANALYSIS LABORATORY 020 — WINDOWS TEST
+REPEATING-PATTERN DOWNBEAT RECOMMENDATION
+
+PRIMARY TENNESSEE WALTZ TEST
+1. Run BanjofySongAnalysisLab020.exe.
+2. Select Tennessee Waltz.
+3. Click Recommend Meter, Beat Grid and Phase.
+4. Record the recommendation before changing anything.
+
+KNOWN MUSICAL RESULT
+Meter: 3/4
+Beat grid: Low-frequency rhythm
+Downbeat: Phase 3
+
+BUILD 020 ACCEPTANCE
+The automatic recommendation should be:
+3/4
+Low-frequency rhythm
+Phase 3
+
+WHY THIS BUILD IS DIFFERENT
+Chord changes are allowed on Beat 1, Beat 2 or Beat 3.
+Chord-change proximity contributes only weakly to beat-grid quality.
+It has zero weight when choosing the downbeat phase.
+
+Build 020 instead scores:
+- repeating Beat-1 accent across complete bars
+- bar-to-bar accent-pattern consistency
+- recurring lift into Beat 1 from the preceding beat
+- beat-grid stability
+- low-frequency rhythmic support
+
+SAFETY
+The recommendation must not alter the already confirmed meter, beat grid or
+phase.
+
+OPEN FILE IN NOTEPAD AND INSPECT CONTENTS
+Analysis\<song-id>\timing_recommendation_020.json
+
+Check for:
+recommended_meter
+recommended_beat_grid_method
+recommended_phase_number
+confidence_percent
+repeating_accent_score
+bar_pattern_consistency
+lead_in_rise_score
+bar_position_profile
+phase_chord_weight
+recommendation_applied
+
+phase_chord_weight must be 0.0.
+recommendation_applied must be false.

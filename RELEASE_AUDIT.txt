@@ -1,15 +1,27 @@
-RELEASE AUDIT — SONG ANALYSIS LABORATORY 019
+RELEASE AUDIT — SONG ANALYSIS LABORATORY 020
 
-NEW
-- Automatic meter recommendation: 3/4 or 4/4 only.
-- Automatic beat-grid recommendation across all generated alternatives.
-- Automatic downbeat phase recommendation.
-- Confidence and ranked-candidate report.
-- Recommendation is diagnostic only and does not alter confirmed timing.
+BASELINE
+Clean rebuild from the supplied passed Build 019 package.
+
+ROOT CAUSE ADDRESSED
+Build 019 correctly recommended 3/4 and Low-frequency rhythm for Tennessee
+Waltz, but recommended Phase 2 rather than the musically verified Phase 3.
+The song contains many chord changes away from the downbeat.
+
+BUILD 020 CHANGE
+- Chord changes have zero weight in downbeat-phase selection.
+- Chord proximity remains only a weak beat-grid quality signal.
+- Adds complete-bar normalisation.
+- Adds repeating Beat-1 accent scoring.
+- Adds bar-pattern consistency scoring.
+- Adds recurring lead-in-to-Beat-1 scoring.
+- Retains recommendation-only behaviour.
 
 PRESERVED
-- Chord names, chord segments and chord-change times.
-- Original detector beat grid.
-- Confirmed meter, grid and phase.
+- 3/4 and 4/4 only.
+- All four beat-grid methods.
+- Original detector results.
+- Existing manual meter, beat-grid and phase confirmations.
+- Chord names and chord-change times.
 - Central FFmpeg media route.
-- Existing Library filenames.
+- Existing Library structure.

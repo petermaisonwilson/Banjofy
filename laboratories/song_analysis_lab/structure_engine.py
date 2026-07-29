@@ -395,6 +395,66 @@ def _nearest_frame_strength(envelope: np.ndarray, frame_times: np.ndarray, times
     return envelope[indices]
 
 
+def _phase_pattern_metrics(
+    strengths: np.ndarray,
+    beats_per_bar: int,
+    phase: int,
+) -> tuple[float, float, float, list[float]]:
+    """Measure repeating bar-position evidence without using chord changes.
+
+    The candidate beat grid is rotated so *phase* is Beat 1. Complete bars are
+    normalised individually, preventing one loud passage from dominating the
+    whole recording. The returned values reward:
+
+    - Beat 1 being stronger than the other bar positions.
+    - The same accent ordering recurring from bar to bar.
+    - Beat 1 rising from the preceding beat, useful when a phrase leads into ONE.
+    """
+    values = np.asarray(strengths, dtype=float)
+    rotated = values[phase:]
+    complete = (len(rotated) // beats_per_bar) * beats_per_bar
+    if complete < beats_per_bar * 4:
+        return 0.0, 0.0, 0.0, [0.0] * beats_per_bar
+
+    bars = rotated[:complete].reshape(-1, beats_per_bar)
+    lo = np.min(bars, axis=1, keepdims=True)
+    hi = np.max(bars, axis=1, keepdims=True)
+    normalised = np.divide(
+        bars - lo,
+        np.maximum(1e-9, hi - lo),
+    )
+
+    profile = np.median(normalised, axis=0)
+    beat_one = normalised[:, 0]
+    others = normalised[:, 1:].reshape(-1)
+
+    contrast = float(np.median(beat_one) - np.median(others))
+    contrast_score = max(0.0, min(1.0, 0.5 + contrast * 0.9))
+
+    # How often Beat 1 is at least as strong as the average of the other beats.
+    bar_wins = np.mean(
+        beat_one >= np.mean(normalised[:, 1:], axis=1)
+    )
+    consistency_score = max(0.0, min(1.0, float(bar_wins)))
+
+    # Reward a recurring lift into Beat 1 from the final beat of the prior bar.
+    if len(normalised) > 1:
+        rises = normalised[1:, 0] - normalised[:-1, -1]
+        rise_score = max(
+            0.0,
+            min(1.0, 0.5 + float(np.median(rises)) * 0.8),
+        )
+    else:
+        rise_score = 0.5
+
+    return (
+        contrast_score,
+        consistency_score,
+        rise_score,
+        [round(float(value), 6) for value in profile.tolist()],
+    )
+
+
 def score_timing_candidates(
     candidates: dict[str, dict],
     full_onset: np.ndarray,
@@ -402,59 +462,92 @@ def score_timing_candidates(
     frame_times: np.ndarray,
     chord_change_times: list[float],
 ) -> list[dict]:
-    """Score 3/4 and 4/4 phase choices without changing saved timing."""
+    """Score 3/4 and 4/4 candidates using repeating rhythmic patterns.
+
+    Build 020 deliberately does not use chord-change proximity to choose the
+    downbeat phase. Chord changes may occur on any beat and are retained only
+    as a weak beat-grid quality signal.
+    """
     rows: list[dict] = []
     full = _normalise_vector(full_onset)
     low = _normalise_vector(low_onset)
+
     for method, candidate in candidates.items():
         if not isinstance(candidate, dict):
             continue
-        beats = [float(v) for v in candidate.get("beat_times", []) if isinstance(v, (int, float))]
+
+        beats = [
+            float(value)
+            for value in candidate.get("beat_times", [])
+            if isinstance(value, (int, float))
+        ]
         if len(beats) < 12:
             continue
+
         intervals = np.diff(np.asarray(beats, dtype=float))
         median_interval = float(np.median(intervals))
         if median_interval <= 0:
             continue
+
         cv = float(np.std(intervals) / max(1e-6, np.mean(intervals)))
         stability = max(0.0, 1.0 - min(1.0, cv / 0.22))
+
         full_strength = _nearest_frame_strength(full, frame_times, beats)
         low_strength = _nearest_frame_strength(low, frame_times, beats)
-        method_strength = 0.55 * full_strength + 0.45 * low_strength
-        beat_support = float(np.mean(method_strength)) if method_strength.size else 0.0
-        chord_proximity = 0.0
+
+        # Low-frequency rhythm is important for the underlying pulse, while the
+        # full mix still contributes transient evidence.
+        method_strength = 0.38 * full_strength + 0.62 * low_strength
+        beat_support = (
+            float(np.mean(method_strength))
+            if method_strength.size
+            else 0.0
+        )
+
+        # Chord changes contribute only to selecting a plausible beat grid.
+        # They never decide which beat is Beat 1.
+        chord_grid_support = 0.0
         if chord_change_times:
-            distances = []
             beat_array = np.asarray(beats)
+            support = []
             for change in chord_change_times:
-                idx = int(np.argmin(np.abs(beat_array - change)))
-                distances.append(abs(float(beat_array[idx]) - float(change)))
-            chord_proximity = float(np.mean([max(0.0, 1.0 - d / max(0.12, median_interval * 0.55)) for d in distances]))
+                index = int(np.argmin(np.abs(beat_array - change)))
+                distance = abs(float(beat_array[index]) - float(change))
+                support.append(
+                    max(
+                        0.0,
+                        1.0
+                        - distance / max(0.12, median_interval * 0.55),
+                    )
+                )
+            chord_grid_support = float(np.mean(support)) if support else 0.0
+
         for beats_per_bar, meter in ((3, "3/4"), (4, "4/4")):
             for phase in range(beats_per_bar):
-                down = method_strength[phase::beats_per_bar]
-                other_parts = [method_strength[offset::beats_per_bar] for offset in range(beats_per_bar) if offset != phase]
-                other = np.concatenate(other_parts) if other_parts else np.zeros(0)
-                accent = float(np.mean(down) - np.mean(other)) if down.size and other.size else 0.0
-                accent_score = max(0.0, min(1.0, 0.5 + accent * 1.8))
-                downbeat_chord = 0.0
-                if chord_change_times:
-                    downbeats = np.asarray(beats[phase::beats_per_bar])
-                    vals = []
-                    for change in chord_change_times:
-                        if downbeats.size:
-                            d = float(np.min(np.abs(downbeats - change)))
-                            vals.append(max(0.0, 1.0 - d / max(0.15, median_interval * 0.75)))
-                    downbeat_chord = float(np.mean(vals)) if vals else 0.0
+                (
+                    repeating_accent,
+                    bar_consistency,
+                    lead_in_rise,
+                    bar_position_profile,
+                ) = _phase_pattern_metrics(
+                    method_strength,
+                    beats_per_bar,
+                    phase,
+                )
+
+                # A slight 4/4 prior remains, but repeating evidence dominates.
                 meter_prior = 0.52 if meter == "4/4" else 0.48
+
                 total = (
-                    0.25 * stability
-                    + 0.25 * beat_support
-                    + 0.18 * chord_proximity
-                    + 0.22 * accent_score
-                    + 0.08 * downbeat_chord
+                    0.23 * stability
+                    + 0.20 * beat_support
+                    + 0.05 * chord_grid_support
+                    + 0.27 * repeating_accent
+                    + 0.18 * bar_consistency
+                    + 0.05 * lead_in_rise
                     + 0.02 * meter_prior
                 )
+
                 rows.append({
                     "method": str(method),
                     "label": str(candidate.get("label") or method),
@@ -463,11 +556,18 @@ def score_timing_candidates(
                     "score": round(float(total), 6),
                     "stability": round(stability, 6),
                     "beat_support": round(beat_support, 6),
-                    "chord_proximity": round(chord_proximity, 6),
-                    "accent_score": round(accent_score, 6),
-                    "downbeat_chord_support": round(downbeat_chord, 6),
-                    "bpm": round(float(candidate.get("bpm") or 60.0 / median_interval), 3),
+                    "chord_grid_support": round(chord_grid_support, 6),
+                    "repeating_accent_score": round(repeating_accent, 6),
+                    "bar_pattern_consistency": round(bar_consistency, 6),
+                    "lead_in_rise_score": round(lead_in_rise, 6),
+                    "bar_position_profile": bar_position_profile,
+                    "phase_chord_weight": 0.0,
+                    "bpm": round(
+                        float(candidate.get("bpm") or 60.0 / median_interval),
+                        3,
+                    ),
                 })
+
     return sorted(rows, key=lambda row: row["score"], reverse=True)
 
 
@@ -476,9 +576,9 @@ def recommend_timing_structure(
     candidates: dict[str, dict],
     chord_segments: list[dict],
 ) -> dict:
-    """Recommend meter, beat-grid method and downbeat phase from audio evidence."""
+    """Recommend timing using repeating bar-accent evidence from the audio."""
     ensure_scipy_signal_compatibility()
-    with tempfile.TemporaryDirectory(prefix="banjofy_recommend_019_") as temporary:
+    with tempfile.TemporaryDirectory(prefix="banjofy_recommend_020_") as temporary:
         wav = prepare_wav(audio_path, Path(temporary))
         y, sr = librosa.load(wav, sr=22050, mono=True, duration=AUDIBLE_PREVIEW_SECONDS)
         if y is None or len(y) == 0:
