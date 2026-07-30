@@ -1,17 +1,24 @@
-RELEASE AUDIT — SONG ANALYSIS LABORATORY 024
+RELEASE AUDIT — SONG ANALYSIS LABORATORY 025
 
-Clean rebuild from Build 023.
+BASELINE
+Clean rebuild from Build 024.
 
-New:
-- Validate Automatic Timing button
-- verified truth prerequisite
-- meter/grid/phase PASS/FAIL
-- overall PASS/FAIL
-- timing_validation_024.txt
-- timing_validation_024.json
+NEW
+- Two-row control layout so every essential button remains visible.
+- Test Phase Challenger button.
+- Meter and beat-grid frozen from the existing automatic winner.
+- Phase-specific chord-boundary support.
+- Long-duration chord-change support.
+- Opening chord-boundary anchor.
+- Existing rhythmic phase evidence retained as a minority input.
+- Old-versus-challenger validation against manual_truth_023.json.
+- phase_challenger_025.txt and phase_challenger_025.json.
 
-Unchanged:
-- Build 020 scoring formula and weights
-- timing data
-- chord analysis
-- 3/4 and 4/4 scope
+UNCHANGED
+- Build 020 automatic recommendation and weights.
+- Stored automatic winner.
+- Meter selection.
+- Beat-grid selection.
+- Timing data.
+- Chord analysis.
+- 3/4 and 4/4 scope.

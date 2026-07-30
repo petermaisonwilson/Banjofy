@@ -30,7 +30,7 @@ a = Analysis(
 pyz = PYZ(a.pure)
 exe = EXE(
     pyz, a.scripts, a.binaries, a.datas, [],
-    name="BanjofySongAnalysisLab024",
+    name="BanjofySongAnalysisLab025",
     debug=False, bootloader_ignore_signals=False,
     strip=False, upx=False, console=False,
 )

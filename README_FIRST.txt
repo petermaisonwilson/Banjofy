@@ -1,5 +1,9 @@
-BANJOFY SONG ANALYSIS LABORATORY 024
+BANJOFY SONG ANALYSIS LABORATORY 025
 
-Build 024 compares the frozen automatic timing winner against the verified
-manual_truth_023.json record and produces clear component and overall PASS/FAIL
-results. It does not alter scoring, weights or timing data.
+Build 025 tests one change only: downbeat phase selection.
+
+The current automatic meter and beat-grid method are frozen. The challenger
+uses the timing of chord boundaries as independent evidence for Beat 1 and
+combines it with the existing rhythmic phase evidence.
+
+The result is compared with manual_truth_023.json but is not applied.

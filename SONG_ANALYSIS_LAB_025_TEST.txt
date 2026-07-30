@@ -1,0 +1,26 @@
+BANJOFY SONG ANALYSIS LABORATORY 025 — WINDOWS TEST
+PHASE CHALLENGER
+
+PREREQUISITE
+Each song must contain manual_truth_023.json and alternative beat grids.
+
+FOR EACH SONG
+1. Select the song.
+2. Click Test Phase Challenger.
+3. Open phase_challenger_025.txt in Notepad.
+
+The report must show:
+Frozen meter
+Frozen beat-grid method
+Old automatic phase and PASS/FAIL
+Challenger phase and PASS/FAIL
+Verified phase
+Improved YES/NO
+Regressed YES/NO
+All phase candidate evidence
+
+It must also say:
+Meter changed: NO
+Beat grid changed: NO
+Stored recommendation changed: NO
+Timing data changed: NO

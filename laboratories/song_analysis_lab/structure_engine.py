@@ -1281,6 +1281,261 @@ def format_timing_validation(result: dict) -> str:
     ])
 
 
+
+def _candidate_grid(analysis: dict, method: str) -> dict:
+    grids = analysis.get("alternative_beat_grids") or {}
+    if not isinstance(grids, dict):
+        raise ValueError("Alternative beat grids are missing.")
+    candidate = grids.get(method)
+    if not isinstance(candidate, dict):
+        raise ValueError(f"Beat grid '{method}' is missing.")
+    return candidate
+
+
+def _phase_boundary_score(
+    beat_times: list[float],
+    chord_segments: list[dict],
+    beats_per_bar: int,
+    phase_number: int,
+) -> dict:
+    beats = np.asarray(
+        [float(v) for v in beat_times if isinstance(v, (int, float))],
+        dtype=float,
+    )
+    if beats.size < beats_per_bar * 4:
+        return {
+            "boundary_support": 0.0,
+            "long_change_support": 0.0,
+            "opening_anchor": 0.0,
+            "changes_used": 0,
+        }
+
+    interval = float(np.median(np.diff(beats)))
+    phase_index = int(phase_number) - 1
+    rows = []
+
+    clean_segments = [
+        item for item in chord_segments
+        if isinstance(item, dict)
+        and isinstance(item.get("start_s"), (int, float))
+    ]
+    clean_segments.sort(key=lambda item: float(item.get("start_s", 0.0)))
+
+    durations = []
+    for index, item in enumerate(clean_segments):
+        start = float(item.get("start_s", 0.0))
+        if isinstance(item.get("end_s"), (int, float)):
+            end = float(item["end_s"])
+        elif index + 1 < len(clean_segments):
+            end = float(clean_segments[index + 1].get("start_s", start))
+        else:
+            end = start + interval
+        durations.append(max(interval * 0.25, end - start))
+    median_duration = float(np.median(durations)) if durations else interval
+
+    for index, item in enumerate(clean_segments):
+        change = float(item.get("start_s", 0.0))
+        if change <= 0.05 or change < beats[0] - interval or change > beats[-1] + interval:
+            continue
+        nearest = int(np.argmin(np.abs(beats - change)))
+        distance = abs(float(beats[nearest]) - change)
+        proximity = max(0.0, 1.0 - distance / max(0.12, interval * 0.55))
+        is_downbeat = (nearest % beats_per_bar) == phase_index
+        duration_weight = min(2.0, max(0.5, durations[index] / max(interval, median_duration)))
+        rows.append({
+            "proximity": proximity,
+            "downbeat": 1.0 if is_downbeat else 0.0,
+            "duration_weight": duration_weight,
+            "change": change,
+            "nearest_beat_index": nearest,
+        })
+
+    if not rows:
+        return {
+            "boundary_support": 0.0,
+            "long_change_support": 0.0,
+            "opening_anchor": 0.0,
+            "changes_used": 0,
+        }
+
+    weighted_total = sum(r["proximity"] * r["duration_weight"] for r in rows)
+    weighted_hits = sum(
+        r["proximity"] * r["duration_weight"] * r["downbeat"] for r in rows
+    )
+    boundary_support = weighted_hits / max(1e-9, weighted_total)
+
+    long_rows = [r for r in rows if r["duration_weight"] >= 1.0]
+    if long_rows:
+        long_total = sum(r["proximity"] * r["duration_weight"] for r in long_rows)
+        long_hits = sum(
+            r["proximity"] * r["duration_weight"] * r["downbeat"]
+            for r in long_rows
+        )
+        long_support = long_hits / max(1e-9, long_total)
+    else:
+        long_support = boundary_support
+
+    first = rows[0]
+    opening_anchor = first["proximity"] * first["downbeat"]
+
+    return {
+        "boundary_support": round(float(boundary_support), 6),
+        "long_change_support": round(float(long_support), 6),
+        "opening_anchor": round(float(opening_anchor), 6),
+        "changes_used": len(rows),
+    }
+
+
+def test_phase_challenger(
+    song_title: str,
+    analysis: dict,
+    truth: dict,
+    analysis_path: Path,
+    truth_path: Path,
+) -> dict:
+    """Test a phase-only challenger while freezing meter and beat-grid choice."""
+    if truth.get("schema") != "banjofy.manual_truth.v2":
+        raise ValueError("manual_truth_023.json has the wrong schema.")
+    if not truth.get("verified_by_user") or not truth.get("complete"):
+        raise ValueError("The verified truth is incomplete.")
+
+    winner = _automatic_winner_from_analysis(analysis)
+    meter = _normalise_truth_value("meter", winner.get("meter"))
+    method = _normalise_method_name(
+        winner.get("beat_grid_method")
+        or winner.get("grid_method")
+        or winner.get("method")
+    )
+    old_phase = _normalise_truth_value("phase_number", winner.get("phase_number"))
+    if meter not in {"3/4", "4/4"} or not method or old_phase is None:
+        raise ValueError("The automatic winner is incomplete.")
+
+    beats_per_bar = 3 if meter == "3/4" else 4
+    grid = _candidate_grid(analysis, method)
+    beats = grid.get("beat_times") or []
+    segments = analysis.get("segments") or []
+
+    ranked = (
+        (analysis.get("timing_recommendation") or {}).get("ranked_candidates")
+        or []
+    )
+    phase_rows = [
+        row for row in ranked
+        if isinstance(row, dict)
+        and row.get("meter") == meter
+        and _normalise_method_name(row.get("method") or row.get("beat_grid_method")) == method
+    ]
+    old_scores = {
+        int(row.get("phase_number")): float(row.get("score", 0.0))
+        for row in phase_rows
+        if isinstance(row.get("phase_number"), (int, float))
+    }
+    score_values = list(old_scores.values())
+    lo = min(score_values) if score_values else 0.0
+    hi = max(score_values) if score_values else 1.0
+
+    candidates = []
+    for phase in range(1, beats_per_bar + 1):
+        harmonic = _phase_boundary_score(
+            beats, segments, beats_per_bar, phase
+        )
+        raw_rhythm = old_scores.get(phase, lo)
+        rhythm = 0.5 if hi <= lo + 1e-9 else (raw_rhythm - lo) / (hi - lo)
+
+        # Phase-only challenger:
+        # 72% harmonic boundary evidence, 28% frozen rhythmic phase evidence.
+        harmonic_total = (
+            0.58 * harmonic["boundary_support"]
+            + 0.30 * harmonic["long_change_support"]
+            + 0.12 * harmonic["opening_anchor"]
+        )
+        challenger_score = 0.72 * harmonic_total + 0.28 * rhythm
+        candidates.append({
+            "phase_number": phase,
+            "challenger_score": round(float(challenger_score), 6),
+            "harmonic_boundary_score": round(float(harmonic_total), 6),
+            "rhythmic_phase_score": round(float(rhythm), 6),
+            **harmonic,
+        })
+
+    candidates.sort(key=lambda row: row["challenger_score"], reverse=True)
+    challenger_phase = int(candidates[0]["phase_number"])
+    truth_phase = int(truth.get("phase_number"))
+
+    old_pass = old_phase == truth_phase
+    challenger_pass = challenger_phase == truth_phase
+
+    return {
+        "schema": "banjofy.phase_challenger.v1",
+        "laboratory_build": 25,
+        "song_title": song_title,
+        "frozen_meter": meter,
+        "frozen_beat_grid_method": method,
+        "old_phase_number": old_phase,
+        "challenger_phase_number": challenger_phase,
+        "verified_phase_number": truth_phase,
+        "old_phase_result": "PASS" if old_pass else "FAIL",
+        "challenger_phase_result": "PASS" if challenger_pass else "FAIL",
+        "improved": challenger_pass and not old_pass,
+        "regressed": old_pass and not challenger_pass,
+        "candidate_phases": candidates,
+        "meter_changed": False,
+        "beat_grid_changed": False,
+        "scoring_model_applied": False,
+        "timing_data_changed": False,
+        "interpretation": (
+            "The challenger uses chord-boundary alignment only to test phase. "
+            "It does not change the frozen meter, beat grid, stored recommendation "
+            "or song timing."
+        ),
+        "analysis_file": str(analysis_path),
+        "truth_file": str(truth_path),
+    }
+
+
+def format_phase_challenger(result: dict) -> str:
+    lines = [
+        "BANJOFY SONG ANALYSIS LABORATORY 025",
+        "PHASE CHALLENGER REPORT",
+        "",
+        f"Song: {result['song_title']}",
+        f"Frozen meter: {result['frozen_meter']}",
+        f"Frozen beat-grid method: {result['frozen_beat_grid_method']}",
+        "",
+        f"Old automatic phase: {result['old_phase_number']} — {result['old_phase_result']}",
+        f"Challenger phase: {result['challenger_phase_number']} — {result['challenger_phase_result']}",
+        f"Verified phase: {result['verified_phase_number']}",
+        f"Improved: {'YES' if result['improved'] else 'NO'}",
+        f"Regressed: {'YES' if result['regressed'] else 'NO'}",
+        "",
+        "PHASE CANDIDATES",
+        "Rank | Phase | Challenger | Harmonic boundary | Rhythm | Boundary | Long changes | Opening | Changes used",
+    ]
+    for index, row in enumerate(result["candidate_phases"], start=1):
+        lines.append(
+            f"{index:>4} | {row['phase_number']:>5} | "
+            f"{row['challenger_score']:.6f} | "
+            f"{row['harmonic_boundary_score']:.6f} | "
+            f"{row['rhythmic_phase_score']:.6f} | "
+            f"{row['boundary_support']:.6f} | "
+            f"{row['long_change_support']:.6f} | "
+            f"{row['opening_anchor']:.6f} | "
+            f"{row['changes_used']}"
+        )
+    lines.extend([
+        "",
+        "Meter changed: NO",
+        "Beat grid changed: NO",
+        "Stored recommendation changed: NO",
+        "Timing data changed: NO",
+        "",
+        "INTERPRETATION",
+        result["interpretation"],
+        "",
+    ])
+    return "\n".join(lines)
+
+
 def _first_present(mapping_list: list[dict], keys: tuple[str, ...]):
     for mapping in mapping_list:
         if not isinstance(mapping, dict):
