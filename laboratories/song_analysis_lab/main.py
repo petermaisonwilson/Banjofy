@@ -15,7 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import structure_engine
 
-APP_TITLE = "Banjofy Song Analysis Laboratory 023 — Verified Timing Truth"
+APP_TITLE = "Banjofy Song Analysis Laboratory 024 — Automated Truth Validation"
 SETTINGS_FILENAME = "song_analysis_lab_settings.json"
 
 
@@ -821,7 +821,7 @@ class App(tk.Tk):
         ttk.Label(
             outer,
             text=(
-                "This build leaves the scorer untouched, excludes automatic candidates from manual truth, and saves one verified timing truth record per song."
+                "This build leaves the scorer untouched and compares the current automatic timing winner against each verified manual truth record."
             ),
             wraplength=950,
         ).pack(anchor="w", pady=(5, 12))
@@ -897,6 +897,13 @@ class App(tk.Tk):
             state="disabled",
         )
         self.truth_button.pack(side="left", padx=8)
+        self.validate_button = ttk.Button(
+            controls,
+            text="Validate Automatic Timing",
+            command=self._validate_automatic_timing,
+            state="disabled",
+        )
+        self.validate_button.pack(side="left", padx=8)
         ttk.Button(controls, text="Open Analysis Folder", command=self._open_folder).pack(side="right")
 
         status = ttk.LabelFrame(outer, text="Structure-analysis status")
@@ -940,6 +947,7 @@ class App(tk.Tk):
         self.alt_play_button.configure(state="disabled")
         self.evidence_button.configure(state="disabled")
         self.truth_button.configure(state="disabled")
+        self.validate_button.configure(state="disabled")
         for item in self.tree.get_children():
             self.tree.delete(item)
         for index, song in enumerate(self.songs):
@@ -965,6 +973,7 @@ class App(tk.Tk):
             self.recommend_button.configure(state="disabled")
             self.evidence_button.configure(state="disabled")
             self.truth_button.configure(state="disabled")
+            self.validate_button.configure(state="disabled")
             return
         self.selected_song = self.songs[int(selected[0])]
         self.run_button.configure(state="normal")
@@ -988,6 +997,7 @@ class App(tk.Tk):
         self.recommend_button.configure(state="normal" if valid_alt else "disabled")
         self.evidence_button.configure(state="normal" if valid_alt else "disabled")
         self.truth_button.configure(state="normal")
+        self.validate_button.configure(state="normal")
         self.status_var.set(f"Selected: {self.selected_song['title']}")
 
     def _start(self) -> None:
@@ -1087,7 +1097,7 @@ class App(tk.Tk):
                 messagebox.showinfo(
                     APP_TITLE,
                     (
-                        f"Build 023 recommendation\n\n"
+                        f"Build 024 recommendation\n\n"
                         f"Meter: {meter}\n"
                         f"Beat grid: {method_label}\n"
                         f"Downbeat: Phase {phase}\n"
@@ -1100,6 +1110,28 @@ class App(tk.Tk):
                 self.status_var.set("Automatic timing recommendation failed")
                 self._append(str(payload))
                 messagebox.showerror(APP_TITLE, "Automatic recommendation failed. The exact error is shown in the window.")
+            elif kind == "validation_done":
+                self.validate_button.configure(state="normal")
+                self.status_var.set("Automatic timing validation complete")
+                self._append("")
+                self._append(f"Validation report: {payload['text_path']}")
+                self._append(f"Validation JSON: {payload['json_path']}")
+                messagebox.showinfo(
+                    APP_TITLE,
+                    (
+                        "Automatic timing validation complete.\n\n"
+                        f"Meter: {payload['meter_result']}\n"
+                        f"Beat grid: {payload['grid_result']}\n"
+                        f"Phase: {payload['phase_result']}\n"
+                        f"Overall: {'PASS' if payload['overall_pass'] else 'FAIL'}\n\n"
+                        "Open timing_validation_024.txt in the Analysis folder."
+                    ),
+                )
+            elif kind == "validation_error":
+                self.validate_button.configure(state="normal")
+                self.status_var.set("Automatic timing validation failed")
+                self._append(str(payload))
+                messagebox.showerror(APP_TITLE, "Validation failed. The exact error is shown in the window.")
             elif kind == "truth_review":
                 self.truth_button.configure(state="normal")
                 self.status_var.set("Review the located timing truth")
@@ -1117,7 +1149,7 @@ class App(tk.Tk):
                 messagebox.showinfo(
                     APP_TITLE,
                     (
-                        "Build 023 recovered and consolidated the saved manual timing data.\n\n"
+                        "Build 024 recovered and consolidated the saved manual timing data.\n\n"
                         f"Conflicts found: {len(conflicts)}\n"
                         f"Missing fields: {len(missing)}\n\n"
                         "Use Open Analysis Folder and open "
@@ -1152,7 +1184,7 @@ class App(tk.Tk):
                 messagebox.showinfo(
                     APP_TITLE,
                     (
-                        "Build 023 created the complete timing evidence report.\n\n"
+                        "Build 024 created the complete timing evidence report.\n\n"
                         "No timing scores, confirmations or song data were changed.\n\n"
                         "Use Open Analysis Folder and open timing_evidence_021.txt in Notepad."
                     ),
@@ -1228,7 +1260,7 @@ class App(tk.Tk):
             return
 
         self.recommend_button.configure(state="disabled")
-        self.status_var.set("Build 023 is scoring meter, beat grid and downbeat phase…")
+        self.status_var.set("Build 024 is scoring meter, beat grid and downbeat phase…")
         self._append("Started automatic timing recommendation.")
         song = dict(self.selected_song)
 
@@ -1263,6 +1295,52 @@ class App(tk.Tk):
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def _validate_automatic_timing(self) -> None:
+        if self.selected_song is None:
+            messagebox.showinfo(APP_TITLE, "Select an analysed song first.")
+            return
+        song = dict(self.selected_song)
+        self.validate_button.configure(state="disabled")
+        self.status_var.set("Build 024 is comparing automatic timing with verified truth…")
+        self._append("Started automatic timing validation.")
+
+        def worker() -> None:
+            try:
+                analysis_path = Path(song["analysis_path"])
+                folder = analysis_path.parent
+                truth_path = folder / "manual_truth_023.json"
+                if not truth_path.is_file():
+                    raise FileNotFoundError(
+                        "manual_truth_023.json was not found. "
+                        "Use Review / Save Verified Truth first."
+                    )
+                result = structure_engine.validate_automatic_timing(
+                    song_title=str(song.get("title") or folder.name),
+                    analysis=read_json(analysis_path),
+                    truth=read_json(truth_path),
+                    analysis_path=analysis_path,
+                    truth_path=truth_path,
+                )
+                json_path = folder / "timing_validation_024.json"
+                text_path = folder / "timing_validation_024.txt"
+                write_json_atomic(json_path, result)
+                text_path.write_text(
+                    structure_engine.format_timing_validation(result),
+                    encoding="utf-8",
+                )
+                self.messages.put(("validation_done", {
+                    "json_path": str(json_path),
+                    "text_path": str(text_path),
+                    "overall_pass": result["overall_pass"],
+                    "meter_result": result["checks"]["meter"]["result"],
+                    "grid_result": result["checks"]["beat_grid_method"]["result"],
+                    "phase_result": result["checks"]["phase_number"]["result"],
+                }))
+            except Exception as exc:
+                self.messages.put(("validation_error", f"{exc}\\n\\n{traceback.format_exc()}"))
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def _recover_manual_truth(self) -> None:
         if self.selected_song is None:
             messagebox.showinfo(APP_TITLE, "Select an analysed song first.")
@@ -1270,7 +1348,7 @@ class App(tk.Tk):
 
         song = dict(self.selected_song)
         self.truth_button.configure(state="disabled")
-        self.status_var.set("Build 023 is locating explicit confirmations…")
+        self.status_var.set("Build 024 is locating explicit confirmations…")
         self._append("Started verified timing truth review.")
 
         def worker() -> None:
@@ -1315,7 +1393,7 @@ class App(tk.Tk):
         folder = Path(payload["folder"])
 
         dialog = tk.Toplevel(self)
-        dialog.title("Build 023 — Review Verified Timing Truth")
+        dialog.title("Build 024 — Review Verified Timing Truth")
         dialog.geometry("720x520")
         dialog.minsize(660, 480)
         dialog.transient(self)
@@ -1472,7 +1550,7 @@ class App(tk.Tk):
             return
 
         self.evidence_button.configure(state="disabled")
-        self.status_var.set("Build 023 is calculating the complete candidate evidence…")
+        self.status_var.set("Build 024 is calculating the complete candidate evidence…")
         self._append("Started full timing evidence comparison.")
 
         def worker() -> None:
@@ -1560,7 +1638,7 @@ class App(tk.Tk):
         analysis = read_json(Path(self.selected_song["analysis_path"]))
         candidates = analysis.get("alternative_beat_grids")
         if not isinstance(candidates, dict) or not candidates:
-            messagebox.showerror(APP_TITLE, "Create the Build 023 alternative beat grids first.")
+            messagebox.showerror(APP_TITLE, "Create the Build 024 alternative beat grids first.")
             return
         valid = {
             key: value for key, value in candidates.items()
@@ -1569,7 +1647,7 @@ class App(tk.Tk):
             and isinstance(value.get("beat_times"), list)
         }
         if not valid:
-            messagebox.showerror(APP_TITLE, "The Build 023 alternative beat files are missing.")
+            messagebox.showerror(APP_TITLE, "The Build 024 alternative beat files are missing.")
             return
         self.alt_candidates = valid
         self.alt_chord_segments = sorted(
@@ -1692,7 +1770,7 @@ class App(tk.Tk):
             APP_TITLE,
             (
                 f"Confirm {label} as this song's active beat grid?\n\n"
-                f"Build 023 will retain the original detector grid, rebuild {meter} bars "
+                f"Build 024 will retain the original detector grid, rebuild {meter} bars "
                 "and create a completely fresh phase-audition set.\n\n"
                 "Chord names and chord-change times will not be altered."
             ),
@@ -1733,7 +1811,7 @@ class App(tk.Tk):
                 APP_TITLE,
                 (
                     f"{label} is now the active beat grid.\n\n"
-                    f"Build 023 created {len(phase_paths)} fresh {meter} phase auditions. "
+                    f"Build 024 created {len(phase_paths)} fresh {meter} phase auditions. "
                     "Open the chord and downbeat phase check and audition them."
                 ),
             )
@@ -1775,7 +1853,7 @@ class App(tk.Tk):
 
         if len(valid_paths) != expected_count:
             self.status_var.set(
-                "Rebuilding missing or mismatched phase audition files in Build 023…"
+                "Rebuilding missing or mismatched phase audition files in Build 024…"
             )
             folder = Path(self.selected_song["analysis_path"]).parent
             rebuilt_paths = create_phase_auditions(
@@ -1792,7 +1870,7 @@ class App(tk.Tk):
             analysis = read_json(self.selected_song["analysis_path"])
             valid_paths = [Path(path) for path in rebuilt_paths]
             self._append(
-                f"Build 023 rebuilt {len(valid_paths)} phase audition files."
+                f"Build 024 rebuilt {len(valid_paths)} phase audition files."
             )
 
         self.visual_phase_paths = valid_paths
@@ -1838,7 +1916,7 @@ class App(tk.Tk):
         if len(self.visual_phase_paths) != self.visual_beats_per_bar:
             messagebox.showerror(
                 APP_TITLE,
-                "Build 023 could not create the required phase audition files. "
+                "Build 024 could not create the required phase audition files. "
                 "The exact file state is shown in the status window.",
             )
             return

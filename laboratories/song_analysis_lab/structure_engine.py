@@ -1180,6 +1180,107 @@ def format_verified_truth_record(record: dict) -> str:
     return "\n".join(lines)
 
 
+
+def _automatic_winner_from_analysis(analysis: dict) -> dict:
+    recommendation = analysis.get("timing_recommendation") or {}
+    winner = recommendation.get("automatic_winner")
+    if isinstance(winner, dict):
+        return dict(winner)
+    ranked = recommendation.get("ranked_candidates") or []
+    if isinstance(ranked, list) and ranked and isinstance(ranked[0], dict):
+        return dict(ranked[0])
+    raise ValueError("No automatic timing winner was found in song_analysis.json.")
+
+
+def validate_automatic_timing(
+    song_title: str,
+    analysis: dict,
+    truth: dict,
+    analysis_path: Path,
+    truth_path: Path,
+) -> dict:
+    if truth.get("schema") != "banjofy.manual_truth.v2":
+        raise ValueError("manual_truth_023.json has the wrong schema.")
+    if not truth.get("verified_by_user") or not truth.get("complete"):
+        raise ValueError("The manual truth record is not complete and user verified.")
+
+    winner = _automatic_winner_from_analysis(analysis)
+    automatic = {
+        "meter": _normalise_truth_value("meter", winner.get("meter")),
+        "beat_grid_method": _normalise_method_name(
+            winner.get("beat_grid_method") or winner.get("grid_method") or winner.get("method")
+        ),
+        "phase_number": _normalise_truth_value("phase_number", winner.get("phase_number")),
+        "score": winner.get("score"),
+    }
+    verified = {
+        "meter": _normalise_truth_value("meter", truth.get("meter")),
+        "beat_grid_method": _normalise_method_name(truth.get("beat_grid_method")),
+        "phase_number": _normalise_truth_value("phase_number", truth.get("phase_number")),
+    }
+
+    checks = {}
+    for field in ("meter", "beat_grid_method", "phase_number"):
+        passed = automatic[field] is not None and automatic[field] == verified[field]
+        checks[field] = {
+            "automatic": automatic[field],
+            "verified": verified[field],
+            "pass": passed,
+            "result": "PASS" if passed else "FAIL",
+        }
+
+    overall = all(item["pass"] for item in checks.values())
+    return {
+        "schema": "banjofy.timing_validation.v1",
+        "laboratory_build": 24,
+        "song_title": song_title,
+        "automatic": automatic,
+        "verified_truth": verified,
+        "checks": checks,
+        "overall_pass": overall,
+        "overall_result": "PASS" if overall else "FAIL",
+        "analysis_file": str(analysis_path),
+        "truth_file": str(truth_path),
+        "scoring_model_changed": False,
+        "scoring_weights_changed": False,
+        "timing_data_changed": False,
+    }
+
+
+def format_timing_validation(result: dict) -> str:
+    a = result["automatic"]
+    v = result["verified_truth"]
+    c = result["checks"]
+    return "\n".join([
+        "BANJOFY SONG ANALYSIS LABORATORY 024",
+        "AUTOMATED TRUTH VALIDATION REPORT",
+        "",
+        f"Song: {result['song_title']}",
+        "",
+        "AUTOMATIC WINNER",
+        f"Meter: {a['meter']}",
+        f"Beat-grid method: {a['beat_grid_method']}",
+        f"Phase number: {a['phase_number']}",
+        f"Score: {a['score']}",
+        "",
+        "VERIFIED TRUTH",
+        f"Meter: {v['meter']}",
+        f"Beat-grid method: {v['beat_grid_method']}",
+        f"Phase number: {v['phase_number']}",
+        "",
+        "VALIDATION",
+        f"Meter: {c['meter']['result']} (automatic {c['meter']['automatic']} / verified {c['meter']['verified']})",
+        f"Beat grid: {c['beat_grid_method']['result']} (automatic {c['beat_grid_method']['automatic']} / verified {c['beat_grid_method']['verified']})",
+        f"Phase: {c['phase_number']['result']} (automatic {c['phase_number']['automatic']} / verified {c['phase_number']['verified']})",
+        f"Overall: {result['overall_result']}",
+        "",
+        "Scoring model changed: NO",
+        "Scoring weights changed: NO",
+        "Timing data changed: NO",
+        "",
+    ])
+
+
 def _first_present(mapping_list: list[dict], keys: tuple[str, ...]):
     for mapping in mapping_list:
         if not isinstance(mapping, dict):

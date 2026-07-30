@@ -1,20 +1,17 @@
-RELEASE AUDIT — SONG ANALYSIS LABORATORY 023
+RELEASE AUDIT — SONG ANALYSIS LABORATORY 024
 
-BASELINE
-Clean rebuild from Build 022.
+Clean rebuild from Build 023.
 
-NEW
-- Explicit-confirmation-only truth recovery.
-- Candidate and recommendation containers excluded.
-- Historical standard-grid inference clearly labelled.
-- User review dialog for meter, grid and phase.
-- Meter-aware phase choices.
-- manual_truth_023.json canonical validation record.
-- manual_truth_023.txt readable validation record.
+New:
+- Validate Automatic Timing button
+- verified truth prerequisite
+- meter/grid/phase PASS/FAIL
+- overall PASS/FAIL
+- timing_validation_024.txt
+- timing_validation_024.json
 
-UNCHANGED
-- Build 020 scoring function and weights.
-- Timing data.
-- Chord analysis.
-- FFmpeg route.
-- 3/4 and 4/4 meter scope.
+Unchanged:
+- Build 020 scoring formula and weights
+- timing data
+- chord analysis
+- 3/4 and 4/4 scope

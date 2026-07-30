@@ -1,0 +1,19 @@
+BANJOFY SONG ANALYSIS LABORATORY 024 — WINDOWS TEST
+
+Each song must already contain manual_truth_023.json.
+
+For each song:
+1. Select it.
+2. Click Validate Automatic Timing.
+3. Open timing_validation_024.txt in Notepad.
+
+The report must show PASS or FAIL for:
+Meter
+Beat grid
+Phase
+Overall
+
+It must also say:
+Scoring model changed: NO
+Scoring weights changed: NO
+Timing data changed: NO
