@@ -1,9 +1,10 @@
-BANJOFY SONG ANALYSIS LABORATORY 025
+BANJOFY SONG ANALYSIS LABORATORY 026
 
-Build 025 tests one change only: downbeat phase selection.
+Build 026 changes the research strategy from one-song repairs to a Library-wide
+batch benchmark.
 
-The current automatic meter and beat-grid method are frozen. The challenger
-uses the timing of chord boundaries as independent evidence for Beat 1 and
-combines it with the existing rhythmic phase evidence.
+It compares the saved Banjofy timing winner with four independently generated
+timing approaches and produces one leaderboard across every song that has a
+verified manual_truth_023.json record.
 
-The result is compared with manual_truth_023.json but is not applied.
+No result is applied to any song.

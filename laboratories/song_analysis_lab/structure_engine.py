@@ -1536,6 +1536,311 @@ def format_phase_challenger(result: dict) -> str:
     return "\n".join(lines)
 
 
+
+TIMING_BENCHMARK_ENGINES = {
+    "current_banjofy": "Current Banjofy saved winner",
+    "librosa_full_mix_dp": "Librosa dynamic-programming full mix",
+    "librosa_percussive_dp": "Librosa dynamic-programming percussion",
+    "librosa_low_frequency_dp": "Librosa dynamic-programming low frequency",
+    "librosa_plp": "Librosa predominant local pulse",
+}
+
+
+def _plp_grid(y: np.ndarray, sr: int) -> tuple[float, list[float]]:
+    onset = librosa.onset.onset_strength(y=y, sr=sr)
+    pulse = librosa.beat.plp(onset_envelope=onset, sr=sr)
+    peaks = scipy.signal.find_peaks(
+        np.asarray(pulse, dtype=float),
+        height=max(0.05, float(np.percentile(pulse, 70.0))),
+        distance=max(1, int((60.0 / 180.0) * sr / 512)),
+    )[0]
+    times = librosa.frames_to_time(peaks, sr=sr)
+    values = [round(float(v), 6) for v in times]
+    if len(values) < 8:
+        raise RuntimeError("Predominant local pulse produced too few beats.")
+    intervals = np.diff(np.asarray(values, dtype=float))
+    bpm = 60.0 / float(np.median(intervals))
+    return round(float(bpm), 3), values
+
+
+def _benchmark_generated_grids(audio_path: Path) -> dict[str, dict]:
+    ensure_scipy_signal_compatibility()
+    with tempfile.TemporaryDirectory(prefix="banjofy_benchmark_026_") as temporary:
+        wav = prepare_wav(audio_path, Path(temporary))
+        y, sr = librosa.load(wav, sr=22050, mono=True)
+        if y is None or len(y) == 0:
+            raise RuntimeError("Benchmark audio was empty.")
+
+        grids = {}
+        bpm, times = _beat_track_from_audio(y, sr, start_bpm=90.0, tightness=100.0)
+        grids["librosa_full_mix_dp"] = {
+            "label": TIMING_BENCHMARK_ENGINES["librosa_full_mix_dp"],
+            "bpm": bpm,
+            "beat_times": times,
+        }
+
+        _, percussion = librosa.effects.hpss(y)
+        bpm, times = _beat_track_from_audio(percussion, sr, start_bpm=90.0, tightness=80.0)
+        grids["librosa_percussive_dp"] = {
+            "label": TIMING_BENCHMARK_ENGINES["librosa_percussive_dp"],
+            "bpm": bpm,
+            "beat_times": times,
+        }
+
+        sos = scipy.signal.butter(6, [35.0, 320.0], btype="bandpass", fs=sr, output="sos")
+        low = scipy.signal.sosfiltfilt(sos, y).astype(np.float32)
+        bpm, times = _beat_track_from_audio(low, sr, start_bpm=80.0, tightness=70.0)
+        grids["librosa_low_frequency_dp"] = {
+            "label": TIMING_BENCHMARK_ENGINES["librosa_low_frequency_dp"],
+            "bpm": bpm,
+            "beat_times": times,
+        }
+
+        bpm, times = _plp_grid(y, sr)
+        grids["librosa_plp"] = {
+            "label": TIMING_BENCHMARK_ENGINES["librosa_plp"],
+            "bpm": bpm,
+            "beat_times": times,
+        }
+    return grids
+
+
+def _winner_for_single_grid(audio_path: Path, grid: dict, segments: list[dict]) -> dict:
+    result = recommend_timing_structure(
+        audio_path,
+        {"benchmark_grid": grid},
+        segments,
+    )
+    ranked = result.get("ranked_candidates") or []
+    if not ranked:
+        raise RuntimeError("Timing approach produced no ranked candidates.")
+    return dict(ranked[0])
+
+
+def _normalised_truth_for_benchmark(truth: dict) -> dict:
+    return {
+        "meter": _normalise_truth_value("meter", truth.get("meter")),
+        "beat_grid_method": _normalise_method_name(truth.get("beat_grid_method")),
+        "phase_number": _normalise_truth_value("phase_number", truth.get("phase_number")),
+    }
+
+
+def benchmark_library_timing_engines(
+    songs: list[dict],
+    progress_callback=lambda _text: None,
+) -> dict:
+    """Run complete timing approaches across every verified Library song."""
+    results = []
+    engine_totals = {
+        key: {
+            "engine": key,
+            "label": label,
+            "songs_tested": 0,
+            "meter_matches": 0,
+            "grid_matches": 0,
+            "phase_matches": 0,
+            "exact_matches": 0,
+            "errors": 0,
+        }
+        for key, label in TIMING_BENCHMARK_ENGINES.items()
+    }
+
+    for index, song in enumerate(songs, start=1):
+        title = str(song.get("title") or song.get("song_id") or f"Song {index}")
+        progress_callback(f"[{index}/{len(songs)}] Benchmarking {title}")
+        audio_path = Path(song["audio_path"])
+        analysis_path = Path(song["analysis_path"])
+        truth_path = analysis_path.parent / "manual_truth_023.json"
+        analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
+        truth = json.loads(truth_path.read_text(encoding="utf-8"))
+        verified = _normalised_truth_for_benchmark(truth)
+        segments = analysis.get("segments") or []
+
+        song_rows = []
+
+        # Existing saved Banjofy winner.
+        try:
+            existing = _automatic_winner_from_analysis(analysis)
+            existing_method = _normalise_method_name(
+                existing.get("beat_grid_method")
+                or existing.get("method")
+                or existing.get("grid_method")
+            )
+            row = {
+                "engine": "current_banjofy",
+                "label": TIMING_BENCHMARK_ENGINES["current_banjofy"],
+                "meter": _normalise_truth_value("meter", existing.get("meter")),
+                "beat_grid_method": existing_method,
+                "phase_number": _normalise_truth_value("phase_number", existing.get("phase_number")),
+                "bpm": existing.get("bpm"),
+                "score": existing.get("score"),
+            }
+            song_rows.append(row)
+        except Exception as exc:
+            song_rows.append({
+                "engine": "current_banjofy",
+                "label": TIMING_BENCHMARK_ENGINES["current_banjofy"],
+                "error": str(exc),
+            })
+
+        generated = _benchmark_generated_grids(audio_path)
+        method_truth_map = {
+            "librosa_full_mix_dp": "standard",
+            "librosa_percussive_dp": "percussive",
+            "librosa_low_frequency_dp": "low_frequency",
+            "librosa_plp": "plp",
+        }
+
+        for engine_key, grid in generated.items():
+            try:
+                winner = _winner_for_single_grid(audio_path, grid, segments)
+                song_rows.append({
+                    "engine": engine_key,
+                    "label": TIMING_BENCHMARK_ENGINES[engine_key],
+                    "meter": _normalise_truth_value("meter", winner.get("meter")),
+                    "beat_grid_method": method_truth_map[engine_key],
+                    "phase_number": _normalise_truth_value("phase_number", winner.get("phase_number")),
+                    "bpm": winner.get("bpm") or grid.get("bpm"),
+                    "score": winner.get("score"),
+                    "beat_count": len(grid.get("beat_times") or []),
+                })
+            except Exception as exc:
+                song_rows.append({
+                    "engine": engine_key,
+                    "label": TIMING_BENCHMARK_ENGINES[engine_key],
+                    "error": str(exc),
+                })
+
+        for row in song_rows:
+            totals = engine_totals[row["engine"]]
+            if row.get("error"):
+                totals["errors"] += 1
+                continue
+            totals["songs_tested"] += 1
+            meter_ok = row.get("meter") == verified["meter"]
+            grid_ok = row.get("beat_grid_method") == verified["beat_grid_method"]
+            phase_ok = row.get("phase_number") == verified["phase_number"]
+            exact = meter_ok and grid_ok and phase_ok
+            row["checks"] = {
+                "meter": "PASS" if meter_ok else "FAIL",
+                "beat_grid": "PASS" if grid_ok else "FAIL",
+                "phase": "PASS" if phase_ok else "FAIL",
+                "exact": "PASS" if exact else "FAIL",
+            }
+            totals["meter_matches"] += int(meter_ok)
+            totals["grid_matches"] += int(grid_ok)
+            totals["phase_matches"] += int(phase_ok)
+            totals["exact_matches"] += int(exact)
+
+        results.append({
+            "song_title": title,
+            "truth": verified,
+            "engines": song_rows,
+        })
+
+    leaderboard = list(engine_totals.values())
+    for row in leaderboard:
+        tested = max(1, row["songs_tested"])
+        row["meter_accuracy"] = round(row["meter_matches"] / tested, 4)
+        row["grid_accuracy"] = round(row["grid_matches"] / tested, 4)
+        row["phase_accuracy"] = round(row["phase_matches"] / tested, 4)
+        row["exact_accuracy"] = round(row["exact_matches"] / tested, 4)
+        row["ranking_score"] = round(
+            0.25 * row["meter_accuracy"]
+            + 0.25 * row["grid_accuracy"]
+            + 0.25 * row["phase_accuracy"]
+            + 0.25 * row["exact_accuracy"],
+            6,
+        )
+    leaderboard.sort(
+        key=lambda row: (
+            row["ranking_score"],
+            row["exact_matches"],
+            row["phase_matches"],
+            row["grid_matches"],
+            row["meter_matches"],
+        ),
+        reverse=True,
+    )
+
+    return {
+        "schema": "banjofy.timing_engine_benchmark.v1",
+        "laboratory_build": 26,
+        "verified_song_count": len(songs),
+        "engines_compared": list(TIMING_BENCHMARK_ENGINES),
+        "leaderboard": leaderboard,
+        "songs": results,
+        "song_data_changed": False,
+        "stored_recommendations_changed": False,
+        "benchmark_limitations": [
+            "The current truth files verify meter, selected beat-grid family and phase.",
+            "They do not yet contain timestamp-level beat and downbeat annotations.",
+            "Therefore this first benchmark ranks structural correctness, not millisecond beat accuracy.",
+            "BeatNet and madmom are not bundled in this Windows build because their current dependency and licensing constraints require a separate packaging decision.",
+        ],
+    }
+
+
+def format_timing_engine_benchmark(result: dict) -> str:
+    lines = [
+        "BANJOFY SONG ANALYSIS LABORATORY 026",
+        "LIBRARY TIMING ENGINE BENCHMARK",
+        "",
+        f"Verified songs tested: {result['verified_song_count']}",
+        "",
+        "LEADERBOARD",
+        "Rank | Timing approach | Meter | Grid | Phase | Exact | Score | Errors",
+    ]
+    for index, row in enumerate(result["leaderboard"], start=1):
+        total = max(1, row["songs_tested"])
+        lines.append(
+            f"{index:>4} | {row['label']} | "
+            f"{row['meter_matches']}/{total} | "
+            f"{row['grid_matches']}/{total} | "
+            f"{row['phase_matches']}/{total} | "
+            f"{row['exact_matches']}/{total} | "
+            f"{row['ranking_score']:.4f} | {row['errors']}"
+        )
+
+    for song in result["songs"]:
+        lines.extend([
+            "",
+            f"SONG: {song['song_title']}",
+            (
+                "Verified: "
+                f"{song['truth']['meter']} · "
+                f"{song['truth']['beat_grid_method']} · "
+                f"Phase {song['truth']['phase_number']}"
+            ),
+        ])
+        for row in song["engines"]:
+            if row.get("error"):
+                lines.append(f"- {row['label']}: ERROR — {row['error']}")
+            else:
+                checks = row["checks"]
+                lines.append(
+                    f"- {row['label']}: "
+                    f"{row['meter']} · {row['beat_grid_method']} · "
+                    f"Phase {row['phase_number']} | "
+                    f"Meter {checks['meter']} | Grid {checks['beat_grid']} | "
+                    f"Phase {checks['phase']} | Exact {checks['exact']}"
+                )
+
+    lines.extend([
+        "",
+        "LIMITATIONS",
+    ])
+    for item in result["benchmark_limitations"]:
+        lines.append(f"- {item}")
+    lines.extend([
+        "",
+        "Song data changed: NO",
+        "Stored recommendations changed: NO",
+        "",
+    ])
+    return "\n".join(lines)
+
+
 def _first_present(mapping_list: list[dict], keys: tuple[str, ...]):
     for mapping in mapping_list:
         if not isinstance(mapping, dict):

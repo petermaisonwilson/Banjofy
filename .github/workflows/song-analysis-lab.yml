@@ -1,4 +1,4 @@
-name: Build Banjofy Song Analysis Laboratory 025
+name: Build Banjofy Song Analysis Laboratory 026
 
 on:
   push:
@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Verify exact Build 025 paths
+      - name: Verify exact Build 026 paths
         shell: pwsh
         run: |
           $required = @(
@@ -30,10 +30,10 @@ jobs:
             "laboratories/song_analysis_lab/song_analysis_lab.spec",
             "laboratories/song_analysis_lab/release_gate.py",
             "laboratories/song_analysis_lab/requirements.txt",
-            "SONG_ANALYSIS_LAB_025_TEST.txt"
+            "SONG_ANALYSIS_LAB_026_TEST.txt"
           )
           foreach ($file in $required) {
-            if (-not (Test-Path $file)) { throw "Missing Build 025 file: $file" }
+            if (-not (Test-Path $file)) { throw "Missing Build 026 file: $file" }
           }
 
       - name: Install pinned dependencies
@@ -47,9 +47,9 @@ jobs:
         working-directory: laboratories/song_analysis_lab
         run: |
           python release_gate.py
-          if ($LASTEXITCODE -ne 0) { throw "Laboratory 025 release gate failed" }
+          if ($LASTEXITCODE -ne 0) { throw "Laboratory 026 release gate failed" }
 
-      - name: Compile every Build 025 source
+      - name: Compile every Build 026 source
         working-directory: laboratories/song_analysis_lab
         run: |
           python -m py_compile main.py structure_engine.py release_gate.py
@@ -60,20 +60,20 @@ jobs:
         run: |
           python -c "import structure_engine as s; f=s.MeterCandidate('4/4',4,2,.3,.21); w=s.MeterCandidate('3/4',3,0,.4,.23); p,a=s.choose_primary_meter(f,w); assert p.meter=='4/4' and p.beats_per_bar==4 and p.phase==2 and not a; print('Whole-track primary disagreement proof passed')"
 
-      - name: Build standalone Windows Laboratory 025
+      - name: Build standalone Windows Laboratory 026
         working-directory: laboratories/song_analysis_lab
         run: |
           pyinstaller --clean --noconfirm song_analysis_lab.spec
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
-          if (-not (Test-Path "dist/BanjofySongAnalysisLab025.exe")) { throw "Expected EXE missing" }
+          if (-not (Test-Path "dist/BanjofySongAnalysisLab026.exe")) { throw "Expected EXE missing" }
 
       - name: Finished EXE five positive startup handshakes
         shell: pwsh
         run: |
-          $exe = "$env:GITHUB_WORKSPACE/laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab025.exe"
+          $exe = "$env:GITHUB_WORKSPACE/laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab026.exe"
           $settingsFolder = Join-Path $env:LOCALAPPDATA "Banjofy\SongAnalysisLab"
           $settingsFile = Join-Path $settingsFolder "song_analysis_lab_settings.json"
-          $probeFolder = Join-Path $env:RUNNER_TEMP "banjofy-sal025-probes"
+          $probeFolder = Join-Path $env:RUNNER_TEMP "banjofy-sal026-probes"
           $existingLibrary = Join-Path $env:RUNNER_TEMP "banjofy-existing-library"
           New-Item -ItemType Directory -Force $probeFolder | Out-Null
           New-Item -ItemType Directory -Force $existingLibrary | Out-Null
@@ -111,13 +111,13 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force artifact | Out-Null
-          Copy-Item "laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab025.exe" artifact/
-          Copy-Item "SONG_ANALYSIS_LAB_025_TEST.txt" artifact/
+          Copy-Item "laboratories/song_analysis_lab/dist/BanjofySongAnalysisLab026.exe" artifact/
+          Copy-Item "SONG_ANALYSIS_LAB_026_TEST.txt" artifact/
           if ((Get-ChildItem artifact -File).Count -ne 2) { throw "Wrong artifact contents" }
 
-      - name: Upload audited Windows Laboratory 025
+      - name: Upload audited Windows Laboratory 026
         uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-Song-Analysis-Laboratory-025-Windows
+          name: Banjofy-Song-Analysis-Laboratory-026-Windows
           path: artifact
           if-no-files-found: error

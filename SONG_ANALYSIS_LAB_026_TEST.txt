@@ -1,0 +1,23 @@
+BANJOFY SONG ANALYSIS LABORATORY 026 — WINDOWS TEST
+
+1. Start BanjofySongAnalysisLab026.exe.
+2. Confirm the correct Library is selected.
+3. Click Benchmark All Verified Songs.
+4. Wait for the batch benchmark to finish.
+5. Open the Library root folder.
+6. Open timing_engine_benchmark_026.txt in Notepad.
+
+The report must contain:
+- verified song count
+- combined leaderboard
+- Current Banjofy saved winner
+- Librosa dynamic-programming full mix
+- Librosa dynamic-programming percussion
+- Librosa dynamic-programming low frequency
+- Librosa predominant local pulse
+- per-song meter/grid/phase/exact results
+- limitations
+
+It must say:
+Song data changed: NO
+Stored recommendations changed: NO

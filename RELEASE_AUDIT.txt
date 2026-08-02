@@ -1,24 +1,23 @@
-RELEASE AUDIT — SONG ANALYSIS LABORATORY 025
+RELEASE AUDIT — SONG ANALYSIS LABORATORY 026
 
 BASELINE
-Clean rebuild from Build 024.
+Clean rebuild from Build 025.
 
 NEW
-- Two-row control layout so every essential button remains visible.
-- Test Phase Challenger button.
-- Meter and beat-grid frozen from the existing automatic winner.
-- Phase-specific chord-boundary support.
-- Long-duration chord-change support.
-- Opening chord-boundary anchor.
-- Existing rhythmic phase evidence retained as a minority input.
-- Old-versus-challenger validation against manual_truth_023.json.
-- phase_challenger_025.txt and phase_challenger_025.json.
+- Library-wide batch benchmark.
+- Current Banjofy saved winner.
+- Librosa full-mix dynamic-programming timing.
+- Librosa percussion dynamic-programming timing.
+- Librosa low-frequency dynamic-programming timing.
+- Librosa predominant-local-pulse timing.
+- Combined leaderboard.
+- Detailed per-song results.
+- Explicit benchmark limitations.
+- timing_engine_benchmark_026.txt and JSON.
 
 UNCHANGED
-- Build 020 automatic recommendation and weights.
-- Stored automatic winner.
-- Meter selection.
-- Beat-grid selection.
-- Timing data.
+- All Library song files.
+- Stored timing recommendations.
+- Build 020 scorer.
 - Chord analysis.
 - 3/4 and 4/4 scope.

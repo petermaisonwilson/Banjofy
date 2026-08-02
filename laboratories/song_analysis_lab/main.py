@@ -15,7 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import structure_engine
 
-APP_TITLE = "Banjofy Song Analysis Laboratory 025 — Phase Challenger"
+APP_TITLE = "Banjofy Song Analysis Laboratory 026 — Timing Engine Benchmark"
 SETTINGS_FILENAME = "song_analysis_lab_settings.json"
 
 
@@ -821,7 +821,7 @@ class App(tk.Tk):
         ttk.Label(
             outer,
             text=(
-                "This build freezes meter and beat-grid selection, then tests a chord-boundary phase challenger against the verified truth."
+                "This build benchmarks several complete timing approaches across every verified song in the selected Library."
             ),
             wraplength=950,
         ).pack(anchor="w", pady=(5, 12))
@@ -923,6 +923,19 @@ class App(tk.Tk):
             text="Open Analysis Folder",
             command=self._open_folder,
         ).pack(side="right")
+
+        benchmark_row = ttk.Frame(controls)
+        benchmark_row.pack(fill="x", pady=(7, 0))
+        self.benchmark_button = ttk.Button(
+            benchmark_row,
+            text="Benchmark All Verified Songs",
+            command=self._benchmark_all_verified_songs,
+        )
+        self.benchmark_button.pack(side="left")
+        ttk.Label(
+            benchmark_row,
+            text="Runs complete timing approaches in parallel comparison; changes no song data.",
+        ).pack(side="left", padx=10)
 
         status = ttk.LabelFrame(outer, text="Structure-analysis status")
         status.pack(fill="both", expand=True, pady=5)
@@ -1118,7 +1131,7 @@ class App(tk.Tk):
                 messagebox.showinfo(
                     APP_TITLE,
                     (
-                        f"Build 025 recommendation\n\n"
+                        f"Build 026 recommendation\n\n"
                         f"Meter: {meter}\n"
                         f"Beat grid: {method_label}\n"
                         f"Downbeat: Phase {phase}\n"
@@ -1131,6 +1144,33 @@ class App(tk.Tk):
                 self.status_var.set("Automatic timing recommendation failed")
                 self._append(str(payload))
                 messagebox.showerror(APP_TITLE, "Automatic recommendation failed. The exact error is shown in the window.")
+            elif kind == "benchmark_progress":
+                self.status_var.set(str(payload))
+                self._append(str(payload))
+            elif kind == "benchmark_done":
+                self.benchmark_button.configure(state="normal")
+                self.status_var.set("Library timing benchmark complete")
+                self._append("")
+                self._append(f"Benchmark report: {payload['text_path']}")
+                self._append(f"Benchmark JSON: {payload['json_path']}")
+                messagebox.showinfo(
+                    APP_TITLE,
+                    (
+                        "Library timing benchmark complete.\n\n"
+                        f"Verified songs tested: {payload['song_count']}\n"
+                        f"Best approach: {payload['best_engine']}\n"
+                        f"Exact timing matches: {payload['best_exact']}\n\n"
+                        "Open timing_engine_benchmark_026.txt in the Library root."
+                    ),
+                )
+            elif kind == "benchmark_error":
+                self.benchmark_button.configure(state="normal")
+                self.status_var.set("Library timing benchmark failed")
+                self._append(str(payload))
+                messagebox.showerror(
+                    APP_TITLE,
+                    "The Library timing benchmark failed. The exact error is shown in the window.",
+                )
             elif kind == "phase_done":
                 self.phase_button.configure(state="normal")
                 self.status_var.set("Phase challenger test complete")
@@ -1197,7 +1237,7 @@ class App(tk.Tk):
                 messagebox.showinfo(
                     APP_TITLE,
                     (
-                        "Build 025 recovered and consolidated the saved manual timing data.\n\n"
+                        "Build 026 recovered and consolidated the saved manual timing data.\n\n"
                         f"Conflicts found: {len(conflicts)}\n"
                         f"Missing fields: {len(missing)}\n\n"
                         "Use Open Analysis Folder and open "
@@ -1232,7 +1272,7 @@ class App(tk.Tk):
                 messagebox.showinfo(
                     APP_TITLE,
                     (
-                        "Build 025 created the complete timing evidence report.\n\n"
+                        "Build 026 created the complete timing evidence report.\n\n"
                         "No timing scores, confirmations or song data were changed.\n\n"
                         "Use Open Analysis Folder and open timing_evidence_021.txt in Notepad."
                     ),
@@ -1308,7 +1348,7 @@ class App(tk.Tk):
             return
 
         self.recommend_button.configure(state="disabled")
-        self.status_var.set("Build 025 is scoring meter, beat grid and downbeat phase…")
+        self.status_var.set("Build 026 is scoring meter, beat grid and downbeat phase…")
         self._append("Started automatic timing recommendation.")
         song = dict(self.selected_song)
 
@@ -1343,6 +1383,58 @@ class App(tk.Tk):
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def _benchmark_all_verified_songs(self) -> None:
+        root_text = self.library_var.get().strip()
+        if not root_text:
+            messagebox.showinfo(APP_TITLE, "Choose the Banjofy Library folder first.")
+            return
+        library_root = Path(root_text)
+        songs = discover_analysed_songs(library_root)
+        verified = [
+            song for song in songs
+            if (Path(song["analysis_path"]).parent / "manual_truth_023.json").is_file()
+        ]
+        if not verified:
+            messagebox.showinfo(
+                APP_TITLE,
+                "No analysed songs with manual_truth_023.json were found.",
+            )
+            return
+
+        self.benchmark_button.configure(state="disabled")
+        self.status_var.set("Build 026 is benchmarking all verified songs…")
+        self._append("")
+        self._append(f"Started Library benchmark for {len(verified)} verified songs.")
+
+        def progress(text: str) -> None:
+            self.messages.put(("benchmark_progress", text))
+
+        def worker() -> None:
+            try:
+                result = structure_engine.benchmark_library_timing_engines(
+                    verified,
+                    progress_callback=progress,
+                )
+                json_path = library_root / "timing_engine_benchmark_026.json"
+                text_path = library_root / "timing_engine_benchmark_026.txt"
+                write_json_atomic(json_path, result)
+                text_path.write_text(
+                    structure_engine.format_timing_engine_benchmark(result),
+                    encoding="utf-8",
+                )
+                leader = result["leaderboard"][0]
+                self.messages.put(("benchmark_done", {
+                    "json_path": str(json_path),
+                    "text_path": str(text_path),
+                    "song_count": result["verified_song_count"],
+                    "best_engine": leader["label"],
+                    "best_exact": f"{leader['exact_matches']}/{result['verified_song_count']}",
+                }))
+            except Exception as exc:
+                self.messages.put(("benchmark_error", f"{exc}\\n\\n{traceback.format_exc()}"))
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def _test_phase_challenger(self) -> None:
         if self.selected_song is None:
             messagebox.showinfo(APP_TITLE, "Select an analysed song first.")
@@ -1350,7 +1442,7 @@ class App(tk.Tk):
 
         song = dict(self.selected_song)
         self.phase_button.configure(state="disabled")
-        self.status_var.set("Build 025 is testing the phase challenger…")
+        self.status_var.set("Build 026 is testing the phase challenger…")
         self._append("Started phase-only challenger test.")
 
         def worker() -> None:
@@ -1402,7 +1494,7 @@ class App(tk.Tk):
             return
         song = dict(self.selected_song)
         self.validate_button.configure(state="disabled")
-        self.status_var.set("Build 025 is comparing automatic timing with verified truth…")
+        self.status_var.set("Build 026 is comparing automatic timing with verified truth…")
         self._append("Started automatic timing validation.")
 
         def worker() -> None:
@@ -1449,7 +1541,7 @@ class App(tk.Tk):
 
         song = dict(self.selected_song)
         self.truth_button.configure(state="disabled")
-        self.status_var.set("Build 025 is locating explicit confirmations…")
+        self.status_var.set("Build 026 is locating explicit confirmations…")
         self._append("Started verified timing truth review.")
 
         def worker() -> None:
@@ -1494,7 +1586,7 @@ class App(tk.Tk):
         folder = Path(payload["folder"])
 
         dialog = tk.Toplevel(self)
-        dialog.title("Build 025 — Review Verified Timing Truth")
+        dialog.title("Build 026 — Review Verified Timing Truth")
         dialog.geometry("720x520")
         dialog.minsize(660, 480)
         dialog.transient(self)
@@ -1651,7 +1743,7 @@ class App(tk.Tk):
             return
 
         self.evidence_button.configure(state="disabled")
-        self.status_var.set("Build 025 is calculating the complete candidate evidence…")
+        self.status_var.set("Build 026 is calculating the complete candidate evidence…")
         self._append("Started full timing evidence comparison.")
 
         def worker() -> None:
@@ -1739,7 +1831,7 @@ class App(tk.Tk):
         analysis = read_json(Path(self.selected_song["analysis_path"]))
         candidates = analysis.get("alternative_beat_grids")
         if not isinstance(candidates, dict) or not candidates:
-            messagebox.showerror(APP_TITLE, "Create the Build 025 alternative beat grids first.")
+            messagebox.showerror(APP_TITLE, "Create the Build 026 alternative beat grids first.")
             return
         valid = {
             key: value for key, value in candidates.items()
@@ -1748,7 +1840,7 @@ class App(tk.Tk):
             and isinstance(value.get("beat_times"), list)
         }
         if not valid:
-            messagebox.showerror(APP_TITLE, "The Build 025 alternative beat files are missing.")
+            messagebox.showerror(APP_TITLE, "The Build 026 alternative beat files are missing.")
             return
         self.alt_candidates = valid
         self.alt_chord_segments = sorted(
@@ -1871,7 +1963,7 @@ class App(tk.Tk):
             APP_TITLE,
             (
                 f"Confirm {label} as this song's active beat grid?\n\n"
-                f"Build 025 will retain the original detector grid, rebuild {meter} bars "
+                f"Build 026 will retain the original detector grid, rebuild {meter} bars "
                 "and create a completely fresh phase-audition set.\n\n"
                 "Chord names and chord-change times will not be altered."
             ),
@@ -1912,7 +2004,7 @@ class App(tk.Tk):
                 APP_TITLE,
                 (
                     f"{label} is now the active beat grid.\n\n"
-                    f"Build 025 created {len(phase_paths)} fresh {meter} phase auditions. "
+                    f"Build 026 created {len(phase_paths)} fresh {meter} phase auditions. "
                     "Open the chord and downbeat phase check and audition them."
                 ),
             )
@@ -1954,7 +2046,7 @@ class App(tk.Tk):
 
         if len(valid_paths) != expected_count:
             self.status_var.set(
-                "Rebuilding missing or mismatched phase audition files in Build 025…"
+                "Rebuilding missing or mismatched phase audition files in Build 026…"
             )
             folder = Path(self.selected_song["analysis_path"]).parent
             rebuilt_paths = create_phase_auditions(
@@ -1971,7 +2063,7 @@ class App(tk.Tk):
             analysis = read_json(self.selected_song["analysis_path"])
             valid_paths = [Path(path) for path in rebuilt_paths]
             self._append(
-                f"Build 025 rebuilt {len(valid_paths)} phase audition files."
+                f"Build 026 rebuilt {len(valid_paths)} phase audition files."
             )
 
         self.visual_phase_paths = valid_paths
@@ -2017,7 +2109,7 @@ class App(tk.Tk):
         if len(self.visual_phase_paths) != self.visual_beats_per_bar:
             messagebox.showerror(
                 APP_TITLE,
-                "Build 025 could not create the required phase audition files. "
+                "Build 026 could not create the required phase audition files. "
                 "The exact file state is shown in the status window.",
             )
             return
