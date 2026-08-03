@@ -1,22 +1,24 @@
-RELEASE AUDIT — BEATNET LISTENING LABORATORY 001
+RELEASE AUDIT — BEATNET LISTENING LABORATORY 002
 
 BASELINE
-Clean rebuild from the complete SAL028 repository package.
+Clean rebuild from BeatNet Listening Laboratory 001.
 
-NEW
-- Separate laboratories/beatnet_lab application.
-- Current BeatNet source installed from the official repository during GitHub Actions.
-- All three supplied trained models available.
-- Offline DBN whole-song processing.
-- M4A and other audio converted through bundled FFmpeg.
-- Strong downbeat click and weaker beat click.
-- Clicked song WAV, clicks-only WAV, TXT, JSON and CSV outputs.
-- No verified truth or former Banjofy selector used.
+ROOT CAUSE FIXED
+BeatNet imported PyAudio at startup, but Build 001 installed BeatNet with
+--no-deps and omitted PyAudio.
 
-PRESERVED
-- Existing song-analysis laboratory files.
-- Main branch remains untouched.
-- Meter product scope remains 3/4 and 4/4, although BeatNet itself may report another meter during research.
+BUILD 002
+- installs PyAudio 0.2.14 explicitly
+- pins Windows/Python 3.9-compatible audio dependencies
+- verifies PyAudio and BeatNet imports
+- performs a real offline BeatNet DBN analysis in GitHub Actions
+- requires ordered beat timestamps
+- requires at least one detected downbeat
+- packages only after the smoke test passes
 
-LIMITATION
-The BeatNet neural inference could not be executed in the Linux packaging environment. GitHub must prove dependency installation, Windows packaging and EXE startup. Peter's four-song clicked-audio test is the actual musical proof.
+UNCHANGED
+- all three BeatNet trained model test routes
+- clicked-song output
+- no manual truth supplied to BeatNet
+- existing Banjofy chord analysis
+- main branch and acquisition branch

@@ -1,0 +1,15 @@
+BANJOFY BEATNET LISTENING LABORATORY 002 — WINDOWS TEST
+
+Build 002 must not exist unless GitHub Actions has already completed a real
+BeatNet offline analysis of a generated 120 BPM 4/4 click track.
+
+1. Open BanjofyBeatNetLab002.
+2. Select one of the four test songs.
+3. Run all three trained models.
+4. Listen to each __CLICKED_SONG.wav file.
+
+High click = Beat 1.
+Low click = remaining beats.
+
+A model passes only when the clicks remain locked for the full song and the high
+click lands on the true start of every bar.

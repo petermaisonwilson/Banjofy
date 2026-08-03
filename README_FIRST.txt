@@ -1,9 +1,15 @@
-BANJOFY BEATNET LISTENING LABORATORY 001
+BANJOFY BEATNET LISTENING LABORATORY 002
 
-Fresh trained-model timing test. This is not SAL029 and does not extend the old selector.
+This is a clean rebuild of BeatNet Lab 001.
 
-BeatNet models 1, 2 and 3 independently analyse the whole audio file. Each produces a clicked copy of the song, a plain-English report, JSON and CSV.
+The GitHub workflow now:
+- installs PyAudio explicitly on Windows
+- verifies PyAudio import
+- verifies BeatNet import
+- creates a real synthetic audio file
+- runs BeatNet in offline DBN mode
+- checks that increasing beat times and downbeats are returned
+- packages the Windows application only after that test passes
 
-High click = Beat 1. Lower click = other beats.
-
-No verified answer is supplied to BeatNet during analysis.
+This remains a separate timing experiment. Existing Banjofy chord detection and
+the earlier SAL selector are unchanged.

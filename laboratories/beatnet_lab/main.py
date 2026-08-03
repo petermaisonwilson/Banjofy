@@ -17,7 +17,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import numpy as np
 
-APP_TITLE = "Banjofy BeatNet Listening Laboratory 001"
+APP_TITLE = "Banjofy BeatNet Listening Laboratory 002"
 SUPPORTED_AUDIO = {".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".wma"}
 
 
@@ -150,7 +150,7 @@ def write_outputs(output_dir: Path, source: Path, model: int, data: np.ndarray, 
 
     payload = {
         "schema": "banjofy.beatnet_listening_test.v1",
-        "laboratory": "BeatNet Listening Laboratory 001",
+        "laboratory": "BeatNet Listening Laboratory 002",
         "source_audio": str(source),
         "beatnet_model": model,
         "mode": "offline",
