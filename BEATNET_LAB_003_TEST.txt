@@ -1,0 +1,13 @@
+BANJOFY BEATNET LISTENING LABORATORY 003 — WINDOWS TEST
+
+GitHub must complete these steps in this exact order:
+1. Install compatible Python packages.
+2. Install PyAudio.
+3. Confirm PyAudio imports.
+4. Install BeatNet.
+5. Confirm BeatNet imports.
+6. Run a real offline BeatNet audio analysis.
+7. Package the Windows application.
+
+High click = Beat 1.
+Low click = other beats.

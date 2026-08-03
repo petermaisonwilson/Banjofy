@@ -1,8 +1,8 @@
-Banjofy BeatNet Listening Laboratory 002 — Clean Rebuild
+Banjofy BeatNet Listening Laboratory 003 — Audited Clean Rebuild
 
 Files:
 .github/workflows/song-analysis-lab.yml
-BEATNET_LAB_002_TEST.txt
+BEATNET_LAB_003_TEST.txt
 README_FIRST.txt
 RELEASE_AUDIT.txt
 laboratories/beatnet_lab/beatnet_lab.spec

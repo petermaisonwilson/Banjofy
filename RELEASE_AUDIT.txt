@@ -1,24 +1,10 @@
-RELEASE AUDIT — BEATNET LISTENING LABORATORY 002
+RELEASE AUDIT — BEATNET LISTENING LABORATORY 003
 
-BASELINE
-Clean rebuild from BeatNet Listening Laboratory 001.
+Clean rebuild from Build 002.
 
-ROOT CAUSE FIXED
-BeatNet imported PyAudio at startup, but Build 001 installed BeatNet with
---no-deps and omitted PyAudio.
-
-BUILD 002
-- installs PyAudio 0.2.14 explicitly
-- pins Windows/Python 3.9-compatible audio dependencies
-- verifies PyAudio and BeatNet imports
-- performs a real offline BeatNet DBN analysis in GitHub Actions
-- requires ordered beat timestamps
-- requires at least one detected downbeat
-- packages only after the smoke test passes
-
-UNCHANGED
-- all three BeatNet trained model test routes
-- clicked-song output
-- no manual truth supplied to BeatNet
-- existing Banjofy chord analysis
-- main branch and acquisition branch
+Confirmed:
+- old BeatNet import step removed
+- exactly one PyAudio installation
+- exactly one BeatNet installation
+- PyAudio import occurs before BeatNet import
+- real offline BeatNet test occurs before packaging
