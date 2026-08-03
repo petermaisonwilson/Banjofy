@@ -1,0 +1,13 @@
+BANJOFY SONG ANALYSIS LABORATORY 028 — WINDOWS TEST
+
+1. Start BanjofySongAnalysisLab028.exe.
+2. Confirm the correct Library.
+3. Click Run Musical Tempo Selector.
+4. Open whole_song_interpreter_027.txt in the Library root.
+
+Targets:
+Hotel California should prefer about 74 BPM rather than about 148 BPM.
+Folsom Prison Blues should prefer about 112 BPM rather than about 225 BPM.
+
+No rule forces a chord to last only one bar.
+Truth must not be used before selection.

@@ -1,30 +1,17 @@
-RELEASE AUDIT — SONG ANALYSIS LABORATORY 027
+RELEASE AUDIT — SONG ANALYSIS LABORATORY 028
 
-BASELINE
-Clean rebuild from Build 026.
+Clean rebuild from Build 027.
 
-NEW
-- Whole-song interpretation batch.
-- Complete candidate ranking rather than independent element repair.
-- Multiple pulse families.
-- Half-time and double-time candidate generation.
-- 3/4 and 4/4 tested for every viable pulse.
-- Every valid downbeat phase tested.
-- Existing whole-track timing evidence.
-- Harmonic-boundary support.
-- Repeating bar-level chord-pattern evidence.
-- Chord-change/beat alignment.
-- Broad tempo plausibility.
-- Confidence based on winner-to-runner-up separation.
-- Bar/beat/chord timeline construction.
-- Truth read only after the candidate is selected.
-- whole_song_interpreter_027.txt and JSON.
+New:
+- musician-counted tempo preference
+- harmonic-cycle quality
+- 4-, 8- and 16-bar phrase consistency
+- same-chord run measurement
+- conditional double-time duplication penalty
 
-UNCHANGED
-- Build 020 scoring function remains available and unchanged.
-- Existing chord/key analysis.
-- Song audio.
-- Stored timing recommendation.
-- manual_truth_023.json.
-- Main branch.
-- firefox-acquisition-lab branch.
+Unchanged:
+- chord/key analysis
+- song files
+- stored recommendations
+- truth files
+- 3/4 and 4/4 scope

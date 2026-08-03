@@ -2030,6 +2030,61 @@ def _bar_timeline(
     return timeline
 
 
+
+def _run_lengths(sequence: list[str]) -> list[int]:
+    if not sequence:
+        return []
+    lengths=[]
+    current=sequence[0]
+    count=1
+    for value in sequence[1:]:
+        if value==current:
+            count+=1
+        else:
+            lengths.append(count)
+            current=value
+            count=1
+    lengths.append(count)
+    return lengths
+
+
+def _harmonic_cycle_quality(sequence: list[str]) -> dict:
+    clean=[str(chord) for chord in sequence if str(chord).strip()]
+    if len(clean)<8:
+        return {"cycle_repetition":0.0,"compactness":0.0,"phrase_consistency":0.0,"median_run_bars":0.0,"score":0.0}
+    repetition=_pattern_repetition_score(clean)
+    lengths=_run_lengths(clean)
+    median_run=float(np.median(lengths)) if lengths else 0.0
+    compactness=1.0/(1.0+max(0.0,median_run-1.0))
+    phrase_scores=[]
+    for width in (4,8,16):
+        if len(clean)<width*2: continue
+        chunks=[tuple(clean[i:i+width]) for i in range(0,len(clean)-width+1,width)]
+        if len(chunks)<2: continue
+        comparisons=[]
+        for a,b in zip(chunks[:-1],chunks[1:]):
+            comparisons.append(sum(x==y for x,y in zip(a,b))/width)
+        if comparisons: phrase_scores.append(float(np.mean(comparisons)))
+    phrase_consistency=max(phrase_scores) if phrase_scores else 0.0
+    score=0.45*repetition+0.30*phrase_consistency+0.25*compactness
+    return {"cycle_repetition":round(float(repetition),6),"compactness":round(float(compactness),6),"phrase_consistency":round(float(phrase_consistency),6),"median_run_bars":round(float(median_run),3),"score":round(float(score),6)}
+
+
+def _tempo_level_preference(bpm: float | None,pulse_factor: float,harmonic_cycle: dict) -> float:
+    if bpm is None: return 0.0
+    plausibility=_tempo_plausibility(bpm)
+    if 60.0<=bpm<=140.0: counted_range=1.0
+    elif 45.0<=bpm<60.0 or 140.0<bpm<=180.0: counted_range=0.65
+    elif 32.0<=bpm<45.0 or 180.0<bpm<=230.0: counted_range=0.30
+    else: counted_range=0.10
+    median_run=float(harmonic_cycle.get('median_run_bars',0.0))
+    duplication_penalty=0.0
+    if pulse_factor>1.0 and median_run>=1.75:
+        duplication_penalty=min(0.22,0.08*(median_run-1.0))
+    value=0.35*plausibility+0.25*counted_range+0.40*float(harmonic_cycle.get('score',0.0))-duplication_penalty
+    return round(max(0.0,min(1.0,float(value))),6)
+
+
 def _candidate_from_grid(
     audio_path: Path,
     grid_name: str,
@@ -2073,8 +2128,14 @@ def _candidate_from_grid(
             harmonic = _phase_boundary_score(beats, segments, beats_per_bar, phase)
             bar_chords = _bar_chord_sequence(beats, meter, phase, segments)
             repetition = _pattern_repetition_score(bar_chords)
+            harmonic_cycle = _harmonic_cycle_quality(bar_chords)
             integer_beat = _chord_change_integer_beat_score(beats, segments)
             tempo_score = _tempo_plausibility(bpm)
+            tempo_level = _tempo_level_preference(
+                bpm,
+                float(pulse_variant["pulse_factor"]),
+                harmonic_cycle,
+            )
 
             old_score = float(row.get("score", 0.0))
             boundary_score = (
@@ -2083,14 +2144,13 @@ def _candidate_from_grid(
                 + 0.15 * harmonic["opening_anchor"]
             )
 
-            # Whole-song musical coherence.
-            # No manual-truth data is used here.
             coherence = (
-                0.36 * old_score
-                + 0.20 * boundary_score
-                + 0.18 * repetition
-                + 0.16 * integer_beat
-                + 0.10 * tempo_score
+                0.24 * old_score
+                + 0.14 * boundary_score
+                + 0.14 * repetition
+                + 0.12 * integer_beat
+                + 0.24 * harmonic_cycle["score"]
+                + 0.12 * tempo_level
             )
 
             candidates.append({
@@ -2105,8 +2165,13 @@ def _candidate_from_grid(
                 "existing_timing_score": round(old_score, 6),
                 "harmonic_boundary_score": round(float(boundary_score), 6),
                 "bar_pattern_repetition": repetition,
+                "harmonic_cycle_quality": harmonic_cycle["score"],
+                "harmonic_phrase_consistency": harmonic_cycle["phrase_consistency"],
+                "harmonic_compactness": harmonic_cycle["compactness"],
+                "median_same_chord_run_bars": harmonic_cycle["median_run_bars"],
                 "chord_change_beat_alignment": integer_beat,
                 "tempo_plausibility": round(float(tempo_score), 6),
+                "tempo_level_preference": tempo_level,
                 "boundary_support": harmonic["boundary_support"],
                 "long_change_support": harmonic["long_change_support"],
                 "opening_anchor": harmonic["opening_anchor"],
@@ -2245,8 +2310,13 @@ def interpret_song_whole_song(
                 "existing_timing_score": winner["existing_timing_score"],
                 "harmonic_boundary_score": winner["harmonic_boundary_score"],
                 "bar_pattern_repetition": winner["bar_pattern_repetition"],
+                "harmonic_cycle_quality": winner["harmonic_cycle_quality"],
+                "harmonic_phrase_consistency": winner["harmonic_phrase_consistency"],
+                "harmonic_compactness": winner["harmonic_compactness"],
+                "median_same_chord_run_bars": winner["median_same_chord_run_bars"],
                 "chord_change_beat_alignment": winner["chord_change_beat_alignment"],
                 "tempo_plausibility": winner["tempo_plausibility"],
+                "tempo_level_preference": winner["tempo_level_preference"],
             },
         },
         "key_from_existing_analysis": key_value,
@@ -2414,7 +2484,10 @@ def format_whole_song_library_report(result: dict) -> str:
         "- Whole-song rhythmic consistency is considered.",
         "- Chord-change/downbeat alignment is considered.",
         "- Repeating bar-level harmonic patterns are considered.",
-        "- Tempo plausibility is considered.",
+        "- Half-time, detected-time and double-time tempo levels are compared.",
+        "- Repeating 4-, 8- and 16-bar harmonic phrases are considered.",
+        "- Long held chords remain allowed; no one-bar chord rule is imposed.",
+        "- Double-time is penalised only when it duplicates the same chord across artificial bars.",
         "- One complete musical interpretation wins.",
         "- Only after the winner is fixed is manual_truth_023.json read.",
         "",
