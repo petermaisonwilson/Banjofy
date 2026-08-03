@@ -1,0 +1,28 @@
+BANJOFY BEATNET LISTENING LABORATORY 001 — WINDOWS TEST
+
+This is a completely separate timing experiment.
+It does not use Banjofy's old timing scores or the verified answers.
+
+1. Open the BanjofyBeatNetLab001 folder.
+2. Start BanjofyBeatNetLab001.exe from inside that folder.
+3. Choose one of the four test songs.
+4. Keep All three trained models selected.
+5. Choose an empty output folder.
+6. Click Run BeatNet Listening Test.
+7. Wait for all three models to finish.
+
+For each model open the file ending:
+__CLICKED_SONG.wav
+
+The HIGH click is Beat 1.
+The lower click marks the other beats.
+
+Listen from the beginning and again near the end.
+A model passes only when:
+- every normal click follows the musical beat;
+- the high click lands on the real first beat of each bar;
+- the clicks remain locked throughout the song;
+- the reported meter is 3/4 or 4/4 correctly;
+- the reported BPM is the musician-counted BPM rather than half-time or double-time.
+
+Run all four songs. Keep the TXT reports and clicked WAV files.

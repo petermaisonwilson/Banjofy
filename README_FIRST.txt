@@ -1,5 +1,9 @@
-BANJOFY SONG ANALYSIS LABORATORY 028
+BANJOFY BEATNET LISTENING LABORATORY 001
 
-Build 028 addresses double-time selection. It compares half-time, detected-time
-and double-time candidates and favours the tempo level producing the strongest
-repeating bar-level chord structure. Long held chords remain valid.
+Fresh trained-model timing test. This is not SAL029 and does not extend the old selector.
+
+BeatNet models 1, 2 and 3 independently analyse the whole audio file. Each produces a clicked copy of the song, a plain-English report, JSON and CSV.
+
+High click = Beat 1. Lower click = other beats.
+
+No verified answer is supplied to BeatNet during analysis.

@@ -1,17 +1,22 @@
-RELEASE AUDIT — SONG ANALYSIS LABORATORY 028
+RELEASE AUDIT — BEATNET LISTENING LABORATORY 001
 
-Clean rebuild from Build 027.
+BASELINE
+Clean rebuild from the complete SAL028 repository package.
 
-New:
-- musician-counted tempo preference
-- harmonic-cycle quality
-- 4-, 8- and 16-bar phrase consistency
-- same-chord run measurement
-- conditional double-time duplication penalty
+NEW
+- Separate laboratories/beatnet_lab application.
+- Current BeatNet source installed from the official repository during GitHub Actions.
+- All three supplied trained models available.
+- Offline DBN whole-song processing.
+- M4A and other audio converted through bundled FFmpeg.
+- Strong downbeat click and weaker beat click.
+- Clicked song WAV, clicks-only WAV, TXT, JSON and CSV outputs.
+- No verified truth or former Banjofy selector used.
 
-Unchanged:
-- chord/key analysis
-- song files
-- stored recommendations
-- truth files
-- 3/4 and 4/4 scope
+PRESERVED
+- Existing song-analysis laboratory files.
+- Main branch remains untouched.
+- Meter product scope remains 3/4 and 4/4, although BeatNet itself may report another meter during research.
+
+LIMITATION
+The BeatNet neural inference could not be executed in the Linux packaging environment. GitHub must prove dependency installation, Windows packaging and EXE startup. Peter's four-song clicked-audio test is the actual musical proof.
