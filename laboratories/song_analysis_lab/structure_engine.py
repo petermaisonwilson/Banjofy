@@ -1841,6 +1841,592 @@ def format_timing_engine_benchmark(result: dict) -> str:
     return "\n".join(lines)
 
 
+
+WHOLE_SONG_GRID_LABELS = {
+    "standard": "Full-mix standard pulse",
+    "percussive": "Percussive pulse",
+    "low_frequency": "Low-frequency pulse",
+    "plp": "Predominant local pulse",
+}
+
+
+def _safe_segments(analysis: dict) -> list[dict]:
+    rows = []
+    for item in analysis.get("segments") or []:
+        if not isinstance(item, dict):
+            continue
+        if not isinstance(item.get("start_s"), (int, float)):
+            continue
+        chord = str(
+            item.get("chord")
+            or item.get("label")
+            or item.get("symbol")
+            or item.get("name")
+            or "N"
+        )
+        start = float(item["start_s"])
+        end = item.get("end_s")
+        rows.append({
+            "start_s": start,
+            "end_s": float(end) if isinstance(end, (int, float)) else None,
+            "chord": chord,
+        })
+    rows.sort(key=lambda row: row["start_s"])
+    return rows
+
+
+def _candidate_pulse_variants(beat_times: list[float]) -> list[dict]:
+    base = [float(v) for v in beat_times if isinstance(v, (int, float))]
+    variants = []
+    if len(base) >= 12:
+        variants.append({"pulse_factor": 1.0, "pulse_variant": "as_detected", "beat_times": base})
+        # Half-time candidates preserve both possible parity offsets.
+        for parity in (0, 1):
+            half = base[parity::2]
+            if len(half) >= 8:
+                variants.append({
+                    "pulse_factor": 0.5,
+                    "pulse_variant": f"half_time_offset_{parity}",
+                    "beat_times": half,
+                })
+        # A doubled pulse can help if the detector tracked half-time.
+        doubled = []
+        for a, b in zip(base[:-1], base[1:]):
+            doubled.append(a)
+            doubled.append((a + b) / 2.0)
+        if base:
+            doubled.append(base[-1])
+        if len(doubled) >= 16:
+            variants.append({
+                "pulse_factor": 2.0,
+                "pulse_variant": "double_time_interpolated",
+                "beat_times": doubled,
+            })
+    return variants
+
+
+def _tempo_from_beats(beat_times: list[float]) -> float | None:
+    if len(beat_times) < 3:
+        return None
+    diffs = np.diff(np.asarray(beat_times, dtype=float))
+    diffs = diffs[np.isfinite(diffs) & (diffs > 0.08)]
+    if diffs.size == 0:
+        return None
+    return round(60.0 / float(np.median(diffs)), 3)
+
+
+def _tempo_plausibility(bpm: float | None) -> float:
+    if bpm is None or bpm <= 0:
+        return 0.0
+    # Broad musical preference only; no truth information.
+    if 58.0 <= bpm <= 150.0:
+        return 1.0
+    if 45.0 <= bpm < 58.0 or 150.0 < bpm <= 185.0:
+        return 0.72
+    if 32.0 <= bpm < 45.0 or 185.0 < bpm <= 230.0:
+        return 0.40
+    return 0.10
+
+
+def _chord_at_time(segments: list[dict], timestamp: float) -> str:
+    if not segments:
+        return "N"
+    current = segments[0]["chord"]
+    for row in segments:
+        if row["start_s"] <= timestamp:
+            current = row["chord"]
+        else:
+            break
+    return current
+
+
+def _bar_chord_sequence(
+    beat_times: list[float],
+    meter: str,
+    phase_number: int,
+    segments: list[dict],
+) -> list[str]:
+    beats_per_bar = 3 if meter == "3/4" else 4
+    phase_index = int(phase_number) - 1
+    sequence = []
+    for index, timestamp in enumerate(beat_times):
+        if index % beats_per_bar == phase_index:
+            sequence.append(_chord_at_time(segments, float(timestamp)))
+    return sequence
+
+
+def _pattern_repetition_score(sequence: list[str]) -> float:
+    if len(sequence) < 8:
+        return 0.0
+    # Compare repeated bar-level chord n-grams across the whole song.
+    scores = []
+    for width in (2, 4, 8):
+        if len(sequence) < width * 2:
+            continue
+        grams = [tuple(sequence[i:i+width]) for i in range(len(sequence) - width + 1)]
+        if not grams:
+            continue
+        counts = {}
+        for gram in grams:
+            counts[gram] = counts.get(gram, 0) + 1
+        repeated = sum(count for count in counts.values() if count > 1)
+        scores.append(min(1.0, repeated / max(1, len(grams))))
+    return round(float(np.mean(scores)) if scores else 0.0, 6)
+
+
+def _chord_change_integer_beat_score(
+    beat_times: list[float],
+    segments: list[dict],
+) -> float:
+    if len(beat_times) < 8 or len(segments) < 2:
+        return 0.0
+    beats = np.asarray(beat_times, dtype=float)
+    interval = float(np.median(np.diff(beats)))
+    if not np.isfinite(interval) or interval <= 0:
+        return 0.0
+    scores = []
+    for row in segments[1:]:
+        change = row["start_s"]
+        if change < beats[0] - interval or change > beats[-1] + interval:
+            continue
+        nearest = float(np.min(np.abs(beats - change)))
+        scores.append(max(0.0, 1.0 - nearest / max(0.12, interval * 0.55)))
+    return round(float(np.mean(scores)) if scores else 0.0, 6)
+
+
+def _bar_timeline(
+    beat_times: list[float],
+    meter: str,
+    phase_number: int,
+    segments: list[dict],
+) -> list[dict]:
+    beats_per_bar = 3 if meter == "3/4" else 4
+    phase_index = int(phase_number) - 1
+
+    downbeat_indices = [
+        i for i in range(len(beat_times))
+        if i % beats_per_bar == phase_index
+    ]
+    timeline = []
+    bar_number = 1
+    for start_idx in downbeat_indices:
+        if start_idx + beats_per_bar > len(beat_times):
+            break
+        beats = []
+        for offset in range(beats_per_bar):
+            idx = start_idx + offset
+            ts = round(float(beat_times[idx]), 6)
+            beats.append({
+                "beat": offset + 1,
+                "time_s": ts,
+                "chord": _chord_at_time(segments, ts),
+            })
+        timeline.append({
+            "bar": bar_number,
+            "downbeat_s": beats[0]["time_s"],
+            "beats": beats,
+        })
+        bar_number += 1
+    return timeline
+
+
+def _candidate_from_grid(
+    audio_path: Path,
+    grid_name: str,
+    grid: dict,
+    segments: list[dict],
+) -> list[dict]:
+    candidates = []
+    base_beats = grid.get("beat_times") or []
+    for pulse_variant in _candidate_pulse_variants(base_beats):
+        beats = pulse_variant["beat_times"]
+        bpm = _tempo_from_beats(beats)
+        if bpm is None:
+            continue
+
+        # Use existing proven scoring components, but retain every candidate.
+        recommendation = recommend_timing_structure(
+            audio_path,
+            {
+                grid_name: {
+                    "label": grid.get("label") or WHOLE_SONG_GRID_LABELS.get(grid_name, grid_name),
+                    "bpm": bpm,
+                    "beat_times": beats,
+                }
+            },
+            segments,
+        )
+        ranked = recommendation.get("ranked_candidates") or []
+
+        for row in ranked:
+            if not isinstance(row, dict):
+                continue
+            meter = _normalise_truth_value("meter", row.get("meter"))
+            phase = _normalise_truth_value("phase_number", row.get("phase_number"))
+            if meter not in {"3/4", "4/4"} or phase is None:
+                continue
+
+            beats_per_bar = 3 if meter == "3/4" else 4
+            if phase < 1 or phase > beats_per_bar:
+                continue
+
+            harmonic = _phase_boundary_score(beats, segments, beats_per_bar, phase)
+            bar_chords = _bar_chord_sequence(beats, meter, phase, segments)
+            repetition = _pattern_repetition_score(bar_chords)
+            integer_beat = _chord_change_integer_beat_score(beats, segments)
+            tempo_score = _tempo_plausibility(bpm)
+
+            old_score = float(row.get("score", 0.0))
+            boundary_score = (
+                0.52 * harmonic["boundary_support"]
+                + 0.33 * harmonic["long_change_support"]
+                + 0.15 * harmonic["opening_anchor"]
+            )
+
+            # Whole-song musical coherence.
+            # No manual-truth data is used here.
+            coherence = (
+                0.36 * old_score
+                + 0.20 * boundary_score
+                + 0.18 * repetition
+                + 0.16 * integer_beat
+                + 0.10 * tempo_score
+            )
+
+            candidates.append({
+                "grid_method": grid_name,
+                "grid_label": grid.get("label") or WHOLE_SONG_GRID_LABELS.get(grid_name, grid_name),
+                "pulse_variant": pulse_variant["pulse_variant"],
+                "pulse_factor": pulse_variant["pulse_factor"],
+                "meter": meter,
+                "phase_number": phase,
+                "bpm": bpm,
+                "coherence_score": round(float(coherence), 6),
+                "existing_timing_score": round(old_score, 6),
+                "harmonic_boundary_score": round(float(boundary_score), 6),
+                "bar_pattern_repetition": repetition,
+                "chord_change_beat_alignment": integer_beat,
+                "tempo_plausibility": round(float(tempo_score), 6),
+                "boundary_support": harmonic["boundary_support"],
+                "long_change_support": harmonic["long_change_support"],
+                "opening_anchor": harmonic["opening_anchor"],
+                "changes_used": harmonic["changes_used"],
+                "beat_times": [round(float(v), 6) for v in beats],
+            })
+    return candidates
+
+
+def _build_grid_sources_for_interpreter(audio_path: Path, analysis: dict) -> dict[str, dict]:
+    sources = {}
+
+    # Existing alternative grids, if available.
+    alt = analysis.get("alternative_beat_grids") or {}
+    if isinstance(alt, dict):
+        aliases = {
+            "standard": "standard",
+            "percussive": "percussive",
+            "percussion": "percussive",
+            "low_frequency": "low_frequency",
+            "steady_pulse": "steady_pulse",
+        }
+        for raw_name, grid in alt.items():
+            if not isinstance(grid, dict):
+                continue
+            name = aliases.get(_normalise_method_name(raw_name), _normalise_method_name(raw_name))
+            times = grid.get("beat_times") or []
+            if len(times) >= 8:
+                sources[name] = {
+                    "label": grid.get("label") or WHOLE_SONG_GRID_LABELS.get(name, name),
+                    "bpm": grid.get("bpm"),
+                    "beat_times": times,
+                }
+
+    # Freshly generated approaches ensure all songs have comparable sources.
+    generated = _benchmark_generated_grids(audio_path)
+    generated_map = {
+        "librosa_full_mix_dp": "standard",
+        "librosa_percussive_dp": "percussive",
+        "librosa_low_frequency_dp": "low_frequency",
+        "librosa_plp": "plp",
+    }
+    for engine_name, grid in generated.items():
+        method = generated_map[engine_name]
+        # Prefer an existing saved grid of the same family because it was used
+        # during prior listening tests; otherwise use the fresh generation.
+        sources.setdefault(method, {
+            "label": grid.get("label") or WHOLE_SONG_GRID_LABELS.get(method, method),
+            "bpm": grid.get("bpm"),
+            "beat_times": grid.get("beat_times") or [],
+        })
+    return sources
+
+
+def interpret_song_whole_song(
+    song_title: str,
+    audio_path: Path,
+    analysis: dict,
+) -> dict:
+    """Choose one complete musical interpretation without consulting truth."""
+    segments = _safe_segments(analysis)
+    if not segments:
+        raise ValueError("No timed chord segments were available for whole-song interpretation.")
+
+    sources = _build_grid_sources_for_interpreter(audio_path, analysis)
+    candidates = []
+    for grid_name, grid in sources.items():
+        candidates.extend(_candidate_from_grid(audio_path, grid_name, grid, segments))
+
+    if not candidates:
+        raise RuntimeError("Whole-song interpreter produced no candidates.")
+
+    candidates.sort(
+        key=lambda row: (
+            row["coherence_score"],
+            row["bar_pattern_repetition"],
+            row["harmonic_boundary_score"],
+            row["chord_change_beat_alignment"],
+        ),
+        reverse=True,
+    )
+    winner = dict(candidates[0])
+
+    # Confidence is based on separation from the next complete interpretation,
+    # not on an invented absolute correctness percentage.
+    runner_up = candidates[1] if len(candidates) > 1 else None
+    margin = (
+        winner["coherence_score"] - runner_up["coherence_score"]
+        if runner_up is not None else winner["coherence_score"]
+    )
+    confidence_class = (
+        "strong" if margin >= 0.08
+        else "moderate" if margin >= 0.035
+        else "uncertain"
+    )
+
+    timeline = _bar_timeline(
+        winner["beat_times"],
+        winner["meter"],
+        winner["phase_number"],
+        segments,
+    )
+
+    # Do not duplicate huge beat arrays in ranked candidates after winner is known.
+    ranked_summary = []
+    for rank, row in enumerate(candidates[:20], start=1):
+        item = dict(row)
+        item.pop("beat_times", None)
+        item["rank"] = rank
+        ranked_summary.append(item)
+
+    key_value = (
+        analysis.get("key")
+        or analysis.get("detected_key")
+        or analysis.get("key_estimate")
+        or (analysis.get("analysis_summary") or {}).get("key")
+    )
+
+    return {
+        "schema": "banjofy.whole_song_interpretation.v1",
+        "laboratory_build": 27,
+        "song_title": song_title,
+        "decision_made_before_truth": True,
+        "winner": {
+            "meter": winner["meter"],
+            "beat_grid_method": winner["grid_method"],
+            "beat_grid_label": winner["grid_label"],
+            "pulse_variant": winner["pulse_variant"],
+            "pulse_factor": winner["pulse_factor"],
+            "bpm": winner["bpm"],
+            "phase_number": winner["phase_number"],
+            "coherence_score": winner["coherence_score"],
+            "confidence_class": confidence_class,
+            "runner_up_margin": round(float(margin), 6),
+            "components": {
+                "existing_timing_score": winner["existing_timing_score"],
+                "harmonic_boundary_score": winner["harmonic_boundary_score"],
+                "bar_pattern_repetition": winner["bar_pattern_repetition"],
+                "chord_change_beat_alignment": winner["chord_change_beat_alignment"],
+                "tempo_plausibility": winner["tempo_plausibility"],
+            },
+        },
+        "key_from_existing_analysis": key_value,
+        "bar_timeline": timeline,
+        "ranked_candidates": ranked_summary,
+        "song_data_changed": False,
+        "stored_recommendation_changed": False,
+    }
+
+
+def _truth_match_after_decision(interpretation: dict, truth: dict) -> dict:
+    winner = interpretation["winner"]
+    verified = {
+        "meter": _normalise_truth_value("meter", truth.get("meter")),
+        "beat_grid_method": _normalise_method_name(truth.get("beat_grid_method")),
+        "phase_number": _normalise_truth_value("phase_number", truth.get("phase_number")),
+    }
+    checks = {
+        "meter": winner["meter"] == verified["meter"],
+        "beat_grid_method": (
+            _normalise_method_name(winner["beat_grid_method"])
+            == verified["beat_grid_method"]
+        ),
+        "phase_number": winner["phase_number"] == verified["phase_number"],
+    }
+    return {
+        "verified_truth": verified,
+        "checks": {
+            key: "PASS" if value else "FAIL"
+            for key, value in checks.items()
+        },
+        "exact_match": all(checks.values()),
+    }
+
+
+def interpret_verified_library_whole_song(
+    songs: list[dict],
+    progress_callback=lambda _text: None,
+) -> dict:
+    song_results = []
+    exact = 0
+
+    for index, song in enumerate(songs, start=1):
+        title = str(song.get("title") or song.get("song_id") or f"Song {index}")
+        progress_callback(
+            f"[{index}/{len(songs)}] Whole-song interpretation: {title}"
+        )
+
+        audio_path = Path(song["audio_path"])
+        analysis_path = Path(song["analysis_path"])
+        truth_path = analysis_path.parent / "manual_truth_023.json"
+
+        analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
+
+        # Critical order: interpretation is complete before truth is read.
+        interpretation = interpret_song_whole_song(
+            title,
+            audio_path,
+            analysis,
+        )
+
+        truth = json.loads(truth_path.read_text(encoding="utf-8"))
+        validation = _truth_match_after_decision(interpretation, truth)
+
+        exact += int(validation["exact_match"])
+        song_results.append({
+            "song_title": title,
+            "interpretation": interpretation,
+            "post_decision_validation": validation,
+        })
+
+    return {
+        "schema": "banjofy.whole_song_library_benchmark.v1",
+        "laboratory_build": 27,
+        "verified_song_count": len(songs),
+        "exact_whole_song_matches": exact,
+        "exact_accuracy": round(exact / max(1, len(songs)), 4),
+        "songs": song_results,
+        "truth_used_for_candidate_selection": False,
+        "song_data_changed": False,
+        "stored_recommendations_changed": False,
+        "next_gate": (
+            "Expand the verified Library only if the architecture materially "
+            "outperforms the Build 026 baseline without per-song tuning."
+        ),
+    }
+
+
+def format_whole_song_library_report(result: dict) -> str:
+    lines = [
+        "BANJOFY SONG ANALYSIS LABORATORY 027",
+        "WHOLE-SONG MUSICAL INTERPRETER",
+        "",
+        f"Verified songs tested: {result['verified_song_count']}",
+        (
+            "Exact whole-song matches: "
+            f"{result['exact_whole_song_matches']}/{result['verified_song_count']}"
+        ),
+        f"Exact accuracy: {result['exact_accuracy']:.1%}",
+        "Truth used for candidate selection: NO",
+        "",
+    ]
+
+    for song in result["songs"]:
+        interp = song["interpretation"]
+        winner = interp["winner"]
+        validation = song["post_decision_validation"]
+        truth = validation["verified_truth"]
+
+        lines.extend([
+            f"SONG: {song['song_title']}",
+            (
+                "WINNER: "
+                f"{winner['meter']} · {winner['beat_grid_method']} · "
+                f"Phase {winner['phase_number']} · {winner['bpm']:.3f} BPM · "
+                f"{winner['pulse_variant']}"
+            ),
+            (
+                f"Coherence: {winner['coherence_score']:.6f} · "
+                f"Confidence: {winner['confidence_class']} · "
+                f"Runner-up margin: {winner['runner_up_margin']:.6f}"
+            ),
+            (
+                "VERIFIED: "
+                f"{truth['meter']} · {truth['beat_grid_method']} · "
+                f"Phase {truth['phase_number']}"
+            ),
+            (
+                "RESULT: "
+                f"Meter {validation['checks']['meter']} · "
+                f"Grid {validation['checks']['beat_grid_method']} · "
+                f"Phase {validation['checks']['phase_number']} · "
+                f"Exact {'PASS' if validation['exact_match'] else 'FAIL'}"
+            ),
+            f"Key from existing analysis: {interp.get('key_from_existing_analysis')}",
+            "Top complete candidates:",
+        ])
+
+        for row in interp["ranked_candidates"][:8]:
+            lines.append(
+                f"  {row['rank']:>2}. "
+                f"{row['meter']} · {row['grid_method']} · "
+                f"Phase {row['phase_number']} · {row['bpm']:.3f} BPM · "
+                f"{row['pulse_variant']} · "
+                f"coherence {row['coherence_score']:.6f}"
+            )
+
+        timeline = interp.get("bar_timeline") or []
+        lines.append(f"Constructed bars: {len(timeline)}")
+        lines.append("First 8 constructed bars:")
+        for bar in timeline[:8]:
+            beat_text = " | ".join(
+                f"{beat['beat']}@{beat['time_s']:.3f}s {beat['chord']}"
+                for beat in bar["beats"]
+            )
+            lines.append(f"  Bar {bar['bar']}: {beat_text}")
+        lines.append("")
+
+    lines.extend([
+        "ARCHITECTURE",
+        "- Several pulse families are generated.",
+        "- As-detected, half-time and double-time pulse interpretations are tested.",
+        "- Both 3/4 and 4/4 are evaluated.",
+        "- Every valid downbeat phase is evaluated.",
+        "- Whole-song rhythmic consistency is considered.",
+        "- Chord-change/downbeat alignment is considered.",
+        "- Repeating bar-level harmonic patterns are considered.",
+        "- Tempo plausibility is considered.",
+        "- One complete musical interpretation wins.",
+        "- Only after the winner is fixed is manual_truth_023.json read.",
+        "",
+        "Song data changed: NO",
+        "Stored recommendations changed: NO",
+        "",
+        f"NEXT GATE: {result['next_gate']}",
+        "",
+    ])
+    return "\n".join(lines)
+
+
 def _first_present(mapping_list: list[dict], keys: tuple[str, ...]):
     for mapping in mapping_list:
         if not isinstance(mapping, dict):

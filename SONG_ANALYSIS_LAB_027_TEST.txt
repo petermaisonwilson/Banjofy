@@ -1,0 +1,36 @@
+BANJOFY SONG ANALYSIS LABORATORY 027 — WINDOWS TEST
+WHOLE-SONG MUSICAL INTERPRETER
+
+PREREQUISITE
+The four verified songs must still contain manual_truth_023.json.
+
+1. Start BanjofySongAnalysisLab027.exe.
+2. Confirm the correct Library is selected.
+3. Click Run Whole-Song Interpreter.
+4. Wait for all verified songs to finish.
+5. Open the Library root.
+6. Open whole_song_interpreter_027.txt in Notepad.
+
+THE INTERPRETER MUST:
+- choose its winner before reading manual_truth_023.json
+- evaluate complete meter + pulse + phase interpretations
+- test half-time and double-time pulse alternatives
+- use whole-song bar/harmonic coherence
+- construct bar/beat/chord timelines
+- report top complete candidates
+- compare the chosen winner to truth only after selection
+
+TARGET TRUTH
+Hotel California: 4/4 · standard · Phase 3
+Folsom Prison Blues: 4/4 · standard · Phase 4
+Tennessee Waltz: 3/4 · low_frequency · Phase 2
+The Times They Are A-Changin': 3/4 · standard · Phase 1
+
+REPORT FILES
+whole_song_interpreter_027.txt
+whole_song_interpreter_027.json
+
+The report must say:
+Truth used for candidate selection: NO
+Song data changed: NO
+Stored recommendations changed: NO

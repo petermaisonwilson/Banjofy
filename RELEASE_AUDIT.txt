@@ -1,23 +1,30 @@
-RELEASE AUDIT — SONG ANALYSIS LABORATORY 026
+RELEASE AUDIT — SONG ANALYSIS LABORATORY 027
 
 BASELINE
-Clean rebuild from Build 025.
+Clean rebuild from Build 026.
 
 NEW
-- Library-wide batch benchmark.
-- Current Banjofy saved winner.
-- Librosa full-mix dynamic-programming timing.
-- Librosa percussion dynamic-programming timing.
-- Librosa low-frequency dynamic-programming timing.
-- Librosa predominant-local-pulse timing.
-- Combined leaderboard.
-- Detailed per-song results.
-- Explicit benchmark limitations.
-- timing_engine_benchmark_026.txt and JSON.
+- Whole-song interpretation batch.
+- Complete candidate ranking rather than independent element repair.
+- Multiple pulse families.
+- Half-time and double-time candidate generation.
+- 3/4 and 4/4 tested for every viable pulse.
+- Every valid downbeat phase tested.
+- Existing whole-track timing evidence.
+- Harmonic-boundary support.
+- Repeating bar-level chord-pattern evidence.
+- Chord-change/beat alignment.
+- Broad tempo plausibility.
+- Confidence based on winner-to-runner-up separation.
+- Bar/beat/chord timeline construction.
+- Truth read only after the candidate is selected.
+- whole_song_interpreter_027.txt and JSON.
 
 UNCHANGED
-- All Library song files.
-- Stored timing recommendations.
-- Build 020 scorer.
-- Chord analysis.
-- 3/4 and 4/4 scope.
+- Build 020 scoring function remains available and unchanged.
+- Existing chord/key analysis.
+- Song audio.
+- Stored timing recommendation.
+- manual_truth_023.json.
+- Main branch.
+- firefox-acquisition-lab branch.
