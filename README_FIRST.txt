@@ -1,3 +1,9 @@
-BANJOFY BEATNET LISTENING LABORATORY 004
+BANJOFY BEATNET LISTENING LABORATORY 005
 
-Build 004 installs BeatNet's complete source-listed dependency set before importing BeatNet, then proves madmom plus all three BeatNet models on generated audio before packaging.
+Minimal clean rebuild from Build 004.
+
+Only these compatibility pins are changed:
+setuptools==80.9.0
+wheel==0.45.1
+
+This restores pkg_resources for madmom and avoids upgrading to Setuptools 82+.

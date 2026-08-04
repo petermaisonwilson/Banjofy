@@ -1,7 +1,11 @@
-RELEASE AUDIT — BEATNET LISTENING LABORATORY 004
+RELEASE AUDIT — BEATNET LISTENING LABORATORY 005
 
-Clean rebuild from Build 003.
-Complete source-audited dependency set installed.
-Real madmom processing required.
-Real BeatNet model 1, 2 and 3 offline DBN processing required.
-Packaging only after those proofs.
+BASELINE
+Build 004 clean rebuild.
+
+ONLY FUNCTIONAL CHANGE
+- setuptools==80.9.0
+- wheel==0.45.1
+
+UNCHANGED
+All BeatNet/madmom/PyAudio/PyTorch/runtime and real-audio proof steps.

@@ -1,0 +1,22 @@
+BANJOFY BEATNET LISTENING LABORATORY 005 — WINDOWS TEST
+
+Build 005 changes only the packaging compatibility layer.
+
+Pinned:
+setuptools==80.9.0
+wheel==0.45.1
+
+Reason:
+madmom imports pkg_resources, removed by Setuptools 82+.
+
+The rest of Build 004 is unchanged:
+- madmom runtime
+- PyAudio
+- PyTorch
+- BeatNet
+- all 3 BeatNet models
+- offline DBN smoke test
+- packaging only after real audio proof
+
+High click = Beat 1.
+Low click = other beats.
