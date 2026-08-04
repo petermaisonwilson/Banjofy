@@ -1,10 +1,7 @@
-RELEASE AUDIT — BEATNET LISTENING LABORATORY 003
+RELEASE AUDIT — BEATNET LISTENING LABORATORY 004
 
-Clean rebuild from Build 002.
-
-Confirmed:
-- old BeatNet import step removed
-- exactly one PyAudio installation
-- exactly one BeatNet installation
-- PyAudio import occurs before BeatNet import
-- real offline BeatNet test occurs before packaging
+Clean rebuild from Build 003.
+Complete source-audited dependency set installed.
+Real madmom processing required.
+Real BeatNet model 1, 2 and 3 offline DBN processing required.
+Packaging only after those proofs.

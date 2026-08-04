@@ -1,0 +1,11 @@
+BANJOFY BEATNET LISTENING LABORATORY 004 — WINDOWS TEST
+
+GitHub must first prove madmom and all three BeatNet models can process real generated audio before packaging.
+
+WINDOWS TEST
+1. Start BanjofyBeatNetLab004.exe.
+2. Select each known song.
+3. Run all three models.
+4. Listen to each __CLICKED_SONG.wav.
+
+High click = Beat 1. Low click = other beats.
