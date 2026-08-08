@@ -74,6 +74,7 @@ jobs:
           pyinstaller --clean --noconfirm laboratories/beatnet_lab/beatnet_lab.spec
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
           if (-not (Test-Path "dist/BN008/BN008.exe")) { throw "BN008.exe missing after PyInstaller" }
+          if (-not (Test-Path "dist/BN008/BN8D.exe")) { throw "BN8D.exe diagnostic twin missing after PyInstaller" }
 
       - name: Audit compiled package contents
         shell: pwsh
@@ -102,15 +103,17 @@ jobs:
           Write-Host "madmom PYDs: $($mmPyd.Count) file(s)"
           Write-Host "Compiled package audit passed"
 
-      - name: Launch actual packaged EXE and require ready proof
+      - name: Diagnose packaged runtime with console twin
         shell: pwsh
         run: |
-          $exe = Resolve-Path "dist/BN008/BN008.exe"
-          $probe = Join-Path $env:RUNNER_TEMP "bn008-ready.json"
-          Remove-Item $probe -Force -ErrorAction SilentlyContinue
+          $exe = Resolve-Path "dist/BN008/BN8D.exe"
+          $probe = Join-Path $env:RUNNER_TEMP "bn008-diag.json"
+          $stdout = Join-Path $env:RUNNER_TEMP "bn008-diag-out.txt"
+          $stderr = Join-Path $env:RUNNER_TEMP "bn008-diag-err.txt"
+          Remove-Item $probe,$stdout,$stderr -Force -ErrorAction SilentlyContinue
           $env:BANJOFY_BEATNET_STARTUP_PROBE_FILE = $probe
 
-          $proc = Start-Process -FilePath $exe -PassThru
+          $proc = Start-Process -FilePath $exe -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
           $ready = $false
           $lastStage = "no stage written"
 
@@ -126,30 +129,55 @@ jobs:
                   $ready = $true
                   break
                 }
-              } catch {
-                # Probe can be observed while its small JSON file is being replaced.
-              }
+              } catch {}
             }
-            if ($proc.HasExited) {
-              throw "BN008.exe exited during packaged startup stage '$lastStage'; exit code $($proc.ExitCode)"
-            }
+            if ($proc.HasExited) { break }
             Start-Sleep -Seconds 1
           }
 
           if (-not $ready) {
             if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
-            throw "BN008.exe did not complete packaged startup within 120 seconds; last stage '$lastStage'"
+            Write-Host "===== BN8D stdout ====="
+            if (Test-Path $stdout) { Get-Content $stdout }
+            Write-Host "===== BN8D stderr ====="
+            if (Test-Path $stderr) { Get-Content $stderr }
+            throw "BN8D.exe failed packaged runtime at stage '$lastStage'"
           }
 
-          if ($payload.status -ne "ready" -or $payload.stage -ne "complete") {
-            throw "BN008.exe wrote an invalid startup proof"
+          if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+          Remove-Item Env:BANJOFY_BEATNET_STARTUP_PROBE_FILE -ErrorAction SilentlyContinue
+          Write-Host "Console diagnostic runtime proof passed"
+
+      - name: Launch actual packaged EXE and require ready proof
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "dist/BN008/BN008.exe"
+          $probe = Join-Path $env:RUNNER_TEMP "bn008-ready.json"
+          Remove-Item $probe -Force -ErrorAction SilentlyContinue
+          $env:BANJOFY_BEATNET_STARTUP_PROBE_FILE = $probe
+
+          $proc = Start-Process -FilePath $exe -PassThru
+          $ready = $false
+          for ($i = 0; $i -lt 30; $i++) {
+            if (Test-Path $probe) {
+              try {
+                $payload = Get-Content $probe -Raw | ConvertFrom-Json
+                if ($payload.status -eq "ready" -and $payload.stage -eq "complete") {
+                  $ready = $true
+                  break
+                }
+              } catch {}
+            }
+            if ($proc.HasExited) { throw "BN008.exe exited before ready proof; exit code $($proc.ExitCode)" }
+            Start-Sleep -Seconds 1
           }
 
-          Start-Sleep -Seconds 2
-          if (-not $proc.HasExited) {
-            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          if (-not $ready) {
+            if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+            throw "BN008.exe did not write ready proof after diagnostic twin passed"
           }
 
+          if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
           Remove-Item Env:BANJOFY_BEATNET_STARTUP_PROBE_FILE -ErrorAction SilentlyContinue
           Write-Host "Packaged EXE ready proof passed: $($payload.app)"
 
@@ -158,6 +186,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path artifact | Out-Null
           Copy-Item -Recurse -Force "dist/BN008" "artifact/BN008"
+          Remove-Item "artifact/BN008/BN8D.exe" -Force -ErrorAction SilentlyContinue
           Copy-Item -Force "B008.txt" "artifact/B008.txt"
           Copy-Item -Force "laboratories/beatnet_lab/beatnet_offline_smoke_test.json" "artifact/beatnet_offline_smoke_test.json"
 
