@@ -6,6 +6,18 @@ from PyInstaller.utils.hooks import collect_all, collect_dynamic_libs, collect_s
 import imageio_ffmpeg
 
 
+# PyInstaller resolves relative paths in a spec relative to the spec directory.
+# Use explicit absolute paths from SPECPATH so CI cannot accidentally duplicate
+# laboratories/beatnet_lab in entry-point or runtime-hook paths.
+spec_root = Path(SPECPATH).resolve()
+main_script = spec_root / "main.py"
+dll_hook = spec_root / "dll_hook.py"
+if not main_script.is_file():
+    raise RuntimeError(f"Build 008 entry point missing: {main_script}")
+if not dll_hook.is_file():
+    raise RuntimeError(f"Build 008 runtime hook missing: {dll_hook}")
+
+
 datas = []
 binaries = []
 hiddenimports = []
@@ -29,7 +41,9 @@ def package_dir(name: str) -> Path:
 
 
 # Keep the proven BeatNet application unchanged; this spec only hardens packaging.
-for package in ["numpy", "scipy", "madmom", "librosa", "BeatNet"]:
+# imageio_ffmpeg is explicit because main.py imports it dynamically when audio is
+# converted, so its package data must not depend on automatic hidden-import luck.
+for package in ["numpy", "scipy", "madmom", "librosa", "BeatNet", "imageio_ffmpeg"]:
     d, b, h = collect_all(package)
     datas += d
     binaries += b
@@ -40,6 +54,7 @@ for package in ["numpy", "scipy", "madmom"]:
     hiddenimports += collect_submodules(package)
 
 hiddenimports += collect_submodules("BeatNet")
+hiddenimports += ["pkg_resources"]
 
 # NumPy/SciPy Windows wheels keep dependent BLAS/runtime DLLs in sibling
 # *.libs directories. Preserve those directories explicitly instead of relying
@@ -82,14 +97,14 @@ hiddenimports = list(dict.fromkeys(hiddenimports))
 
 
 a = Analysis(
-    ["laboratories/beatnet_lab/main.py"],
-    pathex=[],
+    [str(main_script)],
+    pathex=[str(spec_root)],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=["laboratories/beatnet_lab/dll_hook.py"],
+    runtime_hooks=[str(dll_hook)],
     excludes=["pytest", "tensorboard"],
     noarchive=False,
 )
