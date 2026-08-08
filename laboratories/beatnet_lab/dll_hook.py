@@ -8,6 +8,17 @@ from pathlib import Path
 
 _DLL_HANDLES = []
 
+
+def _write_probe(stage: str, status: str = "starting"):
+    probe = os.environ.get("BANJOFY_BEATNET_STARTUP_PROBE_FILE")
+    if not probe:
+        return
+    Path(probe).write_text(
+        json.dumps({"status": status, "stage": stage, "app": "BN008 packaged runtime"}),
+        encoding="utf-8",
+    )
+
+
 if sys.platform == "win32" and hasattr(sys, "_MEIPASS"):
     root = Path(sys._MEIPASS)
     candidates = [
@@ -29,26 +40,29 @@ if sys.platform == "win32" and hasattr(sys, "_MEIPASS"):
             except OSError:
                 pass
 
-    # Fail packaged startup immediately if any compiled scientific/runtime
-    # component needed by the proven BeatNet path is unusable. GitHub's ready
-    # proof is written only after this hook has completed successfully.
+    # CI-only stage markers make packaged startup failures diagnosable without
+    # changing the proven BeatNet analysis path.
+    _write_probe("numpy")
     import numpy  # noqa: F401,E402
+
+    _write_probe("scipy")
     import scipy  # noqa: F401,E402
+
+    _write_probe("madmom")
     import madmom  # noqa: F401,E402
+
+    _write_probe("torch")
     import torch  # noqa: F401,E402
+
+    _write_probe("imageio_ffmpeg")
     import imageio_ffmpeg  # noqa: E402
+
+    _write_probe("BeatNet")
     from BeatNet.BeatNet import BeatNet  # noqa: F401,E402
 
+    _write_probe("ffmpeg")
     ffmpeg = Path(imageio_ffmpeg.get_ffmpeg_exe())
     if not ffmpeg.is_file():
         raise RuntimeError(f"Packaged imageio-ffmpeg executable missing: {ffmpeg}")
 
-    # CI-only startup proof. Normal Windows launches do not set this variable.
-    # Writing here proves the actual packaged EXE reached Python successfully and
-    # loaded the complete compiled BeatNet runtime before any GUI is attempted.
-    probe = os.environ.get("BANJOFY_BEATNET_STARTUP_PROBE_FILE")
-    if probe:
-        Path(probe).write_text(
-            json.dumps({"status": "ready", "app": "BN008 packaged runtime"}),
-            encoding="utf-8",
-        )
+    _write_probe("complete", "ready")
