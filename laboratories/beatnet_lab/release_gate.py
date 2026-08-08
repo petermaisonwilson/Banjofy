@@ -52,10 +52,12 @@ for token in [
 ]:
     assert token in spec, token
 
-for token in [
-    'numpy.libs',
-    'scipy.libs',
-    'os.add_dll_directory',
+# The custom runtime hook must ONLY establish Windows DLL search paths.
+# Importing madmom/BeatNet here occurs before PyInstaller's pyi_rth_pkgres hook
+# and can cause a false DistributionNotFound even when metadata is bundled.
+for token in ['numpy.libs', 'scipy.libs', 'os.add_dll_directory']:
+    assert token in hook, token
+for forbidden in [
     'import numpy',
     'import scipy',
     'import madmom',
@@ -64,7 +66,7 @@ for token in [
     'from BeatNet.BeatNet import BeatNet',
     'get_ffmpeg_exe()',
 ]:
-    assert token in hook, token
+    assert forbidden not in hook, f'Runtime hook must not import packages early: {forbidden}'
 
 assert 'Full clean rebuild preparation' in wf
 assert 'Audit compiled package contents' in wf
