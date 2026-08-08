@@ -175,7 +175,6 @@ def write_model_outputs(output_dir: Path, source: Path, model: int, data: np.nda
 def write_consensus_outputs(output_dir: Path, source: Path, consensus: dict, model_results: list[dict]) -> dict:
     json_path = output_dir / f"{source.stem}__BN009_CONSENSUS.json"
     txt_path = output_dir / f"{source.stem}__BN009_CONSENSUS.txt"
-    recommended_path = output_dir / f"{source.stem}__BN009_RECOMMENDED_CLICKED.wav"
 
     payload = dict(consensus)
     payload["source_audio"] = str(source)
@@ -183,18 +182,23 @@ def write_consensus_outputs(output_dir: Path, source: Path, consensus: dict, mod
     payload["note"] = "Consensus compares unchanged outputs from BeatNet trained models 1, 2 and 3."
     json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
-    recommended_model = int(consensus["recommended_model"])
-    selected = next(result for result in model_results if result["model"] == recommended_model)
-    shutil.copy2(selected["clicked_song"], recommended_path)
+    recommended_model = consensus["recommended_model"]
+    recommended_path = None
+    if recommended_model is not None:
+        recommended_model = int(recommended_model)
+        selected = next(result for result in model_results if result["model"] == recommended_model)
+        recommended_path = output_dir / f"{source.stem}__BN009_RECOMMENDED_CLICKED.wav"
+        shutil.copy2(selected["clicked_song"], recommended_path)
 
     lines = [
         "BANJOFY BN CONSENSUS LAB 009",
         "",
         f"Song: {source.name}",
-        f"Recommended model: {recommended_model}",
+        f"Recommended model: {recommended_model if recommended_model is not None else 'NONE - AMBIGUOUS'}",
         f"Confidence: {consensus['confidence']}",
         f"Consensus BPM: {consensus['consensus_bpm']}",
         f"Consensus meter: {consensus['consensus_meter']}",
+        f"Tempo family models: {consensus['tempo_family_models']}",
         f"Meter votes: {consensus['meter_votes']}",
         "",
         "MODEL SCORES",
@@ -202,16 +206,28 @@ def write_consensus_outputs(output_dir: Path, source: Path, consensus: dict, mod
     for item in consensus["models"]:
         lines.append(
             f"Model {item['model']}: score={item['score']:.4f}, bpm={item['bpm']}, meter={item['meter']}/4, "
-            f"beat agreement={item['beat_agreement']:.4f}, downbeat agreement={item['downbeat_agreement']:.4f}"
+            f"tempo support={item['tempo_support']}, beat agreement={item['beat_agreement']:.4f}, "
+            f"downbeat agreement={item['downbeat_agreement']:.4f}"
         )
-    lines += [
-        "",
-        f"Listen first to: {recommended_path.name}",
-        "High click = Beat 1. Lower click = other beats.",
-        "Low confidence means BN009 detected meaningful disagreement and is not claiming certainty.",
-    ]
+    lines.append("")
+    if recommended_path is not None:
+        lines += [
+            f"Listen first to: {recommended_path.name}",
+            "High click = Beat 1. Lower click = other beats.",
+        ]
+    else:
+        lines += [
+            "NO RECOMMENDED CLICKED WAV WAS CREATED.",
+            "BN009 found a supported tempo family but could not safely resolve the meter.",
+            "Listen only to the individual candidate-model WAVs if investigation is needed.",
+        ]
+    lines.append("Low confidence means BN009 detected meaningful disagreement and is not claiming certainty.")
     txt_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return {"json": str(json_path), "report": str(txt_path), "recommended_clicked_song": str(recommended_path)}
+    return {
+        "json": str(json_path),
+        "report": str(txt_path),
+        "recommended_clicked_song": str(recommended_path) if recommended_path is not None else None,
+    }
 
 
 def run_bn009(source: Path, output_dir: Path, progress) -> dict:
@@ -271,7 +287,8 @@ class Application(tk.Tk):
         ttk.Label(
             outer,
             text=("Runs the proven BeatNet offline DBN path through trained Models 1, 2 and 3, then compares their "
-                  "beat/downbeat outputs to recommend one Banjofy timing source. No verified song answers are used."),
+                  "beat/downbeat outputs to recommend one Banjofy timing source when the evidence is strong enough. "
+                  "No verified song answers are used."),
             wraplength=1060,
         ).pack(anchor="w", pady=(5, 16))
 
@@ -295,8 +312,9 @@ class Application(tk.Tk):
         guide.pack(fill="x", pady=(0, 12))
         ttk.Label(
             guide,
-            text=("You still get all three model clicked WAVs. BN009 additionally creates one RECOMMENDED_CLICKED WAV "
-                  "plus a consensus report showing the chosen model, confidence, BPM, meter and model agreement scores."),
+            text=("You always get all three model clicked WAVs and a consensus report. When the evidence is strong enough, "
+                  "BN009 also creates one RECOMMENDED_CLICKED WAV. If tempo or meter remains genuinely ambiguous, it says so "
+                  "instead of manufacturing a recommendation."),
             wraplength=1040,
         ).pack(anchor="w")
 
@@ -371,16 +389,30 @@ class Application(tk.Tk):
                         s = result["summary"]
                         self._append(f"Model {result['model']}: {s['bpm']} BPM, {s['meter']}")
                     self._append("")
-                    self._append(f"RECOMMENDED MODEL: {consensus['recommended_model']}")
+                    recommended = consensus["recommended_model"]
+                    if recommended is None:
+                        self._append("RECOMMENDED MODEL: NONE - AMBIGUOUS")
+                    else:
+                        self._append(f"RECOMMENDED MODEL: {recommended}")
                     self._append(f"CONFIDENCE: {consensus['confidence'].upper()}")
                     self._append(f"CONSENSUS BPM: {consensus['consensus_bpm']}")
                     self._append(f"CONSENSUS METER: {consensus['consensus_meter']}")
-                    self._append(f"Recommended clicked song: {payload['files']['recommended_clicked_song']}")
-                    messagebox.showinfo(
-                        APP_TITLE,
-                        f"BN009 recommends Model {consensus['recommended_model']} with {consensus['confidence']} confidence.\n\n"
-                        "Listen to the RECOMMENDED_CLICKED WAV first, then compare it with the three individual model WAVs.",
-                    )
+                    self._append(f"TEMPO FAMILY MODELS: {consensus['tempo_family_models']}")
+                    recommended_file = payload["files"]["recommended_clicked_song"]
+                    if recommended_file:
+                        self._append(f"Recommended clicked song: {recommended_file}")
+                        messagebox.showinfo(
+                            APP_TITLE,
+                            f"BN009 recommends Model {recommended} with {consensus['confidence']} confidence.\n\n"
+                            "Listen to the RECOMMENDED_CLICKED WAV first.",
+                        )
+                    else:
+                        self._append("No recommended clicked song created because meter is unresolved.")
+                        messagebox.showwarning(
+                            APP_TITLE,
+                            "BN009 found a supported tempo family but could not safely resolve the meter.\n\n"
+                            "No automatic recommendation has been created.",
+                        )
                 elif kind == "error":
                     self.run_button.configure(state="normal")
                     self.status_var.set("BN009 failed.")
