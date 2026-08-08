@@ -1,22 +1,15 @@
 # PyInstaller runtime hook for the BeatNet laboratory Windows package.
 # Packaging-only: this does not alter BeatNet analysis or inference.
+# IMPORTANT: keep this hook limited to DLL search-path setup. Package imports
+# must occur after PyInstaller has run its standard runtime hooks (especially
+# pyi_rth_pkgres), otherwise madmom's pkg_resources lookup can fail even when
+# its .dist-info metadata is correctly bundled.
 
-import json
 import os
 import sys
 from pathlib import Path
 
 _DLL_HANDLES = []
-
-
-def _write_probe(stage: str, status: str = "starting"):
-    probe = os.environ.get("BANJOFY_BEATNET_STARTUP_PROBE_FILE")
-    if not probe:
-        return
-    Path(probe).write_text(
-        json.dumps({"status": status, "stage": stage, "app": "BN008 packaged runtime"}),
-        encoding="utf-8",
-    )
 
 
 if sys.platform == "win32" and hasattr(sys, "_MEIPASS"):
@@ -39,30 +32,3 @@ if sys.platform == "win32" and hasattr(sys, "_MEIPASS"):
                 _DLL_HANDLES.append(os.add_dll_directory(directory))
             except OSError:
                 pass
-
-    # CI-only stage markers make packaged startup failures diagnosable without
-    # changing the proven BeatNet analysis path.
-    _write_probe("numpy")
-    import numpy  # noqa: F401,E402
-
-    _write_probe("scipy")
-    import scipy  # noqa: F401,E402
-
-    _write_probe("madmom")
-    import madmom  # noqa: F401,E402
-
-    _write_probe("torch")
-    import torch  # noqa: F401,E402
-
-    _write_probe("imageio_ffmpeg")
-    import imageio_ffmpeg  # noqa: E402
-
-    _write_probe("BeatNet")
-    from BeatNet.BeatNet import BeatNet  # noqa: F401,E402
-
-    _write_probe("ffmpeg")
-    ffmpeg = Path(imageio_ffmpeg.get_ffmpeg_exe())
-    if not ffmpeg.is_file():
-        raise RuntimeError(f"Packaged imageio-ffmpeg executable missing: {ffmpeg}")
-
-    _write_probe("complete", "ready")
