@@ -28,21 +28,38 @@ for node in ast.walk(spec_tree):
                 bn008_names += 1
 assert bn008_names >= 2, f'Expected BN008 name on EXE and COLLECT, found {bn008_names}'
 
+# Prevent another spec-relative path regression. The spec must resolve both
+# files from PyInstaller's SPECPATH instead of embedding the repository path.
 for token in [
+    'spec_root = Path(SPECPATH).resolve()',
+    'main_script = spec_root / "main.py"',
+    'dll_hook = spec_root / "dll_hook.py"',
+    '[str(main_script)]',
+    'runtime_hooks=[str(dll_hook)]',
+    'pathex=[str(spec_root)]',
     'collect_all(package)',
     'collect_dynamic_libs(package)',
     'collect_submodules(package)',
     'collect_submodules("BeatNet")',
+    'imageio_ffmpeg',
     'imageio_ffmpeg.get_ffmpeg_exe()',
-    'runtime_hooks=',
-    'dll_hook.py',
+    'pkg_resources',
 ]:
     assert token in spec, token
 
+# Runtime startup preflight must exercise the compiled and dynamically used
+# pieces before main.py can write GitHub's ready proof.
 for token in [
     'numpy.libs',
     'scipy.libs',
     'os.add_dll_directory',
+    'import numpy',
+    'import scipy',
+    'import madmom',
+    'import torch',
+    'import imageio_ffmpeg',
+    'from BeatNet.BeatNet import BeatNet',
+    'get_ffmpeg_exe()',
 ]:
     assert token in hook, token
 
@@ -52,6 +69,10 @@ assert 'Launch actual packaged EXE and require ready proof' in wf
 assert 'BANJOFY_BEATNET_STARTUP_PROBE_FILE' in wf
 assert 'Start-Process' in wf
 assert 'BN008.exe' in wf
+assert 'dist/BN008/BN008.exe' in wf
+assert 'artifact/BN008' in wf
+assert 'B008.txt' in wf
+assert 'beatnet_offline_smoke_test.json' in wf
 assert wf.index('Run real madmom and BeatNet offline audio proof') < wf.index('Build Windows application')
 assert wf.index('Build Windows application') < wf.index('Audit compiled package contents')
 assert wf.index('Audit compiled package contents') < wf.index('Launch actual packaged EXE and require ready proof')
