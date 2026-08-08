@@ -83,10 +83,17 @@ jobs:
           $npCore = Get-ChildItem $root -Recurse -File -Filter "_multiarray_umath*.pyd"
           if (-not $npCore) { throw "NumPy _multiarray_umath compiled extension missing" }
 
-          $npDll = Get-ChildItem $root -Recurse -File -Filter "*.dll" | Where-Object { $_.FullName -match 'numpy\.libs' }
+          # NumPy wheels can place their dependent DLLs either beside the package
+          # as numpy.libs or inside the package as numpy/.libs. Accept both layouts.
+          $npDll = Get-ChildItem $root -Recurse -File -Filter "*.dll" | Where-Object {
+            $_.FullName -match '[\\/]numpy\.libs[\\/]' -or $_.FullName -match '[\\/]numpy[\\/]\.libs[\\/]'
+          }
           if (-not $npDll) { throw "NumPy wheel DLLs missing from packaged application" }
 
-          $spDll = Get-ChildItem $root -Recurse -File -Filter "*.dll" | Where-Object { $_.FullName -match 'scipy\.libs' }
+          # SciPy wheels have also used both sibling scipy.libs and scipy/.libs layouts.
+          $spDll = Get-ChildItem $root -Recurse -File -Filter "*.dll" | Where-Object {
+            $_.FullName -match '[\\/]scipy\.libs[\\/]' -or $_.FullName -match '[\\/]scipy[\\/]\.libs[\\/]'
+          }
           if (-not $spDll) { throw "SciPy wheel DLLs missing from packaged application" }
 
           $mmPyd = Get-ChildItem $root -Recurse -File -Filter "*.pyd" | Where-Object { $_.FullName -match '[\\/]madmom[\\/]' }
