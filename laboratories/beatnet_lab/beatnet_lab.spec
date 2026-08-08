@@ -56,10 +56,16 @@ hiddenimports += ["pkg_resources"]
 # madmom .dist-info metadata into the frozen application.
 datas += copy_metadata("madmom")
 
+# NumPy 1.23.5 stores its OpenBLAS runtime under numpy/.libs. GitHub Actions'
+# artifact uploader treats dot-directories as hidden and omitted that folder
+# from Build 55 even though the packaged EXE passed before upload. Duplicate
+# NumPy/SciPy wheel DLLs into visible *.libs directories so the downloadable
+# artifact remains self-contained.
 for package in ["numpy", "scipy"]:
     pkg = package_dir(package)
-    add_binary_tree(pkg.parent / f"{package}.libs", f"{package}.libs", (".dll",))
-    add_binary_tree(pkg / ".libs", f"{package}/.libs", (".dll",))
+    visible_libs = f"{package}.libs"
+    add_binary_tree(pkg.parent / f"{package}.libs", visible_libs, (".dll",))
+    add_binary_tree(pkg / ".libs", visible_libs, (".dll",))
 
 madmom_dir = package_dir("madmom")
 add_binary_tree(madmom_dir, "madmom", (".pyd", ".dll"))
