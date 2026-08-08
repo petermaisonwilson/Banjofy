@@ -1,4 +1,4 @@
-name: Build Banjofy BeatNet Listening Laboratory 005
+name: Build Banjofy BeatNet Listening Laboratory 006
 
 on:
   workflow_dispatch:
@@ -44,7 +44,8 @@ jobs:
       - name: Install packaging tools
         shell: pwsh
         run: |
-          python -m pip install pyinstaller==6.11.1
+          python -m pip install pyinstaller==6.11.1 imageio-ffmpeg==0.4.9
+          python -c "import imageio_ffmpeg; print('imageio-ffmpeg import passed:', imageio_ffmpeg.get_ffmpeg_exe())"
           choco install ffmpeg -y --no-progress
       - name: Build Windows application
         shell: pwsh
@@ -54,12 +55,12 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path artifact | Out-Null
-          Copy-Item -Recurse -Force "dist/BanjofyBeatNetLab005" "artifact/BanjofyBeatNetLab005"
-          Copy-Item -Force "BEATNET_LAB_005_TEST.txt" "artifact/BEATNET_LAB_005_TEST.txt"
+          Copy-Item -Recurse -Force "dist/BanjofyBeatNetLab006" "artifact/BanjofyBeatNetLab006"
+          Copy-Item -Force "BEATNET_LAB_006_TEST.txt" "artifact/BEATNET_LAB_006_TEST.txt"
           Copy-Item -Force "laboratories/beatnet_lab/beatnet_offline_smoke_test.json" "artifact/beatnet_offline_smoke_test.json"
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-BeatNet-Listening-Laboratory-005-Windows
+          name: Banjofy-BeatNet-Listening-Laboratory-006-Windows
           path: artifact
           if-no-files-found: error

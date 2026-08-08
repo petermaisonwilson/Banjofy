@@ -1,0 +1,20 @@
+BANJOFY BEATNET LISTENING LABORATORY 006 — WINDOWS TEST
+
+BUILD 006 PACKAGING FIX
+
+Build 005 reached PyInstaller after the real BeatNet audio proof passed.
+PyInstaller then failed because beatnet_lab.spec imports imageio_ffmpeg but the
+packaging step had not installed the imageio-ffmpeg Python package.
+
+Build 006 adds only:
+imageio-ffmpeg==0.4.9
+
+GitHub also proves imageio_ffmpeg imports and resolves an FFmpeg executable
+before PyInstaller is allowed to run.
+
+The proven BeatNet/madmom/PyAudio/PyTorch/audio-analysis path is unchanged.
+
+WINDOWS MUSICAL TEST
+High click = Beat 1.
+Low click = other beats.
+Run all three models on the four known test songs.
