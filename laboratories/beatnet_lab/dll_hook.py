@@ -28,8 +28,16 @@ if sys.platform == "win32" and hasattr(sys, "_MEIPASS"):
             except OSError:
                 pass
 
-    # Fail packaged startup immediately if any compiled scientific runtime is
-    # unusable. GitHub's ready-file gate only succeeds after this hook returns.
+    # Fail packaged startup immediately if any compiled scientific/runtime
+    # component needed by the proven BeatNet path is unusable. GitHub's ready
+    # proof can only be written after this hook has completed successfully.
     import numpy  # noqa: F401,E402
     import scipy  # noqa: F401,E402
     import madmom  # noqa: F401,E402
+    import torch  # noqa: F401,E402
+    import imageio_ffmpeg  # noqa: E402
+    from BeatNet.BeatNet import BeatNet  # noqa: F401,E402
+
+    ffmpeg = Path(imageio_ffmpeg.get_ffmpeg_exe())
+    if not ffmpeg.is_file():
+        raise RuntimeError(f"Packaged imageio-ffmpeg executable missing: {ffmpeg}")
