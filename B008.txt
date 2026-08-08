@@ -1,0 +1,18 @@
+BANJOFY BEATNET BUILD 008
+
+Packaging-hardening build only. BeatNet analysis path is unchanged.
+
+Build 008 explicitly preserves NumPy and SciPy wheel DLL directories,
+explicitly bundles madmom compiled .pyd components, and installs a packaged
+runtime DLL hook before the application starts.
+
+GitHub acceptance gate:
+1. Full clean rebuild.
+2. Confirm NumPy _multiarray_umath .pyd exists in the package.
+3. Confirm NumPy/SciPy DLLs and madmom .pyd files exist in the package.
+4. Launch the actual packaged BN008.exe.
+5. Require the application's ready-file proof before artifact upload.
+
+If a PyInstaller error dialog appears, no ready file is written and the build fails.
+
+Windows test: extract to C:\B8 and run BN008.exe from inside the BN008 folder.
