@@ -1,0 +1,16 @@
+name: Build BN Con Lab009
+
+on:
+  workflow_dispatch:
+
+jobs:
+  launcher:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require song-analysis-lab branch
+        shell: bash
+        run: |
+          if [ "${GITHUB_REF_NAME}" != "song-analysis-lab" ]; then
+            echo "Select song-analysis-lab in the Run workflow branch dropdown."
+            exit 1
+          fi
