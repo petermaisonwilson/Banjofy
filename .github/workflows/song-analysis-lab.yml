@@ -1,0 +1,12 @@
+name: Build Banjofy BeatNet 008
+
+on:
+  workflow_dispatch:
+
+jobs:
+  launcher:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Main branch launcher notice
+        run: |
+          echo "Select branch song-analysis-lab when manually running Build Banjofy BeatNet 008."
