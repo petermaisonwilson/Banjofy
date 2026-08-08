@@ -16,6 +16,7 @@ class ModelAssessment:
     interval_mad_s: float
     beat_agreement: float
     downbeat_agreement: float
+    tempo_support: int
     score: float
 
 
@@ -81,6 +82,19 @@ def _agreement_for(model: int, prepared: Dict[int, np.ndarray], downbeats: bool)
     return float(np.mean(values)) if values else 1.0
 
 
+def _tempo_support(model: int, summaries: Dict[int, tuple[float, int, float]], tolerance_ratio: float = 0.03) -> int:
+    bpm = summaries[model][0]
+    if bpm <= 0:
+        return 0
+    support = 0
+    for other_model, (other_bpm, _, _) in summaries.items():
+        if other_model == model or other_bpm <= 0:
+            continue
+        if abs(other_bpm - bpm) / max(bpm, other_bpm) <= tolerance_ratio:
+            support += 1
+    return support
+
+
 def analyse_consensus(outputs: Dict[int, np.ndarray]) -> dict:
     """Compare unchanged BeatNet model outputs and recommend a timing source.
 
@@ -93,13 +107,27 @@ def analyse_consensus(outputs: Dict[int, np.ndarray]) -> dict:
     prepared = {int(model): _normalise(data) for model, data in outputs.items()}
     summaries = {model: _summary(data) for model, data in prepared.items()}
 
-    meters = [meter for _, meter, _ in summaries.values() if meter > 0]
-    meter_counts = {meter: meters.count(meter) for meter in sorted(set(meters))}
-    consensus_meter = max(meter_counts, key=meter_counts.get) if meter_counts else 0
-    meter_votes = meter_counts.get(consensus_meter, 0)
+    tempo_support = {model: _tempo_support(model, summaries) for model in prepared}
+    max_tempo_support = max(tempo_support.values()) if tempo_support else 0
+    tempo_family = [model for model in sorted(prepared) if tempo_support[model] == max_tempo_support]
 
-    bpms = np.asarray([bpm for bpm, _, _ in summaries.values() if bpm > 0], dtype=float)
-    consensus_bpm = float(np.median(bpms)) if len(bpms) else 0.0
+    # If at least two models agree closely on BPM, treat models outside that tempo
+    # family as outliers before considering meter. This prevents a stable but wrong
+    # double/half-tempo interpretation from winning on regularity alone.
+    if max_tempo_support >= 1:
+        candidate_models = tempo_family
+    else:
+        candidate_models = sorted(prepared)
+
+    candidate_bpms = np.asarray([summaries[m][0] for m in candidate_models if summaries[m][0] > 0], dtype=float)
+    consensus_bpm = float(np.median(candidate_bpms)) if len(candidate_bpms) else 0.0
+
+    candidate_meters = [summaries[m][1] for m in candidate_models if summaries[m][1] > 0]
+    meter_counts = {meter: candidate_meters.count(meter) for meter in sorted(set(candidate_meters))}
+    max_meter_votes = max(meter_counts.values()) if meter_counts else 0
+    winning_meters = [meter for meter, count in meter_counts.items() if count == max_meter_votes]
+    meter_ambiguous = len(winning_meters) != 1 or max_meter_votes < 2
+    consensus_meter_value = winning_meters[0] if not meter_ambiguous else 0
 
     assessments = []
     for model in sorted(prepared):
@@ -107,18 +135,27 @@ def analyse_consensus(outputs: Dict[int, np.ndarray]) -> dict:
         bpm, meter, mad = summaries[model]
         beat_agreement = _agreement_for(model, prepared, downbeats=False)
         downbeat_agreement = _agreement_for(model, prepared, downbeats=True)
+        support = tempo_support[model]
 
-        # Transparent score: model-to-model timing agreement carries most weight.
-        # Meter agreement is useful when two or more models independently agree,
-        # while interval regularity is deliberately a smaller contribution because
-        # real performances can push and pull tempo naturally.
-        meter_score = 1.0 if meter and meter == consensus_meter and meter_votes >= 2 else 0.5
+        if model not in candidate_models:
+            tempo_score = 0.0
+        elif max_tempo_support >= 1:
+            tempo_score = 1.0
+        else:
+            tempo_score = 0.5
+
+        if meter_ambiguous:
+            meter_score = 0.5
+        else:
+            meter_score = 1.0 if meter == consensus_meter_value else 0.0
+
         stability_score = max(0.0, 1.0 - min(mad / 0.10, 1.0))
         score = (
-            0.45 * beat_agreement
-            + 0.30 * downbeat_agreement
-            + 0.15 * meter_score
-            + 0.10 * stability_score
+            0.40 * beat_agreement
+            + 0.25 * downbeat_agreement
+            + 0.20 * tempo_score
+            + 0.10 * meter_score
+            + 0.05 * stability_score
         )
 
         beat_numbers = np.rint(data[:, 1]).astype(int)
@@ -132,34 +169,38 @@ def analyse_consensus(outputs: Dict[int, np.ndarray]) -> dict:
                 interval_mad_s=round(float(mad), 6),
                 beat_agreement=round(float(beat_agreement), 4),
                 downbeat_agreement=round(float(downbeat_agreement), 4),
+                tempo_support=int(support),
                 score=round(float(score), 4),
             )
         )
 
-    ranked = sorted(assessments, key=lambda item: (-item.score, item.model))
+    candidate_assessments = [item for item in assessments if item.model in candidate_models]
+    ranked = sorted(candidate_assessments, key=lambda item: (-item.score, item.model))
     best = ranked[0]
     runner_up = ranked[1] if len(ranked) > 1 else None
     margin = best.score - runner_up.score if runner_up else best.score
 
-    if best.score >= 0.88 and margin >= 0.04:
-        confidence = "high"
-    elif best.score >= 0.75:
-        confidence = "medium"
+    if meter_ambiguous:
+        recommended_model = None
+        confidence = "low"
     else:
-        confidence = "low"
-
-    # A meter split such as 2/4 vs 4/4 vs 3/4 is musically significant. Do not
-    # pretend the consensus is certain simply because one model has the top score.
-    if len(meter_counts) > 1 and meter_votes < 2:
-        confidence = "low"
+        recommended_model = best.model
+        if best.score >= 0.88 and margin >= 0.04:
+            confidence = "high"
+        elif best.score >= 0.75:
+            confidence = "medium"
+        else:
+            confidence = "low"
 
     return {
-        "schema": "banjofy.bn_consensus.v1",
-        "recommended_model": best.model,
+        "schema": "banjofy.bn_consensus.v2",
+        "recommended_model": recommended_model,
         "confidence": confidence,
         "consensus_bpm": round(consensus_bpm, 3),
-        "consensus_meter": f"{consensus_meter}/4" if consensus_meter else "unknown",
+        "consensus_meter": f"{consensus_meter_value}/4" if consensus_meter_value else "AMBIGUOUS",
         "meter_votes": meter_counts,
+        "tempo_family_models": candidate_models,
+        "meter_ambiguous": meter_ambiguous,
         "score_margin": round(float(margin), 4),
         "models": [assessment.__dict__ for assessment in assessments],
     }
