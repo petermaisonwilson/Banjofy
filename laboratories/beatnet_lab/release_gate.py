@@ -19,6 +19,11 @@ assert 'Banjofy BeatNet Listening Laboratory 007' in main
 assert 'Build Banjofy BeatNet 008' in wf
 assert 'BN008' in wf
 
+# During packaging hardening, builds are deliberate/manual only so repository
+# edits do not consume GitHub Actions minutes automatically.
+assert 'workflow_dispatch:' in wf
+assert '\n  push:' not in wf
+
 # Check the PyInstaller EXE/COLLECT names structurally so quote style cannot break the gate.
 bn008_names = 0
 for node in ast.walk(spec_tree):
@@ -28,8 +33,6 @@ for node in ast.walk(spec_tree):
                 bn008_names += 1
 assert bn008_names >= 2, f'Expected BN008 name on EXE and COLLECT, found {bn008_names}'
 
-# Prevent another spec-relative path regression. The spec must resolve both
-# files from PyInstaller's SPECPATH instead of embedding the repository path.
 for token in [
     'spec_root = Path(SPECPATH).resolve()',
     'main_script = spec_root / "main.py"',
@@ -41,14 +44,14 @@ for token in [
     'collect_dynamic_libs(package)',
     'collect_submodules(package)',
     'collect_submodules("BeatNet")',
+    'copy_metadata',
+    'copy_metadata("madmom")',
     'imageio_ffmpeg',
     'imageio_ffmpeg.get_ffmpeg_exe()',
     'pkg_resources',
 ]:
     assert token in spec, token
 
-# Runtime startup preflight must exercise the compiled and dynamically used
-# pieces before main.py can write GitHub's ready proof.
 for token in [
     'numpy.libs',
     'scipy.libs',
@@ -65,6 +68,8 @@ for token in [
 
 assert 'Full clean rebuild preparation' in wf
 assert 'Audit compiled package contents' in wf
+assert 'madmom distribution metadata missing from packaged application' in wf
+assert 'Diagnose packaged runtime with console twin' in wf
 assert 'Launch actual packaged EXE and require ready proof' in wf
 assert 'BANJOFY_BEATNET_STARTUP_PROBE_FILE' in wf
 assert 'Start-Process' in wf
@@ -75,7 +80,8 @@ assert 'B008.txt' in wf
 assert 'beatnet_offline_smoke_test.json' in wf
 assert wf.index('Run real madmom and BeatNet offline audio proof') < wf.index('Build Windows application')
 assert wf.index('Build Windows application') < wf.index('Audit compiled package contents')
-assert wf.index('Audit compiled package contents') < wf.index('Launch actual packaged EXE and require ready proof')
+assert wf.index('Audit compiled package contents') < wf.index('Diagnose packaged runtime with console twin')
+assert wf.index('Diagnose packaged runtime with console twin') < wf.index('Launch actual packaged EXE and require ready proof')
 assert wf.index('Launch actual packaged EXE and require ready proof') < wf.index('Assemble artifact')
 assert wf.index('Assemble artifact') < wf.index('Upload Windows artifact')
 
