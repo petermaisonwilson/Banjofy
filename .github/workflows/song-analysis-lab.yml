@@ -1,4 +1,4 @@
-name: Build Banjofy BeatNet Listening Laboratory 006
+name: Build Banjofy BeatNet Listening Laboratory 007
 
 on:
   workflow_dispatch:
@@ -51,16 +51,28 @@ jobs:
         shell: pwsh
         run: |
           pyinstaller --noconfirm laboratories/beatnet_lab/beatnet_lab.spec
+      - name: Launch packaged Windows application smoke test
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "dist/BanjofyBeatNetLab007/BanjofyBeatNetLab007.exe"
+          $proc = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 8
+          if ($proc.HasExited) {
+            throw "Packaged EXE exited unexpectedly with code $($proc.ExitCode)"
+          }
+          Stop-Process -Id $proc.Id -Force
+          Write-Host "Packaged EXE started successfully and remained running."
+
       - name: Assemble artifact
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path artifact | Out-Null
-          Copy-Item -Recurse -Force "dist/BanjofyBeatNetLab006" "artifact/BanjofyBeatNetLab006"
-          Copy-Item -Force "BEATNET_LAB_006_TEST.txt" "artifact/BEATNET_LAB_006_TEST.txt"
+          Copy-Item -Recurse -Force "dist/BanjofyBeatNetLab007" "artifact/BanjofyBeatNetLab007"
+          Copy-Item -Force "BEATNET_LAB_007_TEST.txt" "artifact/BEATNET_LAB_007_TEST.txt"
           Copy-Item -Force "laboratories/beatnet_lab/beatnet_offline_smoke_test.json" "artifact/beatnet_offline_smoke_test.json"
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Banjofy-BeatNet-Listening-Laboratory-006-Windows
+          name: Banjofy-BeatNet-Listening-Laboratory-007-Windows
           path: artifact
           if-no-files-found: error

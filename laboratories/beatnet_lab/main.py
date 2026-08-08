@@ -17,7 +17,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import numpy as np
 
-APP_TITLE = "Banjofy BeatNet Listening Laboratory 006"
+APP_TITLE = "Banjofy BeatNet Listening Laboratory 007"
 SUPPORTED_AUDIO = {".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".wma"}
 
 

@@ -1,25 +1,6 @@
-RELEASE AUDIT — BEATNET LISTENING LABORATORY 006
+RELEASE AUDIT — BUILD 007
 
-BASELINE
-Clean rebuild from Build 005.
-
-PROVEN BY BUILD 005 GITHUB RUN
-- dependency installation reached completion
-- madmom import succeeded after compatibility pinning
-- PyAudio import succeeded
-- BeatNet import succeeded
-- real madmom + BeatNet offline proof completed before packaging
-- execution reached PyInstaller
-
-BUILD 005 FAILURE
-beatnet_lab.spec imports imageio_ffmpeg, but the packaging-tools step did not
-install imageio-ffmpeg.
-
-ONLY FUNCTIONAL CHANGE IN BUILD 006
-- install imageio-ffmpeg==0.4.9 with PyInstaller
-- prove imageio_ffmpeg imports
-- prove get_ffmpeg_exe() returns an FFmpeg executable before packaging
-
-UNCHANGED
-All BeatNet dependencies, model settings, offline DBN smoke tests, three-model
-coverage and packaging order.
+Baseline: Build 006.
+Changes: explicit compiled NumPy/SciPy/madmom collection and packaged EXE
+startup test before artifact upload.
+BeatNet analysis path unchanged.

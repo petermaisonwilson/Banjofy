@@ -1,0 +1,11 @@
+BANJOFY BEATNET LISTENING LABORATORY 007
+
+Build 007 fixes the Windows startup failure from Build 006.
+
+PyInstaller now explicitly collects NumPy, SciPy and madmom compiled components,
+plus librosa and BeatNet package data/models and imageio-ffmpeg.
+
+GitHub must launch the finished EXE for 8 seconds before artifact upload.
+
+Extract the GitHub artifact to a short path such as C:\B7.
+Run BanjofyBeatNetLab007.exe from inside its folder.
