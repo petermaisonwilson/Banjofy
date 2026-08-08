@@ -22,10 +22,34 @@ assert 'inference_model="DBN"' in main
 assert 'device="cpu"' in main
 assert "analyse_consensus(model_outputs)" in main
 assert "BN009_RECOMMENDED_CLICKED" in main
+assert "NONE - AMBIGUOUS" in main
+assert "tempo_family_models" in main
+
+# Consensus v2 must first identify a supported BPM family, exclude tempo outliers,
+# and refuse to manufacture a recommendation when the surviving models disagree on meter.
+for token in [
+    "_tempo_support",
+    "tempo_family",
+    "candidate_models",
+    '"meter_ambiguous"',
+    'recommended_model = None',
+    '"consensus_meter": f"{consensus_meter_value}/4" if consensus_meter_value else "AMBIGUOUS"',
+]:
+    assert token in consensus, token
 
 # No song-specific truth or hard-coded model choice is allowed in the consensus engine.
 for forbidden in ["Hotel California", "Tennessee Waltz", "Folsom", "AC/DC", "Dylan"]:
     assert forbidden not in consensus, forbidden
+
+# Synthetic Tennessee-Waltz-shaped pattern must reject the tempo outlier and expose meter ambiguity.
+for token in [
+    "130.435",
+    "68.182",
+    'result2["recommended_model"] is None',
+    'result2["consensus_meter"] == "AMBIGUOUS"',
+    'result2["tempo_family_models"] == [2, 3]',
+]:
+    assert token in self_test, token
 
 assert "workflow_dispatch:" in wf
 assert "\n  push:" not in wf
