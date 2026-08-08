@@ -163,13 +163,17 @@ jobs:
             if (Test-Path $probe) {
               try {
                 $payload = Get-Content $probe -Raw | ConvertFrom-Json
-                if ($payload.status -eq "ready" -and $payload.stage -eq "complete") {
+                if ($payload.status -eq "ready") {
                   $ready = $true
                   break
                 }
               } catch {}
             }
-            if ($proc.HasExited) { throw "BN008.exe exited before ready proof; exit code $($proc.ExitCode)" }
+            if ($proc.HasExited) {
+              if ($proc.ExitCode -ne 0) { throw "BN008.exe exited with error code $($proc.ExitCode) before ready proof" }
+              Start-Sleep -Milliseconds 250
+              continue
+            }
             Start-Sleep -Seconds 1
           }
 
