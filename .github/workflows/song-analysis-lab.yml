@@ -83,14 +83,11 @@ jobs:
           $npCore = Get-ChildItem $root -Recurse -File -Filter "_multiarray_umath*.pyd"
           if (-not $npCore) { throw "NumPy _multiarray_umath compiled extension missing" }
 
-          # NumPy wheels can place their dependent DLLs either beside the package
-          # as numpy.libs or inside the package as numpy/.libs. Accept both layouts.
           $npDll = Get-ChildItem $root -Recurse -File -Filter "*.dll" | Where-Object {
             $_.FullName -match '[\\/]numpy\.libs[\\/]' -or $_.FullName -match '[\\/]numpy[\\/]\.libs[\\/]'
           }
           if (-not $npDll) { throw "NumPy wheel DLLs missing from packaged application" }
 
-          # SciPy wheels have also used both sibling scipy.libs and scipy/.libs layouts.
           $spDll = Get-ChildItem $root -Recurse -File -Filter "*.dll" | Where-Object {
             $_.FullName -match '[\\/]scipy\.libs[\\/]' -or $_.FullName -match '[\\/]scipy[\\/]\.libs[\\/]'
           }
@@ -115,25 +112,36 @@ jobs:
 
           $proc = Start-Process -FilePath $exe -PassThru
           $ready = $false
+          $lastStage = "no stage written"
 
-          for ($i = 0; $i -lt 30; $i++) {
+          for ($i = 0; $i -lt 120; $i++) {
             if (Test-Path $probe) {
-              $ready = $true
-              break
+              try {
+                $payload = Get-Content $probe -Raw | ConvertFrom-Json
+                if ($payload.stage -and $payload.stage -ne $lastStage) {
+                  $lastStage = $payload.stage
+                  Write-Host "Packaged startup stage: $lastStage"
+                }
+                if ($payload.status -eq "ready") {
+                  $ready = $true
+                  break
+                }
+              } catch {
+                # Probe can be observed while its small JSON file is being replaced.
+              }
             }
             if ($proc.HasExited) {
-              throw "BN008.exe exited before writing ready proof; exit code $($proc.ExitCode)"
+              throw "BN008.exe exited during packaged startup stage '$lastStage'; exit code $($proc.ExitCode)"
             }
             Start-Sleep -Seconds 1
           }
 
           if (-not $ready) {
             if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
-            throw "BN008.exe did not write ready proof within 30 seconds"
+            throw "BN008.exe did not complete packaged startup within 120 seconds; last stage '$lastStage'"
           }
 
-          $payload = Get-Content $probe -Raw | ConvertFrom-Json
-          if ($payload.status -ne "ready") {
+          if ($payload.status -ne "ready" -or $payload.stage -ne "complete") {
             throw "BN008.exe wrote an invalid startup proof"
           }
 
