@@ -12,19 +12,27 @@ hook = (root / 'dll_hook.py').read_text(encoding='utf-8')
 ast.parse(main)
 ast.parse(smoke)
 ast.parse(hook)
-compile(spec, 'beatnet_lab.spec', 'exec')
+spec_tree = ast.parse(spec, filename='beatnet_lab.spec', mode='exec')
 
 # Build-008 packaging gate only. Do not alter the proven BeatNet analysis path.
 assert 'Banjofy BeatNet Listening Laboratory 007' in main
-assert "name='BN008'" in spec
 assert 'Build Banjofy BeatNet 008' in wf
 assert 'BN008' in wf
+
+# Check the PyInstaller EXE/COLLECT names structurally so quote style cannot break the gate.
+bn008_names = 0
+for node in ast.walk(spec_tree):
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in {'EXE', 'COLLECT'}:
+        for keyword in node.keywords:
+            if keyword.arg == 'name' and isinstance(keyword.value, ast.Constant) and keyword.value.value == 'BN008':
+                bn008_names += 1
+assert bn008_names >= 2, f'Expected BN008 name on EXE and COLLECT, found {bn008_names}'
 
 for token in [
     'collect_all(package)',
     'collect_dynamic_libs(package)',
     'collect_submodules(package)',
-    "collect_submodules('BeatNet')",
+    'collect_submodules("BeatNet")',
     'imageio_ffmpeg.get_ffmpeg_exe()',
     'runtime_hooks=',
     'dll_hook.py',
