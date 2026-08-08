@@ -6,9 +6,6 @@ from PyInstaller.utils.hooks import collect_all, collect_dynamic_libs, collect_s
 import imageio_ffmpeg
 
 
-# PyInstaller resolves relative paths in a spec relative to the spec directory.
-# Use explicit absolute paths from SPECPATH so CI cannot accidentally duplicate
-# laboratories/beatnet_lab in entry-point or runtime-hook paths.
 spec_root = Path(SPECPATH).resolve()
 main_script = spec_root / "main.py"
 dll_hook = spec_root / "dll_hook.py"
@@ -41,8 +38,6 @@ def package_dir(name: str) -> Path:
 
 
 # Keep the proven BeatNet application unchanged; this spec only hardens packaging.
-# imageio_ffmpeg is explicit because main.py imports it dynamically when audio is
-# converted, so its package data must not depend on automatic hidden-import luck.
 for package in ["numpy", "scipy", "madmom", "librosa", "BeatNet", "imageio_ffmpeg"]:
     d, b, h = collect_all(package)
     datas += d
@@ -56,19 +51,14 @@ for package in ["numpy", "scipy", "madmom"]:
 hiddenimports += collect_submodules("BeatNet")
 hiddenimports += ["pkg_resources"]
 
-# NumPy/SciPy Windows wheels keep dependent BLAS/runtime DLLs in sibling
-# *.libs directories. Preserve those directories explicitly instead of relying
-# solely on automatic hook discovery.
 for package in ["numpy", "scipy"]:
     pkg = package_dir(package)
     add_binary_tree(pkg.parent / f"{package}.libs", f"{package}.libs", (".dll",))
+    add_binary_tree(pkg / ".libs", f"{package}/.libs", (".dll",))
 
-# madmom ships Cython extension modules as .pyd files inside its package tree.
 madmom_dir = package_dir("madmom")
 add_binary_tree(madmom_dir, "madmom", (".pyd", ".dll"))
 
-# Include Microsoft VC runtime DLLs supplied beside the GitHub Python runtime
-# when present. These are harmless duplicates if PyInstaller already found them.
 python_root = Path(__import__("sys").base_prefix)
 for runtime_name in ["vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll"]:
     runtime = python_root / runtime_name
@@ -79,7 +69,7 @@ ffmpeg = Path(imageio_ffmpeg.get_ffmpeg_exe())
 if ffmpeg.is_file():
     binaries.append((str(ffmpeg), "."))
 
-# De-duplicate exact PyInstaller tuples after explicit collection.
+
 def unique(items):
     seen = set()
     result = []
@@ -109,6 +99,8 @@ a = Analysis(
     noarchive=False,
 )
 pyz = PYZ(a.pure)
+
+# Normal windowed application delivered to the user.
 exe = EXE(
     pyz,
     a.scripts,
@@ -122,8 +114,26 @@ exe = EXE(
     console=False,
     disable_windowed_traceback=False,
 )
+
+# Console diagnostic twin. Same Analysis, same runtime hook and same packaged
+# modules, but GitHub can capture a real traceback instead of an invisible
+# Windows error dialog if a frozen import fails.
+diag = EXE(
+    pyz,
+    a.scripts,
+    [],
+    exclude_binaries=True,
+    name="BN8D",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=False,
+    console=True,
+)
+
 coll = COLLECT(
     exe,
+    diag,
     a.binaries,
     a.zipfiles,
     a.datas,
