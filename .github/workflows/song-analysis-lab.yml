@@ -2,9 +2,6 @@ name: Build Banjofy BeatNet 008
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - song-analysis-lab
 
 jobs:
   build:
@@ -97,10 +94,14 @@ jobs:
           $mmPyd = Get-ChildItem $root -Recurse -File -Filter "*.pyd" | Where-Object { $_.FullName -match '[\\/]madmom[\\/]' }
           if (-not $mmPyd) { throw "madmom compiled extension modules missing from packaged application" }
 
+          $mmMeta = Get-ChildItem $root -Recurse -Directory -Filter "madmom-*.dist-info"
+          if (-not $mmMeta) { throw "madmom distribution metadata missing from packaged application" }
+
           Write-Host "NumPy core: $($npCore.Count) file(s)"
           Write-Host "NumPy DLLs: $($npDll.Count) file(s)"
           Write-Host "SciPy DLLs: $($spDll.Count) file(s)"
           Write-Host "madmom PYDs: $($mmPyd.Count) file(s)"
+          Write-Host "madmom metadata: $($mmMeta.Count) folder(s)"
           Write-Host "Compiled package audit passed"
 
       - name: Diagnose packaged runtime with console twin
