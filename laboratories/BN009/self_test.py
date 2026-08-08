@@ -26,16 +26,21 @@ def main() -> None:
     assert result1["consensus_meter"] == "4/4"
     assert result1["confidence"] in ("medium", "high")
 
-    # Case 2: meters split 2/4, 4/4 and 3/4. The engine must expose uncertainty
-    # rather than silently treating one meter as established truth.
+    # Case 2: Tennessee-Waltz-shaped disagreement. Models 2 and 3 agree exactly
+    # on the musical pulse while Model 1 is the tempo outlier. Meter remains
+    # unresolved between the surviving 4/4 and 3/4 candidates, so the engine must
+    # reject Model 1 and explicitly refuse to invent a meter winner.
     case2 = {
-        1: make_grid(130.0, 2, 24),
-        2: make_grid(65.0, 4, 12),
-        3: make_grid(65.0, 3, 16),
+        1: make_grid(130.435, 2, 69),
+        2: make_grid(68.182, 4, 40),
+        3: make_grid(68.182, 3, 55),
     }
     result2 = analyse_consensus(case2)
     assert result2["confidence"] == "low"
-    assert result2["meter_votes"] == {2: 1, 3: 1, 4: 1}
+    assert result2["recommended_model"] is None
+    assert result2["consensus_meter"] == "AMBIGUOUS"
+    assert result2["tempo_family_models"] == [2, 3]
+    assert result2["meter_votes"] == {3: 1, 4: 1}
 
     # Case 3: two models agree closely and a third is shifted well off the beat.
     case3 = {
