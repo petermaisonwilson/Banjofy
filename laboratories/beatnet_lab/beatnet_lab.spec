@@ -2,7 +2,7 @@
 from importlib.util import find_spec
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_all, collect_dynamic_libs, collect_submodules
+from PyInstaller.utils.hooks import collect_all, collect_dynamic_libs, collect_submodules, copy_metadata
 import imageio_ffmpeg
 
 
@@ -50,6 +50,11 @@ for package in ["numpy", "scipy", "madmom"]:
 
 hiddenimports += collect_submodules("BeatNet")
 hiddenimports += ["pkg_resources"]
+
+# madmom imports pkg_resources.get_distribution("madmom") at startup. PyInstaller
+# does not include distribution metadata automatically, so copy the exact
+# madmom .dist-info metadata into the frozen application.
+datas += copy_metadata("madmom")
 
 for package in ["numpy", "scipy"]:
     pkg = package_dir(package)
