@@ -27,3 +27,9 @@ if sys.platform == "win32" and hasattr(sys, "_MEIPASS"):
                 _DLL_HANDLES.append(os.add_dll_directory(directory))
             except OSError:
                 pass
+
+    # Fail packaged startup immediately if any compiled scientific runtime is
+    # unusable. GitHub's ready-file gate only succeeds after this hook returns.
+    import numpy  # noqa: F401,E402
+    import scipy  # noqa: F401,E402
+    import madmom  # noqa: F401,E402
