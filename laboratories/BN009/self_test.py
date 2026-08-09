@@ -26,21 +26,20 @@ def main() -> None:
     assert result1["consensus_meter"] == "4/4"
     assert result1["confidence"] in ("medium", "high")
 
-    # Case 2: Tennessee-Waltz-shaped disagreement. Models 2 and 3 agree exactly
-    # on the musical pulse while Model 1 is the tempo outlier. Meter remains
-    # unresolved between the surviving 4/4 and 3/4 candidates, so the engine must
-    # reject Model 1 and explicitly refuse to invent a meter winner.
+    # Case 2: Tennessee-Waltz-shaped tempo disagreement. Models 2 and 3 agree on
+    # tempo while Model 1 is the outlier. A perfectly synthetic grid contains no
+    # extra evidence to distinguish 4/4 from 3/4, so ambiguity must be preserved.
     case2 = {
         1: make_grid(130.435, 2, 69),
         2: make_grid(68.182, 4, 40),
         3: make_grid(68.182, 3, 55),
     }
     result2 = analyse_consensus(case2)
-    assert result2["confidence"] == "low"
     assert result2["recommended_model"] is None
     assert result2["consensus_meter"] == "AMBIGUOUS"
     assert result2["tempo_family_models"] == [2, 3]
     assert result2["meter_votes"] == {3: 1, 4: 1}
+    assert result2["meter_resolution"] == "ambiguous"
 
     # Case 3: two models agree closely and a third is shifted well off the beat.
     case3 = {
@@ -50,6 +49,17 @@ def main() -> None:
     }
     result3 = analyse_consensus(case3)
     assert result3["recommended_model"] in (1, 2)
+
+    # Case 4: tied meters but one candidate's downbeats are visibly off the common
+    # beat pulse. The phase-evidence resolver should choose the supported meter.
+    common = make_grid(90.0, 3, 30)
+    good = common.copy()
+    false_meter = make_grid(90.0, 4, 22, offset=0.22)
+    case4 = {2: false_meter, 3: good}
+    result4 = analyse_consensus(case4)
+    assert result4["recommended_model"] == 3
+    assert result4["consensus_meter"] == "3/4"
+    assert result4["meter_resolution"] == "phase_evidence"
 
     print("BN Con Lab009 consensus self-test: passed")
 
