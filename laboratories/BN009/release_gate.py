@@ -25,15 +25,15 @@ assert "BN009_RECOMMENDED_CLICKED" in main
 assert "NONE - AMBIGUOUS" in main
 assert "tempo_family_models" in main
 
-# Consensus v2 must first identify a supported BPM family, exclude tempo outliers,
-# and refuse to manufacture a recommendation when the surviving models disagree on meter.
 for token in [
     "_tempo_support",
     "tempo_family",
     "candidate_models",
+    "_phase_support",
+    "meter_evidence",
+    'meter_resolution = "phase_evidence"',
     '"meter_ambiguous"',
     'recommended_model = None',
-    '"consensus_meter": f"{consensus_meter_value}/4" if consensus_meter_value else "AMBIGUOUS"',
 ]:
     assert token in consensus, token
 
@@ -41,13 +41,17 @@ for token in [
 for forbidden in ["Hotel California", "Tennessee Waltz", "Folsom", "AC/DC", "Dylan"]:
     assert forbidden not in consensus, forbidden
 
-# Synthetic Tennessee-Waltz-shaped pattern must reject the tempo outlier and expose meter ambiguity.
+# Tests must preserve ambiguity without evidence and resolve it only when cross-model
+# beat-phase evidence materially supports one candidate.
 for token in [
     "130.435",
     "68.182",
     'result2["recommended_model"] is None',
     'result2["consensus_meter"] == "AMBIGUOUS"',
     'result2["tempo_family_models"] == [2, 3]',
+    'result4["recommended_model"] == 3',
+    'result4["consensus_meter"] == "3/4"',
+    'result4["meter_resolution"] == "phase_evidence"',
 ]:
     assert token in self_test, token
 
@@ -59,7 +63,6 @@ assert "include-hidden-files: true" in wf
 assert "Full clean rebuild preparation" in wf
 assert "Audit uploaded package inputs" in wf
 
-# Runtime hook must only establish DLL paths; no early scientific-package imports.
 for token in ["numpy.libs", "scipy.libs", "os.add_dll_directory"]:
     assert token in hook, token
 for forbidden in ["import numpy", "import scipy", "import madmom", "import torch", "from BeatNet"]:
