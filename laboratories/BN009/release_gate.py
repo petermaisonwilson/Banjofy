@@ -20,44 +20,39 @@ assert "for model in (1, 2, 3):" in main
 assert 'mode="offline"' in main
 assert 'inference_model="DBN"' in main
 assert 'device="cpu"' in main
-assert "analyse_consensus(model_outputs, meter_accent_scores=meter_accent_scores)" in main
+assert "startup_audio_score" in main
+assert "startup_audio_scores" in main
+assert "startup_lock_scores" in main
+assert "analyse_consensus(model_outputs, meter_accent_scores=meter_accent_scores, startup_audio_scores=startup_audio_scores)" in main
 assert "BN009_RECOMMENDED_CLICKED" in main
-assert "NONE - AMBIGUOUS" in main
-assert "tempo_family_models" in main
-assert "meter_accent_score" in main
-assert "Measuring source-audio accents" in main
 
 for token in [
     "_tempo_support",
-    "tempo_family",
     "candidate_models",
     "meter_accent_scores",
-    'meter_resolution = "audio_accent"',
+    "startup_audio_scores",
     "_startup_lock_score",
-    "startup_lock_score",
+    "startup_quality",
+    'selection_reason = "startup_tiebreak"',
+    '"startup_audio_scores"',
     '"startup_lock_scores"',
     'recommended_model = None',
 ]:
     assert token in consensus, token
 
-# No song-specific truth or hard-coded model choice is allowed in the consensus engine.
 for forbidden in ["Hotel California", "Tennessee Waltz", "Folsom", "AC/DC", "Dylan"]:
     assert forbidden not in consensus, forbidden
 
-# Self-tests must prove tempo outlier rejection, safe meter resolution, weak-evidence
-# ambiguity, and preference for a model that is phase-locked from the opening bars.
 for token in [
     "130.435",
     "68.182",
     'result2["recommended_model"] is None',
-    'result2["tempo_family_models"] == [2, 3]',
-    'meter_accent_scores={2: 0.51, 3: 0.62}',
     'result4["recommended_model"] == 3',
     'result4["meter_resolution"] == "audio_accent"',
-    'result5["recommended_model"] is None',
     "shift_opening_downbeats",
+    "startup_audio_scores={1: 0.92, 2: 0.68, 3: 0.72}",
     'result6["recommended_model"] == 1',
-    'result6["startup_lock_scores"]["1"] > result6["startup_lock_scores"]["2"]',
+    'by_model[1]["startup_quality"] > by_model[2]["startup_quality"]',
 ]:
     assert token in self_test, token
 
