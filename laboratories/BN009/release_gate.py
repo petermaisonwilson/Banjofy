@@ -20,20 +20,21 @@ assert "for model in (1, 2, 3):" in main
 assert 'mode="offline"' in main
 assert 'inference_model="DBN"' in main
 assert 'device="cpu"' in main
-assert "analyse_consensus(model_outputs)" in main
+assert "analyse_consensus(model_outputs, meter_accent_scores=meter_accent_scores)" in main
 assert "BN009_RECOMMENDED_CLICKED" in main
 assert "NONE - AMBIGUOUS" in main
 assert "tempo_family_models" in main
+assert "meter_accent_score" in main
+assert "Measuring source-audio accents" in main
 
 for token in [
     "_tempo_support",
     "tempo_family",
     "candidate_models",
-    "_phase_support",
-    "meter_evidence",
-    'meter_resolution = "phase_evidence"',
-    '"meter_ambiguous"',
+    "meter_accent_scores",
+    'meter_resolution = "audio_accent"',
     'recommended_model = None',
+    '"meter_accent_scores"',
 ]:
     assert token in consensus, token
 
@@ -41,17 +42,19 @@ for token in [
 for forbidden in ["Hotel California", "Tennessee Waltz", "Folsom", "AC/DC", "Dylan"]:
     assert forbidden not in consensus, forbidden
 
-# Tests must preserve ambiguity without evidence and resolve it only when cross-model
-# beat-phase evidence materially supports one candidate.
+# Self-tests must prove: tempo outlier rejection, preserved ambiguity without audio
+# evidence, resolution only with strong accent evidence, and refusal on weak evidence.
 for token in [
     "130.435",
     "68.182",
     'result2["recommended_model"] is None',
-    'result2["consensus_meter"] == "AMBIGUOUS"',
     'result2["tempo_family_models"] == [2, 3]',
+    'meter_accent_scores={2: 0.51, 3: 0.62}',
     'result4["recommended_model"] == 3',
     'result4["consensus_meter"] == "3/4"',
-    'result4["meter_resolution"] == "phase_evidence"',
+    'result4["meter_resolution"] == "audio_accent"',
+    'meter_accent_scores={2: 0.54, 3: 0.56}',
+    'result5["recommended_model"] is None',
 ]:
     assert token in self_test, token
 
