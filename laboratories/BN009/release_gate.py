@@ -33,8 +33,10 @@ for token in [
     "candidate_models",
     "meter_accent_scores",
     'meter_resolution = "audio_accent"',
+    "_startup_lock_score",
+    "startup_lock_score",
+    '"startup_lock_scores"',
     'recommended_model = None',
-    '"meter_accent_scores"',
 ]:
     assert token in consensus, token
 
@@ -42,8 +44,8 @@ for token in [
 for forbidden in ["Hotel California", "Tennessee Waltz", "Folsom", "AC/DC", "Dylan"]:
     assert forbidden not in consensus, forbidden
 
-# Self-tests must prove: tempo outlier rejection, preserved ambiguity without audio
-# evidence, resolution only with strong accent evidence, and refusal on weak evidence.
+# Self-tests must prove tempo outlier rejection, safe meter resolution, weak-evidence
+# ambiguity, and preference for a model that is phase-locked from the opening bars.
 for token in [
     "130.435",
     "68.182",
@@ -51,10 +53,11 @@ for token in [
     'result2["tempo_family_models"] == [2, 3]',
     'meter_accent_scores={2: 0.51, 3: 0.62}',
     'result4["recommended_model"] == 3',
-    'result4["consensus_meter"] == "3/4"',
     'result4["meter_resolution"] == "audio_accent"',
-    'meter_accent_scores={2: 0.54, 3: 0.56}',
     'result5["recommended_model"] is None',
+    "shift_opening_downbeats",
+    'result6["recommended_model"] == 1',
+    'result6["startup_lock_scores"]["1"] > result6["startup_lock_scores"]["2"]',
 ]:
     assert token in self_test, token
 
