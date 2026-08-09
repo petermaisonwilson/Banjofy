@@ -122,6 +122,63 @@ def wav_duration(path: Path) -> float:
         return handle.getnframes() / float(handle.getframerate())
 
 
+def meter_accent_score(data: np.ndarray, song_wav: Path) -> float:
+    """Estimate whether proposed Beat-1 positions are more accented than other beats.
+
+    The input WAV is the same mono 22.05 kHz PCM file already prepared for BeatNet.
+    This does not change BeatNet output; it supplies independent audio evidence only
+    when the candidate models agree on tempo but disagree on meter.
+    """
+    with wave.open(str(song_wav), "rb") as handle:
+        rate = handle.getframerate()
+        channels = handle.getnchannels()
+        width = handle.getsampwidth()
+        frames = handle.readframes(handle.getnframes())
+    if channels != 1 or width != 2 or not frames:
+        return 0.5
+
+    samples = np.frombuffer(frames, dtype="<i2").astype(np.float32) / 32768.0
+    if len(samples) < rate:
+        return 0.5
+    transient = np.abs(np.diff(samples, prepend=samples[0]))
+    duration = len(samples) / float(rate)
+    start_limit = max(5.0, duration * 0.05)
+    end_limit = duration * 0.95
+    pre = int(0.035 * rate)
+    post = int(0.105 * rate)
+
+    downbeat_strengths = []
+    other_strengths = []
+    for timestamp, beat_value in data:
+        timestamp = float(timestamp)
+        if timestamp < start_limit or timestamp > end_limit:
+            continue
+        centre = int(timestamp * rate)
+        left = max(0, centre - pre)
+        right = min(len(transient), centre + post)
+        if right <= left:
+            continue
+        window = transient[left:right]
+        if not len(window):
+            continue
+        # Median of the loudest quarter emphasises attacks while resisting isolated noise.
+        cut = max(1, len(window) // 4)
+        strength = float(np.mean(np.partition(window, -cut)[-cut:]))
+        if int(round(float(beat_value))) == 1:
+            downbeat_strengths.append(strength)
+        else:
+            other_strengths.append(strength)
+
+    if len(downbeat_strengths) < 4 or len(other_strengths) < 8:
+        return 0.5
+    down = float(np.median(downbeat_strengths))
+    other = float(np.median(other_strengths))
+    total = down + other
+    if total <= 1e-9:
+        return 0.5
+    return float(np.clip(down / total, 0.0, 1.0))
+
+
 def mix_clicked_song(song_wav: Path, clicks_wav: Path, destination: Path) -> None:
     cmd = [
         ffmpeg_executable(), "-y", "-hide_banner", "-loglevel", "error",
@@ -200,14 +257,16 @@ def write_consensus_outputs(output_dir: Path, source: Path, consensus: dict, mod
         f"Consensus meter: {consensus['consensus_meter']}",
         f"Tempo family models: {consensus['tempo_family_models']}",
         f"Meter votes: {consensus['meter_votes']}",
+        f"Meter resolution: {consensus['meter_resolution']}",
+        f"Meter accent scores: {consensus['meter_accent_scores']}",
         "",
         "MODEL SCORES",
     ]
     for item in consensus["models"]:
         lines.append(
             f"Model {item['model']}: score={item['score']:.4f}, bpm={item['bpm']}, meter={item['meter']}/4, "
-            f"tempo support={item['tempo_support']}, beat agreement={item['beat_agreement']:.4f}, "
-            f"downbeat agreement={item['downbeat_agreement']:.4f}"
+            f"tempo support={item['tempo_support']}, accent={item['meter_accent_score']:.4f}, "
+            f"beat agreement={item['beat_agreement']:.4f}, downbeat agreement={item['downbeat_agreement']:.4f}"
         )
     lines.append("")
     if recommended_path is not None:
@@ -260,8 +319,13 @@ def run_bn009(source: Path, output_dir: Path, progress) -> dict:
             progress(f"Model {model}: {summary['bpm']} BPM, {summary['meter']}, {summary['downbeat_count']} downbeats.")
             model_results.append(write_model_outputs(output_dir, source, model, data, summary, wav_path))
 
-    progress("Comparing Models 1, 2 and 3…")
-    consensus = analyse_consensus(model_outputs)
+        progress("Measuring source-audio accents at each model's proposed Beat 1 positions…")
+        meter_accent_scores = {model: meter_accent_score(data, wav_path) for model, data in model_outputs.items()}
+        for model in sorted(meter_accent_scores):
+            progress(f"Model {model} Beat-1 accent score: {meter_accent_scores[model]:.4f}")
+        progress("Comparing Models 1, 2 and 3…")
+        consensus = analyse_consensus(model_outputs, meter_accent_scores=meter_accent_scores)
+
     consensus_files = write_consensus_outputs(output_dir, source, consensus, model_results)
     return {"models": model_results, "consensus": consensus, "files": consensus_files}
 
@@ -398,6 +462,8 @@ class Application(tk.Tk):
                     self._append(f"CONSENSUS BPM: {consensus['consensus_bpm']}")
                     self._append(f"CONSENSUS METER: {consensus['consensus_meter']}")
                     self._append(f"TEMPO FAMILY MODELS: {consensus['tempo_family_models']}")
+                    self._append(f"METER RESOLUTION: {consensus['meter_resolution']}")
+                    self._append(f"METER ACCENT SCORES: {consensus['meter_accent_scores']}")
                     recommended_file = payload["files"]["recommended_clicked_song"]
                     if recommended_file:
                         self._append(f"Recommended clicked song: {recommended_file}")
