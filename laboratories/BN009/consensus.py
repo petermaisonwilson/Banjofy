@@ -17,6 +17,7 @@ class ModelAssessment:
     beat_agreement: float
     downbeat_agreement: float
     tempo_support: int
+    meter_evidence: float
     score: float
 
 
@@ -95,6 +96,28 @@ def _tempo_support(model: int, summaries: Dict[int, tuple[float, int, float]], t
     return support
 
 
+def _phase_support(candidate: int, candidate_models: list[int], prepared: Dict[int, np.ndarray]) -> float:
+    """Measure whether a candidate's downbeats are supported by the shared beat pulse.
+
+    This deliberately does not inspect audio or use song truth. It asks a narrower
+    question: once models agree on tempo, do the candidate Beat-1 timestamps land on
+    beat timestamps that the other tempo-family models also recognise? A false meter
+    often places some downbeats between the common pulse positions.
+    """
+    own = prepared[candidate]
+    own_numbers = np.rint(own[:, 1]).astype(int)
+    own_downbeats = own[own_numbers == 1, 0]
+    if not len(own_downbeats):
+        return 0.0
+    values = []
+    for other_model in candidate_models:
+        if other_model == candidate:
+            continue
+        other_times = prepared[other_model][:, 0]
+        values.append(_nearest_fraction(own_downbeats, other_times, 0.10))
+    return float(np.mean(values)) if values else 1.0
+
+
 def analyse_consensus(outputs: Dict[int, np.ndarray]) -> dict:
     """Compare unchanged BeatNet model outputs and recommend a timing source.
 
@@ -111,9 +134,6 @@ def analyse_consensus(outputs: Dict[int, np.ndarray]) -> dict:
     max_tempo_support = max(tempo_support.values()) if tempo_support else 0
     tempo_family = [model for model in sorted(prepared) if tempo_support[model] == max_tempo_support]
 
-    # If at least two models agree closely on BPM, treat models outside that tempo
-    # family as outliers before considering meter. This prevents a stable but wrong
-    # double/half-tempo interpretation from winning on regularity alone.
     if max_tempo_support >= 1:
         candidate_models = tempo_family
     else:
@@ -129,6 +149,23 @@ def analyse_consensus(outputs: Dict[int, np.ndarray]) -> dict:
     meter_ambiguous = len(winning_meters) != 1 or max_meter_votes < 2
     consensus_meter_value = winning_meters[0] if not meter_ambiguous else 0
 
+    meter_evidence = {model: _phase_support(model, candidate_models, prepared) for model in candidate_models}
+    meter_resolution = "vote"
+
+    # If tempo is supported but meter is tied, use only cross-model timing evidence.
+    # A winner must be materially better supported; otherwise ambiguity is preserved.
+    if meter_ambiguous and len(candidate_models) >= 2:
+        evidence_ranked = sorted(candidate_models, key=lambda m: (-meter_evidence[m], m))
+        evidence_best = evidence_ranked[0]
+        evidence_second = evidence_ranked[1]
+        evidence_margin = meter_evidence[evidence_best] - meter_evidence[evidence_second]
+        if meter_evidence[evidence_best] >= 0.85 and evidence_margin >= 0.08:
+            consensus_meter_value = summaries[evidence_best][1]
+            meter_ambiguous = False
+            meter_resolution = "phase_evidence"
+        else:
+            meter_resolution = "ambiguous"
+
     assessments = []
     for model in sorted(prepared):
         data = prepared[model]
@@ -136,6 +173,7 @@ def analyse_consensus(outputs: Dict[int, np.ndarray]) -> dict:
         beat_agreement = _agreement_for(model, prepared, downbeats=False)
         downbeat_agreement = _agreement_for(model, prepared, downbeats=True)
         support = tempo_support[model]
+        evidence = meter_evidence.get(model, 0.0)
 
         if model not in candidate_models:
             tempo_score = 0.0
@@ -151,10 +189,11 @@ def analyse_consensus(outputs: Dict[int, np.ndarray]) -> dict:
 
         stability_score = max(0.0, 1.0 - min(mad / 0.10, 1.0))
         score = (
-            0.40 * beat_agreement
-            + 0.25 * downbeat_agreement
+            0.35 * beat_agreement
+            + 0.20 * downbeat_agreement
             + 0.20 * tempo_score
             + 0.10 * meter_score
+            + 0.10 * evidence
             + 0.05 * stability_score
         )
 
@@ -170,11 +209,16 @@ def analyse_consensus(outputs: Dict[int, np.ndarray]) -> dict:
                 beat_agreement=round(float(beat_agreement), 4),
                 downbeat_agreement=round(float(downbeat_agreement), 4),
                 tempo_support=int(support),
+                meter_evidence=round(float(evidence), 4),
                 score=round(float(score), 4),
             )
         )
 
     candidate_assessments = [item for item in assessments if item.model in candidate_models]
+    if not meter_ambiguous:
+        meter_matches = [item for item in candidate_assessments if item.meter == consensus_meter_value]
+        if meter_matches:
+            candidate_assessments = meter_matches
     ranked = sorted(candidate_assessments, key=lambda item: (-item.score, item.model))
     best = ranked[0]
     runner_up = ranked[1] if len(ranked) > 1 else None
@@ -185,7 +229,9 @@ def analyse_consensus(outputs: Dict[int, np.ndarray]) -> dict:
         confidence = "low"
     else:
         recommended_model = best.model
-        if best.score >= 0.88 and margin >= 0.04:
+        if meter_resolution == "phase_evidence":
+            confidence = "medium"
+        elif best.score >= 0.88 and margin >= 0.04:
             confidence = "high"
         elif best.score >= 0.75:
             confidence = "medium"
@@ -193,7 +239,7 @@ def analyse_consensus(outputs: Dict[int, np.ndarray]) -> dict:
             confidence = "low"
 
     return {
-        "schema": "banjofy.bn_consensus.v2",
+        "schema": "banjofy.bn_consensus.v3",
         "recommended_model": recommended_model,
         "confidence": confidence,
         "consensus_bpm": round(consensus_bpm, 3),
@@ -201,6 +247,8 @@ def analyse_consensus(outputs: Dict[int, np.ndarray]) -> dict:
         "meter_votes": meter_counts,
         "tempo_family_models": candidate_models,
         "meter_ambiguous": meter_ambiguous,
+        "meter_resolution": meter_resolution,
+        "meter_evidence": {str(model): round(float(value), 4) for model, value in meter_evidence.items()},
         "score_margin": round(float(margin), 4),
         "models": [assessment.__dict__ for assessment in assessments],
     }
