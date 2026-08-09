@@ -13,6 +13,15 @@ def make_grid(bpm: float, meter: int, bars: int, offset: float = 0.0) -> np.ndar
     return np.asarray(rows, dtype=float)
 
 
+def shift_opening_downbeats(data: np.ndarray, bars: int, shift_s: float) -> np.ndarray:
+    out = data.copy()
+    numbers = np.rint(out[:, 1]).astype(int)
+    downbeat_indices = np.flatnonzero(numbers == 1)[:bars]
+    out[downbeat_indices, 0] += shift_s
+    out = out[np.argsort(out[:, 0])]
+    return out
+
+
 def main() -> None:
     # Case 1: three models agree on a stable 4/4 performance.
     base = make_grid(120.0, 4, 24)
@@ -63,6 +72,21 @@ def main() -> None:
     result5 = analyse_consensus(case2, meter_accent_scores={2: 0.54, 3: 0.56})
     assert result5["recommended_model"] is None
     assert result5["consensus_meter"] == "AMBIGUOUS"
+
+    # Case 6: all models agree on tempo/meter and become identical later, but Models
+    # 2 and 3 have phase-shifted downbeats in their first four bars. The model that is
+    # locked from the beginning must win even though whole-song agreement is similar.
+    long_base = make_grid(136.364, 4, 48)
+    case6 = {
+        1: long_base,
+        2: shift_opening_downbeats(long_base, 4, 0.42),
+        3: shift_opening_downbeats(long_base, 4, 0.36),
+    }
+    result6 = analyse_consensus(case6, meter_accent_scores={1: 0.52, 2: 0.53, 3: 0.52})
+    assert result6["recommended_model"] == 1
+    assert result6["consensus_meter"] == "4/4"
+    assert result6["startup_lock_scores"]["1"] > result6["startup_lock_scores"]["2"]
+    assert result6["startup_lock_scores"]["1"] > result6["startup_lock_scores"]["3"]
 
     print("BN Con Lab009 consensus self-test: passed")
 
