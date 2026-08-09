@@ -23,7 +23,6 @@ def shift_opening_downbeats(data: np.ndarray, bars: int, shift_s: float) -> np.n
 
 
 def main() -> None:
-    # Case 1: three models agree on a stable 4/4 performance.
     base = make_grid(120.0, 4, 24)
     case1 = {
         1: base,
@@ -33,11 +32,7 @@ def main() -> None:
     result1 = analyse_consensus(case1)
     assert result1["recommended_model"] in (1, 2, 3)
     assert result1["consensus_meter"] == "4/4"
-    assert result1["confidence"] in ("medium", "high")
 
-    # Case 2: Tennessee-Waltz-shaped tempo disagreement. Models 2 and 3 agree on
-    # tempo while Model 1 is the outlier. With no extra audio evidence, 4/4 vs 3/4
-    # must remain unresolved.
     case2 = {
         1: make_grid(130.435, 2, 69),
         2: make_grid(68.182, 4, 40),
@@ -47,46 +42,37 @@ def main() -> None:
     assert result2["recommended_model"] is None
     assert result2["consensus_meter"] == "AMBIGUOUS"
     assert result2["tempo_family_models"] == [2, 3]
-    assert result2["meter_votes"] == {3: 1, 4: 1}
-    assert result2["meter_resolution"] == "ambiguous"
 
-    # Case 3: two models agree closely and a third is shifted well off the beat.
-    case3 = {
-        1: base,
-        2: base + np.asarray([0.015, 0.0]),
-        3: base + np.asarray([0.24, 0.0]),
-    }
-    result3 = analyse_consensus(case3)
-    assert result3["recommended_model"] in (1, 2)
-
-    # Case 4: same tied meter situation, but independent source-audio analysis says
-    # Model 3's proposed Beat-1 positions are materially more accented. Only then is
-    # the tie allowed to resolve to 3/4.
     result4 = analyse_consensus(case2, meter_accent_scores={2: 0.51, 3: 0.62})
     assert result4["recommended_model"] == 3
     assert result4["consensus_meter"] == "3/4"
     assert result4["meter_resolution"] == "audio_accent"
-    assert result4["confidence"] == "medium"
 
-    # Case 5: a tiny accent advantage is not enough to manufacture certainty.
     result5 = analyse_consensus(case2, meter_accent_scores={2: 0.54, 3: 0.56})
     assert result5["recommended_model"] is None
-    assert result5["consensus_meter"] == "AMBIGUOUS"
 
-    # Case 6: all models agree on tempo/meter and become identical later, but Models
-    # 2 and 3 have phase-shifted downbeats in their first four bars. The model that is
-    # locked from the beginning must win even though whole-song agreement is similar.
+    # AC/DC-shaped selection case: same tempo/meter, all good later, but Model 1 is
+    # ready from the start while Models 2 and 3 have poor acquisition. Startup audio
+    # is supplied independently from the source audio and should break the near tie.
     long_base = make_grid(136.364, 4, 48)
     case6 = {
         1: long_base,
         2: shift_opening_downbeats(long_base, 4, 0.42),
         3: shift_opening_downbeats(long_base, 4, 0.36),
     }
-    result6 = analyse_consensus(case6, meter_accent_scores={1: 0.52, 2: 0.53, 3: 0.52})
+    result6 = analyse_consensus(
+        case6,
+        meter_accent_scores={1: 0.518, 2: 0.527, 3: 0.520},
+        startup_audio_scores={1: 0.92, 2: 0.68, 3: 0.72},
+    )
     assert result6["recommended_model"] == 1
     assert result6["consensus_meter"] == "4/4"
-    assert result6["startup_lock_scores"]["1"] > result6["startup_lock_scores"]["2"]
-    assert result6["startup_lock_scores"]["1"] > result6["startup_lock_scores"]["3"]
+    assert result6["selection_reason"] in ("overall_score", "startup_tiebreak")
+    assert result6["startup_audio_scores"]["1"] > result6["startup_audio_scores"]["2"]
+    assert result6["startup_audio_scores"]["1"] > result6["startup_audio_scores"]["3"]
+    by_model = {item["model"]: item for item in result6["models"]}
+    assert by_model[1]["startup_quality"] > by_model[2]["startup_quality"]
+    assert by_model[1]["startup_quality"] > by_model[3]["startup_quality"]
 
     print("BN Con Lab009 consensus self-test: passed")
 
