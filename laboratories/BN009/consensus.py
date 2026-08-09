@@ -18,6 +18,7 @@ class ModelAssessment:
     downbeat_agreement: float
     tempo_support: int
     meter_accent_score: float
+    startup_lock_score: float
     score: float
 
 
@@ -96,18 +97,57 @@ def _tempo_support(model: int, summaries: Dict[int, tuple[float, int, float]], t
     return support
 
 
-def analyse_consensus(outputs: Dict[int, np.ndarray], meter_accent_scores: Optional[Dict[int, float]] = None) -> dict:
-    """Compare unchanged BeatNet outputs and recommend one timing source.
+def _startup_lock_score(data: np.ndarray) -> float:
+    """Score how consistently the opening downbeats fit the later stable bar phase.
 
-    BeatNet itself is never altered here. Optional meter_accent_scores are measured
-    independently from the source audio at each model's proposed Beat-1 positions.
+    This uses BeatNet's own output only. It does not assume rigid tempo: the later
+    downbeat intervals establish a robust reference bar length, then the first few
+    downbeats are checked for abrupt phase disagreement. Gradual human tempo motion
+    therefore costs much less than an intro that is on the wrong bar phase and then
+    suddenly snaps into lock.
     """
+    numbers = np.rint(data[:, 1]).astype(int)
+    downbeats = np.asarray(data[numbers == 1, 0], dtype=float)
+    if len(downbeats) < 10:
+        return 0.5
+
+    # Use bars after the opening acquisition period to estimate stable bar spacing.
+    later = downbeats[min(6, len(downbeats) // 3):]
+    later_diffs = np.diff(later)
+    later_diffs = later_diffs[(later_diffs > 0.35) & (later_diffs < 12.0)]
+    if len(later_diffs) < 4:
+        return 0.5
+    bar_interval = float(np.median(later_diffs))
+    if bar_interval <= 0:
+        return 0.5
+
+    anchor_index = min(6, len(downbeats) - 1)
+    anchor = float(downbeats[anchor_index])
+    early = downbeats[:anchor_index]
+    if len(early) < 3:
+        return 0.5
+
+    residuals = []
+    for value in early:
+        steps = round((anchor - float(value)) / bar_interval)
+        projected = anchor - steps * bar_interval
+        residuals.append(abs(float(value) - projected))
+
+    median_residual = float(np.median(residuals))
+    # 0 ms phase error -> 1.0. Half a bar or worse -> 0.0.
+    scale = max(0.08, bar_interval * 0.5)
+    return float(np.clip(1.0 - median_residual / scale, 0.0, 1.0))
+
+
+def analyse_consensus(outputs: Dict[int, np.ndarray], meter_accent_scores: Optional[Dict[int, float]] = None) -> dict:
+    """Compare unchanged BeatNet outputs and recommend one timing source."""
     if not outputs:
         raise ValueError("No BeatNet outputs supplied")
 
     prepared = {int(model): _normalise(data) for model, data in outputs.items()}
     summaries = {model: _summary(data) for model, data in prepared.items()}
     accent_scores = {int(k): float(v) for k, v in (meter_accent_scores or {}).items()}
+    startup_scores = {model: _startup_lock_score(data) for model, data in prepared.items()}
 
     tempo_support = {model: _tempo_support(model, summaries) for model in prepared}
     max_tempo_support = max(tempo_support.values()) if tempo_support else 0
@@ -125,9 +165,6 @@ def analyse_consensus(outputs: Dict[int, np.ndarray], meter_accent_scores: Optio
     consensus_meter_value = winning_meters[0] if not meter_ambiguous else 0
     meter_resolution = "vote" if not meter_ambiguous else "ambiguous"
 
-    # Resolve a tied meter only when the source audio itself supports one model's
-    # Beat-1 positions materially more strongly than the others. Scores are
-    # normalised so 0.5 means Beat 1 is no more accented than the other beats.
     if meter_ambiguous and len(candidate_models) >= 2 and all(m in accent_scores for m in candidate_models):
         ranked_accent = sorted(candidate_models, key=lambda m: (-accent_scores[m], m))
         best_accent_model = ranked_accent[0]
@@ -146,6 +183,7 @@ def analyse_consensus(outputs: Dict[int, np.ndarray], meter_accent_scores: Optio
         downbeat_agreement = _agreement_for(model, prepared, downbeats=True)
         support = tempo_support[model]
         accent = accent_scores.get(model, 0.5)
+        startup = startup_scores[model]
 
         if model not in candidate_models:
             tempo_score = 0.0
@@ -161,11 +199,12 @@ def analyse_consensus(outputs: Dict[int, np.ndarray], meter_accent_scores: Optio
 
         stability_score = max(0.0, 1.0 - min(mad / 0.10, 1.0))
         score = (
-            0.35 * beat_agreement
-            + 0.20 * downbeat_agreement
+            0.30 * beat_agreement
+            + 0.18 * downbeat_agreement
             + 0.20 * tempo_score
             + 0.10 * meter_score
-            + 0.10 * accent
+            + 0.07 * accent
+            + 0.10 * startup
             + 0.05 * stability_score
         )
 
@@ -181,6 +220,7 @@ def analyse_consensus(outputs: Dict[int, np.ndarray], meter_accent_scores: Optio
             downbeat_agreement=round(float(downbeat_agreement), 4),
             tempo_support=int(support),
             meter_accent_score=round(float(accent), 4),
+            startup_lock_score=round(float(startup), 4),
             score=round(float(score), 4),
         ))
 
@@ -189,7 +229,7 @@ def analyse_consensus(outputs: Dict[int, np.ndarray], meter_accent_scores: Optio
         matches = [item for item in candidate_assessments if item.meter == consensus_meter_value]
         if matches:
             candidate_assessments = matches
-    ranked = sorted(candidate_assessments, key=lambda item: (-item.score, item.model))
+    ranked = sorted(candidate_assessments, key=lambda item: (-item.score, -item.startup_lock_score, item.model))
     best = ranked[0]
     runner_up = ranked[1] if len(ranked) > 1 else None
     margin = best.score - runner_up.score if runner_up else best.score
@@ -203,13 +243,13 @@ def analyse_consensus(outputs: Dict[int, np.ndarray], meter_accent_scores: Optio
             confidence = "medium"
         elif best.score >= 0.88 and margin >= 0.04:
             confidence = "high"
-        elif best.score >= 0.75:
+        elif best.score >= 0.72:
             confidence = "medium"
         else:
             confidence = "low"
 
     return {
-        "schema": "banjofy.bn_consensus.v4",
+        "schema": "banjofy.bn_consensus.v5",
         "recommended_model": recommended_model,
         "confidence": confidence,
         "consensus_bpm": round(consensus_bpm, 3),
@@ -219,6 +259,7 @@ def analyse_consensus(outputs: Dict[int, np.ndarray], meter_accent_scores: Optio
         "meter_ambiguous": meter_ambiguous,
         "meter_resolution": meter_resolution,
         "meter_accent_scores": {str(m): round(float(accent_scores.get(m, 0.5)), 4) for m in candidate_models},
+        "startup_lock_scores": {str(m): round(float(startup_scores[m]), 4) for m in candidate_models},
         "score_margin": round(float(margin), 4),
         "models": [assessment.__dict__ for assessment in assessments],
     }
